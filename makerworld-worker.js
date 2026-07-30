@@ -1,5 +1,6 @@
 const ALLOWED_ORIGINS = new Set([
   'https://douglasscaramelli-spec.github.io',
+  'https://executivo0709-gif.github.io',
   'http://localhost:8000',
   'http://127.0.0.1:8000'
 ]);
