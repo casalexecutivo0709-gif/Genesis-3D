@@ -4202,7 +4202,7 @@ const KEYS = {
   KITS:'genesis3d:kits'
 };
 const SCHEMA_VERSION = 22;
-const GENESIS_APP_VERSION = '2026.07.30.4';
+const GENESIS_APP_VERSION = '2026.07.30.5';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -10309,11 +10309,11 @@ const ShopeeScreenshotImporter = (()=>{
   async function prepareForAI(file){
     const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
     const img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=dataUrl});
-    const maxDim=1600,scale=Math.min(1,maxDim/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+    const maxDim=512,scale=Math.min(1,maxDim/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
     const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
     const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
     canvas.getContext('2d').drawImage(img,0,0,w,h);
-    return canvas.toDataURL('image/jpeg',.82);
+    return canvas.toDataURL('image/jpeg',.86);
   }
   function partFromAI(item,index){
     const out=emptyResult(),source=`IA · Print ${index+1}`,confidence=Math.max(0,Math.min(100,Number(item?.confidence)||75));

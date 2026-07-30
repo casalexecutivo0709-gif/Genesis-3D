@@ -48,10 +48,19 @@ const FREE_AI_MAX_IMAGES_PER_REQUEST=4;
 const FREE_AI_DAILY_DEVICE_LIMIT=24;
 
 function extractJsonObject(value){
+  if(value&&typeof value==='object'&&!Array.isArray(value))return value;
   const text=String(value||'').replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
   const start=text.indexOf('{'),end=text.lastIndexOf('}');
-  if(start<0||end<start)throw new Error('A IA gratuita não devolveu JSON válido.');
-  return JSON.parse(text.slice(start,end+1));
+  if(start<0||end<start){
+    const error=new Error('A IA gratuita não devolveu JSON válido.');
+    error.rawAnswer=text.slice(0,600);
+    throw error;
+  }
+  try{return JSON.parse(text.slice(start,end+1))}
+  catch(parseError){
+    parseError.rawAnswer=text.slice(0,600);
+    throw parseError;
+  }
 }
 function nullableNumber(value){
   if(value===null||value===undefined||value==='')return null;
@@ -122,9 +131,10 @@ Responda SOMENTE com um objeto JSON válido, sem markdown, neste formato:
 {"screenType":"","orderId":"","orderDate":"","orderTime":"","shopeeStatus":"","postingDeadline":"","buyer":"","city":"","state":"","cep":"","address":"","productValue":null,"discount":null,"freight":null,"total":null,"paidValue":null,"logistics":"","tracking":"","items":[{"productName":"","variation":"","qty":1,"unitPrice":null,"subtotal":null,"sku":"","shopeeItemId":""}],"confidence":0,"notes":[]}
 Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horários HH:MM. Preserve exatamente pedido, SKU e rastreio. Separe nome, variação, quantidade, preço unitário e subtotal. Use string vazia ou null quando ausente.`;
   const screenshots=[],warnings=[];
-  try{
-    for(let index=0;index<images.length;index++){
-      const result=await env.AI.run(FREE_AI_MODEL,{
+  for(let index=0;index<images.length;index++){
+    let result;
+    try{
+      result=await env.AI.run(FREE_AI_MODEL,{
         task:'query',
         image:images[index],
         question,
@@ -133,15 +143,25 @@ Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horár
         max_tokens:1100,
         stream:false
       });
+    }catch(error){
+      console.error('[Genesis3D Free AI runtime]',error);
+      if(isFreeAiLimitError(error)){
+        return json({ok:false,code:'free_ai_limit',error:'Limite diário da IA gratuita atingido. O OCR local continuará funcionando.'},429,origin,{'Cache-Control':'no-store'});
+      }
+      return json({ok:false,code:'free_ai_runtime_error',error:'A IA gratuita não conseguiu analisar estes prints. O OCR local continuará funcionando.'},502,origin,{'Cache-Control':'no-store'});
+    }
+    try{
       const parsed=extractJsonObject(result?.answer);
       screenshots.push(normalizedShopeeScreenshot(parsed,index));
+    }catch(error){
+      console.error('[Genesis3D Free AI output]',error);
+      return json({
+        ok:false,
+        code:'free_ai_invalid_output',
+        error:'A IA gratuita respondeu em formato inesperado. O OCR local continuará funcionando.',
+        diagnostic:cleanText(error?.rawAnswer||error?.message||'',600)
+      },502,origin,{'Cache-Control':'no-store'});
     }
-  }catch(error){
-    console.error('[Genesis3D Free AI]',error);
-    if(isFreeAiLimitError(error)){
-      return json({ok:false,code:'free_ai_limit',error:'Limite diário da IA gratuita atingido. O OCR local continuará funcionando.'},429,origin,{'Cache-Control':'no-store'});
-    }
-    return json({ok:false,code:'free_ai_error',error:'A IA gratuita não conseguiu analisar estes prints. O OCR local continuará funcionando.'},502,origin,{'Cache-Control':'no-store'});
   }
   return json({
     ok:true,
@@ -514,7 +534,7 @@ export default {
         return json({
           ok:true,
           service:'Genesis 3D Model Bridge',
-          version:6,
+          version:7,
           zeroCostMode,
           capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:freeAiReady},
           ai:freeAiReady?{provider:'cloudflare-workers-ai-free',model:FREE_AI_MODEL,dailyDeviceSafetyLimit:FREE_AI_DAILY_DEVICE_LIMIT}:null,
