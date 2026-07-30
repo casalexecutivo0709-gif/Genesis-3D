@@ -62,6 +62,38 @@ function extractJsonObject(value){
     throw parseError;
   }
 }
+function streamedAnswerText(text){
+  const raw=String(text||'').trim();
+  if(!raw)return '';
+  if(!raw.includes('\ndata:')&&!raw.startsWith('data:'))return raw;
+  const parts=[];
+  for(const line of raw.split(/\r?\n/)){
+    if(!line.startsWith('data:'))continue;
+    const data=line.slice(5).trim();
+    if(!data||data==='[DONE]')continue;
+    try{
+      const parsed=JSON.parse(data);
+      const value=parsed?.answer??parsed?.response??parsed?.text??parsed?.token;
+      if(value!==undefined&&value!==null)parts.push(String(value));
+    }catch{}
+  }
+  return parts.join('');
+}
+async function modelAnswerText(result){
+  if(typeof result==='string')return result;
+  const direct=[
+    result?.answer,result?.response,result?.output_text,result?.text,
+    result?.result?.answer,result?.result?.response,result?.result?.text
+  ].find(value=>typeof value==='string'&&value.trim());
+  if(direct)return direct;
+  if(typeof ReadableStream!=='undefined'&&result instanceof ReadableStream){
+    return streamedAnswerText(await new Response(result).text());
+  }
+  if(result?.body&&typeof ReadableStream!=='undefined'&&result.body instanceof ReadableStream){
+    return streamedAnswerText(await new Response(result.body).text());
+  }
+  return '';
+}
 function nullableNumber(value){
   if(value===null||value===undefined||value==='')return null;
   const parsed=Number(String(value).replace(/[^\d,.-]/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));
@@ -151,15 +183,18 @@ Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horár
       return json({ok:false,code:'free_ai_runtime_error',error:'A IA gratuita não conseguiu analisar estes prints. O OCR local continuará funcionando.'},502,origin,{'Cache-Control':'no-store'});
     }
     try{
-      const parsed=extractJsonObject(result?.answer);
+      const answer=await modelAnswerText(result);
+      const parsed=extractJsonObject(answer);
       screenshots.push(normalizedShopeeScreenshot(parsed,index));
     }catch(error){
       console.error('[Genesis3D Free AI output]',error);
+      const resultKeys=result&&typeof result==='object'?Object.keys(result).slice(0,20):[];
       return json({
         ok:false,
         code:'free_ai_invalid_output',
         error:'A IA gratuita respondeu em formato inesperado. O OCR local continuará funcionando.',
-        diagnostic:cleanText(error?.rawAnswer||error?.message||'',600)
+        diagnostic:cleanText(error?.rawAnswer||error?.message||'',600),
+        resultShape:{type:typeof result,keys:resultKeys}
       },502,origin,{'Cache-Control':'no-store'});
     }
   }
@@ -534,7 +569,7 @@ export default {
         return json({
           ok:true,
           service:'Genesis 3D Model Bridge',
-          version:7,
+          version:8,
           zeroCostMode,
           capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:freeAiReady},
           ai:freeAiReady?{provider:'cloudflare-workers-ai-free',model:FREE_AI_MODEL,dailyDeviceSafetyLimit:FREE_AI_DAILY_DEVICE_LIMIT}:null,
