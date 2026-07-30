@@ -43,6 +43,11 @@ O arquivo `index.html` abre automaticamente o aplicativo principal.
 
 O projeto já contém `wrangler.jsonc` apontando para o Worker `hello`, usado pelo aplicativo atual.
 
+O Worker está conectado ao repositório pelo Cloudflare Workers Builds. Cada alteração
+mesclada na branch `main` executa automaticamente `npx wrangler deploy`. A opção
+`keep_vars` preserva as variáveis configuradas no painel, mantendo credenciais fora
+do GitHub.
+
 ```powershell
 npx wrangler login
 npx wrangler secret put THINGIVERSE_ACCESS_TOKEN
