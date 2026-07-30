@@ -3,3 +3,8 @@
 .env*
 node_modules/
 
+genesis-local-server/config.json
+genesis-local-server/GenesisData/
+genesis-local-server/*.pfx
+genesis-local-server/*.p12
+genesis-local-server/*.key
