@@ -5,9 +5,12 @@
   "compatibility_date": "2026-07-29",
   "workers_dev": true,
   "keep_vars": true,
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
     "ALLOWED_ORIGINS": "https://casalexecutivo0709-gif.github.io",
-    "OPENAI_VISION_MODEL": "gpt-5.6-sol"
+    "ZERO_COST_MODE": "strict-free"
   }
 }
 

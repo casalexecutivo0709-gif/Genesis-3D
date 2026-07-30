@@ -2961,9 +2961,9 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
 
     <p class="card-label" style="margin:16px 4px 10px;">Reconhecimento inteligente Shopee</p>
     <div class="card" style="margin-bottom:14px;">
-      <p class="secondary-note" style="margin-top:0;">A leitura inteligente usa o Worker seguro. A chave da OpenAI nunca fica no celular nem no GitHub. Se o serviço estiver indisponível, o OCR local continua funcionando.</p>
-      <div class="field"><label>Código de acesso da IA</label><input id="cfgAiAccessToken" type="password" autocomplete="off" placeholder="Código configurado no Worker"></div>
-      <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:10px;"><input id="cfgAiEnabled" type="checkbox" style="width:auto;" checked> Preferir reconhecimento inteligente nos prints</label>
+      <p class="secondary-note" style="margin-top:0;">Usa somente a franquia gratuita do Cloudflare Workers AI, sem chave paga e sem cobrança automática. Ao atingir o limite, o aplicativo continua com OCR local gratuito.</p>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:10px;"><input id="cfgAiEnabled" type="checkbox" style="width:auto;" checked> Usar IA gratuita antes do OCR local</label>
+      <div class="secondary-note" id="aiFreeUsageText" style="margin-bottom:10px;">Uso gratuito de hoje: 0 de 24 prints.</div>
       <div class="btn-row" style="margin-bottom:9px;"><button class="btn btn-secondary" id="btnTestShopeeAI" type="button">Testar IA</button></div>
       <div class="integration-line"><span><span class="integration-dot" id="aiStatusDot"></span><span id="aiStatusText">Não testado</span></span></div>
     </div>
@@ -3824,9 +3824,9 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
     <div class="field" style="margin-top:10px;">
       <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:11.5px;">
         <input type="checkbox" id="shopeeUseAI" style="width:auto;" checked>
-        Usar reconhecimento inteligente (recomendado)
+        Usar IA gratuita (recomendado)
       </label>
-      <div class="secondary-note" id="shopeeAiHint">Os prints reduzidos são enviados com segurança pelo Worker para reconhecimento. Se a IA estiver indisponível, o OCR local entra automaticamente.</div>
+      <div class="secondary-note" id="shopeeAiHint">Os prints reduzidos são enviados ao Cloudflare Workers AI gratuito. O limite de segurança é 24 prints por dia neste aparelho; depois disso, o OCR local entra automaticamente.</div>
     </div>
     <div class="shopee-privacy">🔒 O Excel financeiro continua sendo processado somente neste aparelho. Nenhum pedido é salvo sem passar pela tela de revisão.</div>
     <div class="compact-row" style="margin-bottom:8px;"><div class="secondary-note" id="shopeePrintCount">Nenhuma imagem adicionada.</div><label class="btn btn-secondary btn-sm inline-action" for="shopeePrintFiles">+ Adicionar mais</label></div>
@@ -4201,13 +4201,41 @@ const KEYS = {
   SHOPEE_ALIASES:'genesis3d:shopeeAliases',
   KITS:'genesis3d:kits'
 };
-const SCHEMA_VERSION = 21;
-const GENESIS_APP_VERSION = '2026.07.30.3';
+const SCHEMA_VERSION = 22;
+const GENESIS_APP_VERSION = '2026.07.30.4';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
-const GENESIS_AI_ACCESS_KEY = 'genesis3d:aiAccess';
+const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
+const GENESIS_FREE_AI_DAILY_IMAGE_LIMIT = 24;
 const GENESIS_LOCAL_STORAGE_KEY = 'genesis3d:localComputer';
 const GENESIS_LOG_LIMIT = 250;
+
+function genesisLocalDateKey(date=new Date()){
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+function freeAiUsageToday(){
+  let saved={};
+  try{saved=JSON.parse(store.get(GENESIS_FREE_AI_USAGE_KEY)||'{}')}catch(e){}
+  const today=genesisLocalDateKey();
+  return saved?.date===today?{date:today,count:Math.max(0,Number(saved.count)||0)}:{date:today,count:0};
+}
+function updateFreeAiUsageUI(){
+  const usage=freeAiUsageToday(),remaining=Math.max(0,GENESIS_FREE_AI_DAILY_IMAGE_LIMIT-usage.count);
+  const text=document.getElementById('aiFreeUsageText');
+  if(text)text.textContent=`Uso gratuito de hoje: ${usage.count} de ${GENESIS_FREE_AI_DAILY_IMAGE_LIMIT} prints · ${remaining} restante(s).`;
+  const hint=document.getElementById('shopeeAiHint');
+  if(hint)hint.textContent=`IA gratuita: ${remaining} print(s) restante(s) hoje neste aparelho. Ao atingir o limite, o OCR local entra automaticamente.`;
+}
+function reserveFreeAiImages(count){
+  const usage=freeAiUsageToday(),requested=Math.max(0,Number(count)||0);
+  if(usage.count+requested>GENESIS_FREE_AI_DAILY_IMAGE_LIMIT){
+    throw new Error('Limite diário de segurança da IA gratuita atingido. Continuando com OCR local.');
+  }
+  usage.count+=requested;
+  store.set(GENESIS_FREE_AI_USAGE_KEY,JSON.stringify(usage));
+  updateFreeAiUsageUI();
+  return usage;
+}
 
 function genesisLog(event, details={}, level='info'){
   try{
@@ -9915,7 +9943,8 @@ function populateSettingsForm(){
   document.getElementById('cfgAdPromptTemplate').value = cfg.commercial.adPromptTemplate || DEFAULT_AD_PROMPT_TEMPLATE;
   const mw=document.getElementById('cfgMakerWorldWorker'); if(mw) mw.value=cfg.makerworld?.workerUrl||'';
   const aiEnabled=document.getElementById('cfgAiEnabled');if(aiEnabled)aiEnabled.checked=cfg.ai?.enabled!==false;
-  const aiToken=document.getElementById('cfgAiAccessToken');if(aiToken)aiToken.value=store.get(GENESIS_AI_ACCESS_KEY)||'';
+  try{localStorage.removeItem('genesis3d:aiAccess')}catch(e){}
+  updateFreeAiUsageUI();
   const local=loadLocalComputerConfig();
   const localUrl=document.getElementById('localServerUrl');if(localUrl)localUrl.value=local.serverUrl;
   const localToken=document.getElementById('localServerToken');if(localToken)localToken.value=local.token;
@@ -9981,7 +10010,6 @@ document.getElementById('btnSaveSettings').addEventListener('click', ()=>{
   cfg.makerworld.workerUrl=(document.getElementById('cfgMakerWorldWorker')?.value||'').trim().replace(/\/$/,'');
   cfg.ai=cfg.ai||{};
   cfg.ai.enabled=document.getElementById('cfgAiEnabled')?.checked!==false;
-  store.set(GENESIS_AI_ACCESS_KEY,document.getElementById('cfgAiAccessToken')?.value.trim()||'');
   const defSel = document.getElementById('cfgDefaultFilament').value;
   if(defSel){
     cfg.defaultFilamentId = defSel;
@@ -10008,11 +10036,13 @@ async function testShopeeAI(){
   const dot=document.getElementById('aiStatusDot'),text=document.getElementById('aiStatusText');
   if(dot)dot.className='integration-dot';if(text)text.textContent='Testando...';
   try{
+    if(!worker)throw new Error('Configure primeiro a URL do Worker.');
     const response=await fetch(worker+'/health',{cache:'no-store'});
     const data=await response.json();
-    if(!response.ok||!data?.capabilities?.shopeeAI)throw new Error('A chave da OpenAI ainda não está configurada no Worker.');
-    if(dot)dot.className='integration-dot ok';if(text)text.textContent='IA ativa e pronta';
-    showToast('Reconhecimento inteligente ativo',true);return true;
+    if(!response.ok||!data?.zeroCostMode||!data?.capabilities?.shopeeAI)throw new Error('A IA gratuita ainda não está vinculada ao Worker.');
+    if(dot)dot.className='integration-dot ok';if(text)text.textContent='IA gratuita ativa · custo zero';
+    updateFreeAiUsageUI();
+    showToast('IA gratuita ativa, com OCR local de reserva',true);return true;
   }catch(error){
     if(dot)dot.className='integration-dot bad';if(text)text.textContent=error.message||'IA indisponível';
     showToast(error.message||'IA indisponível; o OCR local continuará funcionando.');return false;
@@ -10020,7 +10050,6 @@ async function testShopeeAI(){
 }
 document.getElementById('btnTestShopeeAI')?.addEventListener('click',()=>{
   cfg.ai=cfg.ai||{};cfg.ai.enabled=document.getElementById('cfgAiEnabled')?.checked!==false;
-  store.set(GENESIS_AI_ACCESS_KEY,document.getElementById('cfgAiAccessToken')?.value.trim()||'');
   saveConfig();testShopeeAI();
 });
 document.getElementById('btnLocalTest')?.addEventListener('click',async()=>{
@@ -10319,11 +10348,12 @@ const ShopeeScreenshotImporter = (()=>{
     const parts=[];
     for(let start=0;start<images.length;start+=4){
       const batch=images.slice(start,start+4),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);
+      reserveFreeAiImages(batch.length);
       let response;
       try{
         response=await fetch(workerUrl+'/shopee/analyze',{
           method:'POST',
-          headers:{'Content-Type':'application/json','X-Genesis-AI-Token':store.get(GENESIS_AI_ACCESS_KEY)||''},
+          headers:{'Content-Type':'application/json'},
           body:JSON.stringify({images:batch}),signal:controller.signal
         });
       }finally{clearTimeout(timer)}
@@ -10621,13 +10651,13 @@ async function processHybrid(){
       const useAI=document.getElementById('shopeeUseAI')?.checked!==false&&cfg.ai?.enabled!==false;
       if(useAI){
         try{
-          setOcrProgress(3,'Reconhecimento inteligente dos screenshots...');
+          setOcrProgress(3,'IA gratuita analisando os screenshots...');
           await ShopeeScreenshotImporter.analyzeAI(onProgress);
           genesisLog('shopee.ai.success',{prints:files.length});
         }catch(aiError){
           genesisLog('shopee.ai.fallback',{prints:files.length,error:aiError},'warn');
-          renderOcrPrintProgress(files);setOcrProgress(6,'IA indisponível. Continuando com OCR local...');
-          showToast('A IA não respondeu; usando o OCR local.');
+          renderOcrPrintProgress(files);setOcrProgress(6,'Continuando gratuitamente com OCR local...');
+          showToast(aiError?.message||'IA gratuita indisponível; usando o OCR local.');
           await ShopeeScreenshotImporter.analyze(onProgress);
         }
       }else{

@@ -27,7 +27,7 @@ function cors(origin) {
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Genesis-AI-Token',
+    'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
   };
@@ -43,93 +43,71 @@ function cleanText(v, max = 180) { return String(v ?? '').replace(/[\u0000-\u001
 function first(...vals) { return vals.find(v => v !== undefined && v !== null && v !== ''); }
 function n(v) { const x = Number(v); return Number.isFinite(x) ? x : null; }
 
-const SHOPEE_SCHEMA = {
-  type:'object',
-  additionalProperties:false,
-  required:['screenshots','warnings'],
-  properties:{
-    screenshots:{
-      type:'array',
-      items:{
-        type:'object',
-        additionalProperties:false,
-        required:['index','screenType','orderId','orderDate','orderTime','shopeeStatus','postingDeadline','buyer','city','state','cep','address','productValue','discount','freight','total','paidValue','logistics','tracking','items','confidence','notes'],
-        properties:{
-          index:{type:'integer',minimum:0},
-          screenType:{type:'string'},
-          orderId:{type:'string'},
-          orderDate:{type:'string',description:'YYYY-MM-DD ou vazio'},
-          orderTime:{type:'string',description:'HH:MM ou vazio'},
-          shopeeStatus:{type:'string'},
-          postingDeadline:{type:'string',description:'YYYY-MM-DD ou vazio'},
-          buyer:{type:'string'},
-          city:{type:'string'},
-          state:{type:'string'},
-          cep:{type:'string'},
-          address:{type:'string'},
-          productValue:{type:['number','null']},
-          discount:{type:['number','null']},
-          freight:{type:['number','null']},
-          total:{type:['number','null']},
-          paidValue:{type:['number','null']},
-          logistics:{type:'string'},
-          tracking:{type:'string'},
-          items:{
-            type:'array',
-            items:{
-              type:'object',
-              additionalProperties:false,
-              required:['productName','variation','qty','unitPrice','subtotal','sku','shopeeItemId'],
-              properties:{
-                productName:{type:'string'},
-                variation:{type:'string'},
-                qty:{type:'integer',minimum:1},
-                unitPrice:{type:['number','null']},
-                subtotal:{type:['number','null']},
-                sku:{type:'string'},
-                shopeeItemId:{type:'string'}
-              }
-            }
-          },
-          confidence:{type:'integer',minimum:0,maximum:100},
-          notes:{type:'array',items:{type:'string'}}
-        }
-      }
-    },
-    warnings:{type:'array',items:{type:'string'}}
-  }
-};
+const FREE_AI_MODEL='@cf/moondream/moondream3.1-9B-A2B';
+const FREE_AI_MAX_IMAGES_PER_REQUEST=4;
+const FREE_AI_DAILY_DEVICE_LIMIT=24;
 
-function secureEqual(a,b){
-  a=String(a||'');b=String(b||'');
-  if(a.length!==b.length)return false;
-  let diff=0;
-  for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);
-  return diff===0;
+function extractJsonObject(value){
+  const text=String(value||'').replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+  const start=text.indexOf('{'),end=text.lastIndexOf('}');
+  if(start<0||end<start)throw new Error('A IA gratuita não devolveu JSON válido.');
+  return JSON.parse(text.slice(start,end+1));
 }
-function outputText(payload){
-  if(typeof payload?.output_text==='string')return payload.output_text;
-  for(const block of payload?.output||[]){
-    for(const content of block?.content||[]){
-      if(typeof content?.text==='string')return content.text;
-    }
-  }
-  return '';
+function nullableNumber(value){
+  if(value===null||value===undefined||value==='')return null;
+  const parsed=Number(String(value).replace(/[^\d,.-]/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));
+  return Number.isFinite(parsed)?parsed:null;
+}
+function normalizedShopeeScreenshot(raw,index){
+  const text=(key,max=300)=>cleanText(raw?.[key],max);
+  const items=(Array.isArray(raw?.items)?raw.items:[]).slice(0,30).map(item=>({
+    productName:cleanText(item?.productName,500),
+    variation:cleanText(item?.variation,300),
+    qty:clamp(parseInt(item?.qty,10)||1,1,9999),
+    unitPrice:nullableNumber(item?.unitPrice),
+    subtotal:nullableNumber(item?.subtotal),
+    sku:cleanText(item?.sku,180),
+    shopeeItemId:cleanText(item?.shopeeItemId,180)
+  }));
+  return {
+    index,
+    screenType:text('screenType',80),
+    orderId:text('orderId',120),
+    orderDate:text('orderDate',20),
+    orderTime:text('orderTime',10),
+    shopeeStatus:text('shopeeStatus',120),
+    postingDeadline:text('postingDeadline',20),
+    buyer:text('buyer',180),
+    city:text('city',120),
+    state:text('state',40),
+    cep:text('cep',20),
+    address:text('address',500),
+    productValue:nullableNumber(raw?.productValue),
+    discount:nullableNumber(raw?.discount),
+    freight:nullableNumber(raw?.freight),
+    total:nullableNumber(raw?.total),
+    paidValue:nullableNumber(raw?.paidValue),
+    logistics:text('logistics',180),
+    tracking:text('tracking',180),
+    items,
+    confidence:clamp(Math.round(Number(raw?.confidence)||65),0,100),
+    notes:(Array.isArray(raw?.notes)?raw.notes:[]).slice(0,20).map(v=>cleanText(v,300)).filter(Boolean)
+  };
+}
+function isFreeAiLimitError(error){
+  return /quota|rate.?limit|daily.?limit|neurons?|exceeded|429|3036/i.test(String(error?.message||error||''));
 }
 async function analyzeShopee(request,env,origin){
-  const apiKey=String(env.OPENAI_API_KEY||'').trim();
-  if(!apiKey)return json({ok:false,code:'ai_not_configured',error:'Reconhecimento inteligente ainda não foi ativado no Worker.'},503,origin);
-  const expectedToken=String(env.GENESIS_AI_ACCESS_TOKEN||'').trim();
-  if(!expectedToken)return json({ok:false,code:'ai_access_not_configured',error:'O código de acesso da IA ainda não foi configurado no Worker.'},503,origin);
-  if(!secureEqual(request.headers.get('X-Genesis-AI-Token'),expectedToken)){
-    return json({ok:false,code:'ai_access_denied',error:'Código de acesso da IA inválido.'},401,origin);
+  if(String(env.ZERO_COST_MODE||'')!=='strict-free'){
+    return json({ok:false,code:'zero_cost_guard',error:'A IA foi bloqueada porque o modo gratuito rígido não está ativo.'},503,origin);
   }
+  if(!env.AI?.run)return json({ok:false,code:'free_ai_not_configured',error:'A IA gratuita ainda não está vinculada ao Worker.'},503,origin);
   const contentLength=Number(request.headers.get('content-length')||0);
   if(contentLength>18*1024*1024)return json({ok:false,error:'Envio maior que 18 MB.'},413,origin);
   let body;
   try{body=await request.json()}catch{return json({ok:false,error:'JSON inválido.'},400,origin)}
   const images=Array.isArray(body?.images)?body.images:[];
-  if(!images.length||images.length>4)return json({ok:false,error:'Envie de 1 a 4 screenshots.'},400,origin);
+  if(!images.length||images.length>FREE_AI_MAX_IMAGES_PER_REQUEST)return json({ok:false,error:`Envie de 1 a ${FREE_AI_MAX_IMAGES_PER_REQUEST} screenshots.`},400,origin);
   let totalChars=0;
   for(const image of images){
     const value=String(image||'');
@@ -139,41 +117,39 @@ async function analyzeShopee(request,env,origin){
     }
   }
   if(totalChars>16*1024*1024)return json({ok:false,error:'Imagens maiores que o limite permitido.'},413,origin);
-  const prompt=`Analise screenshots do aplicativo Shopee Brasil e extraia somente informações visíveis.
-Cada imagem foi enviada na ordem do array; devolva um objeto por imagem com o mesmo índice, mesmo quando duas imagens forem do mesmo pedido.
-Não invente dados. Use string vazia ou null quando não houver evidência. Valores monetários devem ser números em reais, sem R$.
-Datas devem ser YYYY-MM-DD e horários HH:MM. Preserve exatamente o ID do pedido, SKU e rastreamento.
-Separe corretamente nome do produto, variação, quantidade, preço unitário e subtotal.
-O usuário revisará tudo antes de salvar.`;
-  const content=[{type:'input_text',text:prompt},...images.map((image_url,index)=>[
-    {type:'input_text',text:`SCREENSHOT ${index} (índice ${index}):`},
-    {type:'input_image',image_url,detail:'high'}
-  ]).flat()];
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),55000);
-  let response;
+  const question=`Leia este screenshot da Shopee Brasil. Extraia somente o que estiver visível; nunca invente.
+Responda SOMENTE com um objeto JSON válido, sem markdown, neste formato:
+{"screenType":"","orderId":"","orderDate":"","orderTime":"","shopeeStatus":"","postingDeadline":"","buyer":"","city":"","state":"","cep":"","address":"","productValue":null,"discount":null,"freight":null,"total":null,"paidValue":null,"logistics":"","tracking":"","items":[{"productName":"","variation":"","qty":1,"unitPrice":null,"subtotal":null,"sku":"","shopeeItemId":""}],"confidence":0,"notes":[]}
+Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horários HH:MM. Preserve exatamente pedido, SKU e rastreio. Separe nome, variação, quantidade, preço unitário e subtotal. Use string vazia ou null quando ausente.`;
+  const screenshots=[],warnings=[];
   try{
-    response=await fetch('https://api.openai.com/v1/responses',{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:String(env.OPENAI_VISION_MODEL||'gpt-5.6-sol'),
-        store:false,
-        reasoning:{effort:'low'},
-        input:[{role:'user',content}],
-        text:{format:{type:'json_schema',name:'shopee_order_extraction',strict:true,schema:SHOPEE_SCHEMA}}
-      }),
-      signal:controller.signal
-    });
-  }finally{clearTimeout(timer)}
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok){
-    console.error('[Genesis3D AI]',response.status,payload?.error?.type||'unknown');
-    return json({ok:false,code:'ai_upstream_error',error:'A OpenAI não conseguiu analisar estes prints agora.'},502,origin);
+    for(let index=0;index<images.length;index++){
+      const result=await env.AI.run(FREE_AI_MODEL,{
+        task:'query',
+        image:images[index],
+        question,
+        reasoning:false,
+        temperature:0,
+        max_tokens:1100,
+        stream:false
+      });
+      const parsed=extractJsonObject(result?.answer);
+      screenshots.push(normalizedShopeeScreenshot(parsed,index));
+    }
+  }catch(error){
+    console.error('[Genesis3D Free AI]',error);
+    if(isFreeAiLimitError(error)){
+      return json({ok:false,code:'free_ai_limit',error:'Limite diário da IA gratuita atingido. O OCR local continuará funcionando.'},429,origin,{'Cache-Control':'no-store'});
+    }
+    return json({ok:false,code:'free_ai_error',error:'A IA gratuita não conseguiu analisar estes prints. O OCR local continuará funcionando.'},502,origin,{'Cache-Control':'no-store'});
   }
-  let analysis;
-  try{analysis=JSON.parse(outputText(payload))}catch{return json({ok:false,code:'ai_invalid_output',error:'A resposta inteligente veio em formato inválido.'},502,origin)}
-  return json({ok:true,analysis,model:String(env.OPENAI_VISION_MODEL||'gpt-5.6-sol')},200,origin,{'Cache-Control':'no-store'});
+  return json({
+    ok:true,
+    analysis:{screenshots,warnings},
+    provider:'cloudflare-workers-ai-free',
+    model:FREE_AI_MODEL,
+    zeroCost:true
+  },200,origin,{'Cache-Control':'no-store'});
 }
 function parseMakerWorldId(v) {
   const s = String(v || '');
@@ -533,7 +509,17 @@ export default {
       }
       if (request.method !== 'GET') return json({ok:false,error:'Método não permitido'},405,origin);
       if (url.pathname === '/' || url.pathname === '/health') {
-        return json({ok:true,service:'Genesis 3D Model Bridge',version:5,capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:!!String(env.OPENAI_API_KEY||'').trim()&&!!String(env.GENESIS_AI_ACCESS_TOKEN||'').trim()},time:new Date().toISOString()},200,origin);
+        const zeroCostMode=String(env.ZERO_COST_MODE||'')==='strict-free';
+        const freeAiReady=zeroCostMode&&!!env.AI?.run;
+        return json({
+          ok:true,
+          service:'Genesis 3D Model Bridge',
+          version:6,
+          zeroCostMode,
+          capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:freeAiReady},
+          ai:freeAiReady?{provider:'cloudflare-workers-ai-free',model:FREE_AI_MODEL,dailyDeviceSafetyLimit:FREE_AI_DAILY_DEVICE_LIMIT}:null,
+          time:new Date().toISOString()
+        },200,origin);
       }
       if (url.pathname === '/search') {
         const q = cleanText(url.searchParams.get('q'),80);

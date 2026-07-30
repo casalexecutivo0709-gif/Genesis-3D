@@ -11,7 +11,7 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Mensagem automática e arte pronta para compartilhar com o cliente.
 - Kits com várias peças, quantidades, desconto, prazo, frete, layout visual e conversão em pedido.
 - Uso no celular como PWA e funcionamento offline do conteúdo já salvo.
-- Leitura de prints da Shopee com IA segura e OCR local de reserva, sempre com revisão antes de importar.
+- Leitura de prints da Shopee com a franquia gratuita do Cloudflare Workers AI e OCR local de reserva, sempre com revisão antes de importar.
 - Cópia automática de segurança no IndexedDB para preservar o histórico entre atualizações.
 - Espelhamento opcional dos dados e imagens no próprio computador.
 - Sincronização opcional entre aparelhos usando Supabase.
@@ -28,9 +28,13 @@ O download do arquivo 3D é aberto na página oficial do MakerWorld ou Thingiver
 
 É necessário para a pesquisa integrada e para carregar imagens externas de forma confiável no orçamento. Navegadores bloqueiam parte desses acessos diretos por CORS; o Worker faz a ponte segura.
 
+O reconhecimento visual usa o binding `AI` do Cloudflare Workers AI em **modo gratuito rígido**. O aplicativo limita o uso a 24 prints por dia em cada aparelho e troca automaticamente para o OCR local quando a IA gratuita não estiver disponível. Mantenha a conta no plano Workers Free, sem cadastrar forma de pagamento nem aceitar upgrade.
+
 ### Supabase
 
 É opcional para uso em apenas um aparelho. É recomendado para login, backup e restauração dos mesmos dados em mais de um celular ou computador.
+
+Se for usado, mantenha o projeto exclusivamente no plano gratuito e sem cobrança automática. O caminho principal sem nuvem continua sendo IndexedDB no celular e a cópia opcional no próprio computador.
 
 ## Publicar o aplicativo no GitHub Pages
 
@@ -54,18 +58,11 @@ do GitHub.
 ```powershell
 npx wrangler login
 npx wrangler secret put THINGIVERSE_ACCESS_TOKEN
-npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put GENESIS_AI_ACCESS_TOKEN
 npx wrangler deploy
 ```
 
 O token do Thingiverse é opcional, mas necessário para habilitar a busca nessa fonte.
-Para habilitar a leitura inteligente da Shopee, configure os dois segredos da OpenAI:
-
-- `OPENAI_API_KEY`: chave da API da OpenAI;
-- `GENESIS_AI_ACCESS_TOKEN`: código privado criado por você para proteger o endpoint. Digite o mesmo código em **Mais → Configurações → Reconhecimento inteligente Shopee**.
-
-Nunca coloque nenhum desses segredos diretamente no GitHub ou no HTML.
+O Workers AI não precisa de chave no celular ou no GitHub: o binding `AI` já está declarado no `wrangler.jsonc`. A variável `ZERO_COST_MODE=strict-free` impede que o endpoint de IA funcione fora da arquitetura aprovada de custo zero.
 
 Se o aplicativo for publicado em outro domínio, acrescente somente a origem HTTPS, sem caminho, à variável `ALLOWED_ORIGINS` no `wrangler.jsonc`, separando múltiplas origens por vírgula. Depois execute `npx wrangler deploy` novamente.
 
@@ -75,7 +72,7 @@ Após publicar, teste:
 https://SEU-WORKER.workers.dev/health
 ```
 
-A resposta deve informar `version: 5`, `makerworld: true` e os estados do Thingiverse e da IA Shopee.
+A resposta deve informar `version: 6`, `zeroCostMode: true`, `makerworld: true` e os estados do Thingiverse e da IA Shopee.
 
 ## Guardar cópia no próprio computador
 
