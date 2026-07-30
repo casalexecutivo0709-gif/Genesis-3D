@@ -1,6 +1,7 @@
 const ALLOWED_ORIGINS = new Set([
   'https://douglasscaramelli-spec.github.io',
   'https://executivo0709-gif.github.io',
+  'https://casalexecutivo0709-gif.github.io',
   'http://localhost:8000',
   'http://127.0.0.1:8000'
 ]);
@@ -9,7 +10,7 @@ const MAKERWORLD_BASE = 'https://makerworld.com';
 const BAMBU_API = 'https://api.bambulab.com/v1';
 const COMMUNITY_INDEX = 'https://api.tryar.in';
 const THINGIVERSE_API = 'https://api.thingiverse.com';
-const UA = 'Genesis3D/4.0 (+https://douglasscaramelli-spec.github.io/Corrigido/)';
+const UA = 'Genesis3D/4.0 (+https://casalexecutivo0709-gif.github.io/Genesis-3D/)';
 
 function configuredOrigins(env) {
   const extra = String(env?.ALLOWED_ORIGINS || '')
