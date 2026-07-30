@@ -1970,8 +1970,11 @@ input[data-money-bank="true"]{
   max-width:580px!important;
   margin:0 auto!important;
   z-index:880!important;
-  transform:translateZ(0)!important;
-  contain:layout paint!important;
+  -webkit-transform:none!important;
+  transform:none!important;
+  contain:none!important;
+  will-change:auto!important;
+  backface-visibility:visible!important;
 }
 body.genesis-has-fixed-tabbar{
   padding-bottom:calc(96px + env(safe-area-inset-bottom))!important;
@@ -1980,7 +1983,8 @@ body.genesis-has-fixed-tabbar{
   padding-bottom:calc(108px + env(safe-area-inset-bottom))!important;
 }
 body.genesis-layer-open .bottomnav{
-  transform:translateZ(0)!important;
+  -webkit-transform:none!important;
+  transform:none!important;
 }
 
 /* Mobile Kanban: one stage per viewport, optimized for thumb use. */
@@ -4202,7 +4206,7 @@ const KEYS = {
   KITS:'genesis3d:kits'
 };
 const SCHEMA_VERSION = 22;
-const GENESIS_APP_VERSION = '2026.07.30.5';
+const GENESIS_APP_VERSION = '2026.07.30.6';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -5455,7 +5459,10 @@ function syncGenesisLayerScrollLock(){
   }else if(!hasOpen && locked){
     document.documentElement.classList.remove('genesis-layer-open');
     document.body.classList.remove('genesis-layer-open');
-    requestAnimationFrame(()=>window.scrollTo(0,genesisBackgroundScrollY));
+    requestAnimationFrame(()=>{
+      window.scrollTo(0,genesisBackgroundScrollY);
+      repairGenesisBottomNav();
+    });
   }
 }
 
@@ -5577,6 +5584,7 @@ function resetModalState({preserveOpen=false,keepSheetId=null,reason='cleanup'}=
   if(typeof genesisResetInteractiveScreens==='function')genesisResetInteractiveScreens();
   document.documentElement.style.setProperty('--genesis-keyboard-height','0px');
   syncGenesisLayerStack();
+  repairGenesisBottomNav();
   genesisLog('modal.reset',{reason,open:[...keep]});
 }
 
@@ -5643,18 +5651,45 @@ document.addEventListener('click',e=>{
 
 
 /* ---------- V25: tab bar realmente fixa no viewport ---------- */
+let genesisBottomNavRepairFrame=0;
 function mountGenesisBottomNav(){
   const nav=document.querySelector('.bottomnav');
   if(!nav)return;
   if(nav.parentElement!==document.body)document.body.appendChild(nav);
   document.documentElement.classList.add('genesis-has-fixed-tabbar');
   document.body.classList.add('genesis-has-fixed-tabbar');
+  nav.style.setProperty('position','fixed','important');
+  nav.style.setProperty('top','auto','important');
+  nav.style.setProperty('-webkit-transform','none','important');
+  nav.style.setProperty('transform','none','important');
+  nav.style.setProperty('contain','none','important');
+}
+function repairGenesisBottomNav(){
+  if(genesisBottomNavRepairFrame)cancelAnimationFrame(genesisBottomNavRepairFrame);
+  genesisBottomNavRepairFrame=requestAnimationFrame(()=>{
+    genesisBottomNavRepairFrame=0;
+    mountGenesisBottomNav();
+    const nav=document.querySelector('.bottomnav');
+    if(!nav)return;
+    // A leitura força o WebKit a reconstruir a camada fixa depois de teclado,
+    // seletor de fotos, modal, BFCache ou alteração da barra do Safari.
+    void nav.getBoundingClientRect();
+  });
 }
 if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',mountGenesisBottomNav,{once:true});
+  document.addEventListener('DOMContentLoaded',repairGenesisBottomNav,{once:true});
 }else{
-  mountGenesisBottomNav();
+  repairGenesisBottomNav();
 }
+window.addEventListener('pageshow',repairGenesisBottomNav);
+window.addEventListener('focus',repairGenesisBottomNav);
+window.addEventListener('orientationchange',repairGenesisBottomNav);
+window.addEventListener('resize',repairGenesisBottomNav);
+window.visualViewport?.addEventListener('resize',repairGenesisBottomNav);
+window.visualViewport?.addEventListener('scroll',repairGenesisBottomNav);
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)repairGenesisBottomNav();
+});
 
 
 const GENESIS_MAIN_SCREENS=['calc','quotes','orders','more'];
