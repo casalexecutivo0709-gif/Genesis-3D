@@ -3830,7 +3830,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
         <input type="checkbox" id="shopeeUseAI" style="width:auto;" checked>
         Usar IA gratuita (recomendado)
       </label>
-      <div class="secondary-note" id="shopeeAiHint">Os prints reduzidos são enviados ao Cloudflare Workers AI gratuito. O limite de segurança é 24 prints por dia neste aparelho; depois disso, o OCR local entra automaticamente.</div>
+      <div class="secondary-note" id="shopeeAiHint">Cópias otimizadas dos prints são enviadas ao Cloudflare Workers AI gratuito, preservando o texto pequeno. O limite de segurança é 24 prints por dia neste aparelho; depois disso, o OCR local entra automaticamente.</div>
     </div>
     <div class="shopee-privacy">🔒 O Excel financeiro continua sendo processado somente neste aparelho. Nenhum pedido é salvo sem passar pela tela de revisão.</div>
     <div class="compact-row" style="margin-bottom:8px;"><div class="secondary-note" id="shopeePrintCount">Nenhuma imagem adicionada.</div><label class="btn btn-secondary btn-sm inline-action" for="shopeePrintFiles">+ Adicionar mais</label></div>
@@ -4206,7 +4206,7 @@ const KEYS = {
   KITS:'genesis3d:kits'
 };
 const SCHEMA_VERSION = 22;
-const GENESIS_APP_VERSION = '2026.07.30.6';
+const GENESIS_APP_VERSION = '2026.07.30.7';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -7366,13 +7366,8 @@ async function createIndividualQuoteCanvas(q){
   ctx.fillStyle='#a34cff';ctx.font='800 22px -apple-system,Arial';ctx.fillText('✓  Este orçamento inclui o item exibido acima.',78,noticeY+43);
   ctx.fillStyle='#e3e3e8';ctx.font='500 18px -apple-system,Arial';ctx.fillText('Imagem meramente ilustrativa. Cores e detalhes podem variar.',78,noticeY+79);
 
-  const footerY=1424;
-  ctx.strokeStyle='rgba(161,65,255,.72)';ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(32,footerY);ctx.lineTo(395,footerY);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(685,footerY);ctx.lineTo(1048,footerY);ctx.stroke();
-  ctx.textAlign='center';ctx.fillStyle='#a34cff';ctx.font='900 25px -apple-system,Arial';ctx.fillText('✦',425,footerY+8);ctx.fillText('✦',655,footerY+8);
-  ctx.fillStyle='#fff';ctx.font='800 25px -apple-system,Arial';ctx.fillText('Genesis Prototipagem',540,footerY+6);
-  ctx.fillStyle='#a34cff';ctx.font='500 19px -apple-system,Arial';ctx.fillText('Se você pode sonhar, nós podemos criar.',540,footerY+40);
+  // Mesmo rodapé da arte de kit: linhas roxas e diamantes laterais.
+  canvasDrawGenesisFooter(ctx,width,1402);
   return canvas;
 }
 async function individualQuoteVisualFile(q){
@@ -10107,7 +10102,8 @@ document.getElementById('btnLocalRestore')?.addEventListener('click',()=>{
 
 /* =========================================================
    SHOPEE SCREENSHOT IMPORTER — OCR LOCAL / PARSER MODULAR
-   Screenshots nunca são enviados ao Worker, MakerWorld ou APIs externas.
+   No modo IA, cópias otimizadas são enviadas somente ao Worker configurado.
+   Sem IA ou ao atingir o limite gratuito, o processamento permanece local.
 ========================================================= */
 const ShopeeScreenshotImporter = (()=>{
   const TESSERACT_CDN='https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js';
@@ -10249,6 +10245,21 @@ const ShopeeScreenshotImporter = (()=>{
         }
       }
     }
+    // Telas móveis da Shopee exibem título + variação + "x 1" sem rótulo Produto.
+    if(!items.length){
+      const qi=ls.findIndex(x=>/^x\s*\d{1,3}$/i.test(x));
+      if(qi>0){
+        const before=ls.slice(Math.max(0,qi-6),qi)
+          .filter(x=>x.length>2&&!/^(pré[- ]?encomenda|pre[- ]?encomenda|conclu[ií]do|detalhes do pedido)$/i.test(x))
+          .filter(x=>!/R\$|pagamento|pedido|avaliar|avalia[cç][aã]o|item$/i.test(x));
+        const name=[...before].sort((a,b)=>b.length-a.length)[0]||'';
+        const variation=[...before].reverse().find(x=>x!==name&&x.length<80)||'';
+        const qty=Math.max(1,parseInt((ls[qi].match(/\d{1,3}/)||['1'])[0],10));
+        const prices=ls.slice(qi,Math.min(ls.length,qi+4)).map(moneyFrom).filter(v=>v!==null);
+        const unitPrice=prices.length?prices[0]:null;
+        if(name)items.push({id:uid('ocritem'),productName:name,variation,qty,unitPrice,subtotal:unitPrice!==null?round2(unitPrice*qty):null,sku:'',shopeeItemId:'',source,confidence:72,linkedModelId:null});
+      }
+    }
     return items;
   }
   function parseScreenshot(text,ocrConfidence,index){
@@ -10260,6 +10271,23 @@ const ShopeeScreenshotImporter = (()=>{
 
     const dateHit=nearbyValue(ls,/^(?:data\s*(?:do\s*)?pedido|pedido\s*realizado|realizado\s*em|data\s*da\s*compra)\s*[:\-]?/i,v=>!!dateFrom(v),2);
     if(dateHit)addCandidate(out,'orderDate',dateFrom(dateHit.value),93,source,'Data do pedido');
+    const orderMoment=nearbyValue(ls,/^hor[aá]rio\s*do\s*pedido\s*[:\-]?/i,v=>!!dateFrom(v),1);
+    if(orderMoment){
+      addCandidate(out,'orderDate',dateFrom(orderMoment.value),97,source,'Horário do pedido');
+      const time=timeFrom(orderMoment.value);if(time)addCandidate(out,'orderTime',time,97,source,'Horário do pedido');
+    }
+    const paymentMoment=nearbyValue(ls,/^(?:data|hor[aá]rio)\s*do\s*pagamento\s*[:\-]?/i,v=>!!dateFrom(v),1);
+    if(paymentMoment){
+      addCandidate(out,'paymentDate',dateFrom(paymentMoment.value),97,source,'Data do pagamento');
+      const time=timeFrom(paymentMoment.value);if(time)addCandidate(out,'paymentTime',time,97,source,'Data do pagamento');
+    }
+    const completionMoment=nearbyValue(ls,/^hor[aá]rio\s*(?:de|da)\s*conclus[aã]o\s*[:\-]?/i,v=>!!dateFrom(v),1);
+    if(completionMoment){
+      addCandidate(out,'completionDate',dateFrom(completionMoment.value),97,source,'Horário de conclusão');
+      const time=timeFrom(completionMoment.value);if(time)addCandidate(out,'completionTime',time,97,source,'Horário de conclusão');
+    }
+    const transferMoment=nearbyValue(ls,/^pedido\s*completado\s*em\s*[:\-]?/i,v=>!!dateFrom(v),1);
+    if(transferMoment)addCandidate(out,'transferDate',dateFrom(transferMoment.value),97,source,'Repasse concluído');
     const anyDate=ls.map(dateFrom).find(Boolean);if(anyDate&&!out.candidates.orderDate)addCandidate(out,'orderDate',anyDate,55,source,'Data encontrada');
     const timeHit=nearbyValue(ls,/^(?:hora|hor[aá]rio)\s*[:\-]?/i,v=>!!timeFrom(v),1);if(timeHit)addCandidate(out,'orderTime',timeFrom(timeHit.value),86,source,'Hora');
 
@@ -10272,14 +10300,23 @@ const ShopeeScreenshotImporter = (()=>{
     const deadline=nearbyValue(ls,/^(?:prazo\s*(?:de\s*)?postagem|enviar\s*at[eé]|postar\s*at[eé]|data\s*limite(?:\s*de\s*postagem)?)\s*[:\-]?/i,v=>!!dateFrom(v),2);
     if(deadline)addCandidate(out,'postingDeadline',dateFrom(deadline.value),93,source,'Prazo de postagem');
 
-    extractLabeledMoney(out,ls,'productValue',['valor\\s*(?:dos\\s*)?produtos','subtotal\\s*(?:dos\\s*)?produtos'],source);
+    extractLabeledMoney(out,ls,'productValue',['valor\\s*(?:dos\\s*)?produtos','subtotal\\s*(?:dos\\s*)?produtos','pre[cç]o\\s*(?:do\\s*)?produto'],source);
     extractLabeledMoney(out,ls,'discount',['desconto(?:s)?','cupom(?:\\s*de\\s*desconto)?'],source);
     extractLabeledMoney(out,ls,'freight',['frete','valor\\s*do\\s*frete'],source);
     extractLabeledMoney(out,ls,'total',['total\\s*(?:do\\s*)?pedido','valor\\s*total','total\\s*a\\s*pagar'],source);
-    extractLabeledMoney(out,ls,'paidValue',['valor\\s*(?:efetivamente\\s*)?pago','pago\\s*pelo\\s*comprador','total\\s*pago'],source);
+    extractLabeledMoney(out,ls,'paidValue',['valor\\s*(?:efetivamente\\s*)?pago','pago\\s*pelo\\s*comprador','total\\s*pago','pagamento\\s*(?:do\\s*)?comprador','pagamento\\s*total'],source);
+    extractLabeledMoney(out,ls,'netRevenue',['renda\\s*(?:do\\s*)?pedido','valor\\s*final\\s*(?:do\\s*)?pedido','ver\\s*detalhes\\s*(?:da\\s*)?renda'],source);
+    extractLabeledMoney(out,ls,'fees',['taxas\\s*e\\s*encargos','comiss[aã]o\\s*e\\s*taxas'],source);
 
     const buyer=nearbyValue(ls,/^(?:comprador|nome\s*do\s*comprador|cliente)\s*[:\-]?/i,v=>v.length>=2&&v.length<=80,1);
     if(buyer)addCandidate(out,'buyer',buyer.value,88,source,'Comprador');
+    const buyerUsername=ls.find(x=>/^[a-z][a-z0-9._-]{4,39}$/i.test(x)&&/\d/.test(x)&&!/\d{6}[A-Z0-9]{7,12}/i.test(x));
+    if(buyerUsername){
+      addCandidate(out,'buyerUsername',buyerUsername,91,source,'Usuário do comprador');
+      if(!out.candidates.buyer)addCandidate(out,'buyer',buyerUsername,90,source,'Usuário do comprador');
+    }
+    const paymentMethod=nearbyValue(ls,/^m[eé]todo\s*de\s*pagamento\s*[:\-]?/i,v=>v.length>=2&&v.length<=40,2);
+    if(paymentMethod)addCandidate(out,'paymentMethod',paymentMethod.value,90,source,'Método de pagamento');
     const city=nearbyValue(ls,/^(?:cidade|munic[ií]pio)\s*[:\-]?/i,v=>v.length>=2&&v.length<=80,1);if(city)addCandidate(out,'city',city.value,87,source,'Cidade');
     const state=nearbyValue(ls,/^(?:estado|uf)\s*[:\-]?/i,v=>/\b[A-Z]{2}\b/i.test(v),1);if(state){const m=state.value.match(/\b[A-Z]{2}\b/i);if(m)addCandidate(out,'state',m[0].toUpperCase(),90,source,'UF')}
     const cep=nearbyValue(ls,/^cep\s*[:\-]?/i,v=>/\d{5}[-. ]?\d{3}/.test(v),1);if(cep){const m=cep.value.match(/\d{5}[-. ]?\d{3}/);if(m)addCandidate(out,'cep',m[0].replace(/\D/g,'').replace(/^(\d{5})(\d{3})$/,'$1-$2'),92,source,'CEP')}
@@ -10344,15 +10381,19 @@ const ShopeeScreenshotImporter = (()=>{
   async function prepareForAI(file){
     const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
     const img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=dataUrl});
-    const maxDim=512,scale=Math.min(1,maxDim/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+    // Texto pequeno de telas da Shopee perde dígitos quando reduzido a 512 px.
+    // Mantém resolução suficiente para usuário, pedido, datas e valores.
+    const maxDim=1400,scale=Math.min(1,maxDim/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
     const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
     const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-    canvas.getContext('2d').drawImage(img,0,0,w,h);
-    return canvas.toDataURL('image/jpeg',.86);
+    const ctx=canvas.getContext('2d');
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    ctx.drawImage(img,0,0,w,h);
+    return canvas.toDataURL('image/jpeg',.92);
   }
   function partFromAI(item,index){
     const out=emptyResult(),source=`IA · Print ${index+1}`,confidence=Math.max(0,Math.min(100,Number(item?.confidence)||75));
-    const fields=['orderId','orderDate','orderTime','shopeeStatus','postingDeadline','buyer','city','state','cep','address','productValue','discount','freight','total','paidValue','logistics','tracking'];
+    const fields=['orderId','orderDate','orderTime','paymentDate','paymentTime','completionDate','completionTime','transferDate','shopeeStatus','postingDeadline','buyer','buyerUsername','city','state','cep','address','productValue','discount','freight','total','paidValue','netRevenue','fees','paymentMethod','logistics','tracking'];
     for(const field of fields){
       const value=item?.[field];
       if(value!==null&&value!==undefined&&String(value).trim()!=='')addCandidate(out,field,String(value),confidence,source,field);
@@ -10666,15 +10707,144 @@ async function parseShopeeFinanceExcel(file){
 }
 function catalogMatch(name){const n=shopeeNorm(name);if(!n)return null;const learned=shopeeLearnedAliases[n];if(learned){const e=shopeeCatalog.find(x=>x.id===learned);if(e)return {entry:e,score:1}}let best=[];for(const e of shopeeCatalog){const a=shopeeNorm(e.name),A=new Set(n.replace(/\bpre encomenda\b/g,'').split(' ').filter(x=>x.length>2)),B=new Set(a.split(' ').filter(x=>x.length>2));let inter=0;A.forEach(x=>{if(B.has(x))inter++});const overlap=inter/Math.max(1,Math.min(A.size,B.size)),clip=n.replace(/\s*\.{2,}$/,''),starts=a.startsWith(clip)||clip.startsWith(a.slice(0,Math.min(a.length,Math.max(18,clip.length)))),score=Math.min(1,(starts?.72:0)+overlap*.38);best.push({entry:e,score})}best.sort((a,b)=>b.score-a.score);if(!best[0]||best[0].score<.63)return null;if(best[1]&&best[1].score>.68&&Math.abs(best[0].score-best[1].score)<.08)return {ambiguous:true,candidates:best.slice(0,30)};return best[0]}
 function cleanItems(m){const bad=/deposito normalmente|ordenar por|canais de envio|detalhes da renda|pagamento do comprador|subtotal|taxas e encargos|valor final|metodo de pagamento/i;let a=(m.items||[]).filter(x=>x.productName&&!bad.test(x.productName)).map(x=>{const h=catalogMatch(x.productName);return h&&!h.ambiguous?{...x,rawProductName:x.productName,productName:h.entry.name,catalogId:h.entry.id}:x});return a}
-function groupShots(){const g=new Map(),o=[];ShopeeScreenshotImporter.getFiles().forEach((f,i)=>{const p=f.analysis;if(!p)return;const id=shopeeOrderIdNormalize(p.fields?.orderId?.value||p.candidates?.orderId?.[0]?.value||'');if(!id)o.push({file:f,part:p,index:i});else{const x=g.get(id)||{orderId:id,parts:[]};x.parts.push(p);g.set(id,x)}});return {g,o}}
+function shopeeIdDistance(a,b){
+  if(!a||!b||a.length!==b.length)return Infinity;
+  let distance=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])distance++;
+  return distance;
+}
+function groupShots(knownOrderIds=[]){
+  const entries=ShopeeScreenshotImporter.getFiles().map((file,index)=>{
+    const part=file.analysis;
+    const rawId=part?shopeeOrderIdNormalize(part.fields?.orderId?.value||part.candidates?.orderId?.[0]?.value||''):'';
+    return {file,part,index,rawId};
+  }).filter(x=>x.part);
+  const known=[...new Set((knownOrderIds||[]).map(shopeeOrderIdNormalize).filter(Boolean))];
+  entries.forEach(entry=>{
+    if(!entry.rawId||known.includes(entry.rawId))return;
+    const close=known.find(id=>shopeeIdDistance(id,entry.rawId)<=1);
+    if(close)entry.rawId=close;
+  });
+  const detected=[...new Set(entries.map(x=>x.rawId).filter(Boolean))];
+  const allIds=[...new Set([...detected,...known])];
+  const soleId=allIds.length===1?allIds[0]:'';
+  const g=new Map(),o=[];
+  entries.forEach(entry=>{
+    // Em uma importação de um único pedido, telas de pagamento/renda sem ID
+    // pertencem ao mesmo conjunto e não devem virar screenshots órfãos.
+    const id=entry.rawId||soleId;
+    if(!id){o.push(entry);return}
+    const group=g.get(id)||{orderId:id,parts:[]};
+    group.parts.push(entry.part);g.set(id,group);
+  });
+  return {g,o};
+}
 function existingById(id){return orders.find(o=>shopeeOrderIdNormalize(o?.shopee?.number||o?.shopeeOrderId||'')===id)||null}
 function field(m,k){return m?.fields?.[k]?.value??''}
 function nfield(m,k){const v=field(m,k);return v===''?null:Number(v)}
 function mapStatus(s){const k=shopeeNorm(s);if(k.includes('nao pago'))return 'aguardando-pagamento';if(k.includes('a enviar'))return 'a-produzir';if(k.includes('enviado')||k.includes('entregue'))return 'enviado';if(k.includes('concluido'))return 'concluido';if(k.includes('cancelado'))return 'cancelado';return 'a-produzir'}
-function buildGroup(id,parts,fin){const m=parts.length?ShopeeScreenshotImporter.merge(parts):{fields:{},items:[],screenshots:[]};m.items=cleanItems(m);const ex=existingById(id),p=m.items[0]||{},gross=Number(nfield(m,'productValue')??p.subtotal??ex?.shopee?.finance?.grossProductRevenue??ex?.productTotal??0)||0,net=fin?.netRevenueReceived??ex?.shopee?.finance?.netRevenueReceived??null;return {orderId:id,existingId:ex?.id||'',existing:ex,merged:m,finance:fin,buyer:field(m,'buyer')||ex?.client?.name||'',orderDate:field(m,'orderDate')||ex?.shopee?.orderDate||'',orderTime:field(m,'orderTime')||ex?.shopee?.orderTime||'',shopeeStatus:field(m,'shopeeStatus')||ex?.shopee?.status||'',genesisStatus:ex?.status||mapStatus(field(m,'shopeeStatus')),postingDeadline:field(m,'postingDeadline')||ex?.shopee?.postingDeadline||'',city:field(m,'city')||ex?.shopee?.city||'',state:field(m,'state')||ex?.shopee?.state||'',cep:field(m,'cep')||ex?.shopee?.cep||'',address:field(m,'address')||ex?.shopee?.address||'',tracking:field(m,'tracking')||ex?.shopee?.trackingCode||'',items:m.items.length?m.items:(ex?.items||[]).map(x=>({...x})),grossProductRevenue:gross,buyerPayment:nfield(m,'paidValue')??nfield(m,'total')??ex?.shopee?.finance?.buyerPayment??null,estimatedNetRevenue:ex?.shopee?.finance?.estimatedNetRevenue??null,netRevenueReceived:net,deductions:net!=null?round2(gross-net):(ex?.shopee?.finance?.deductions??null),financialStatus:fin?.financialStatus||ex?.shopee?.finance?.financialStatus||'pending',receivedAt:fin?.receivedAt||ex?.shopee?.finance?.receivedAt||'',sources:{product:m.items.length?'screenshot/catalog':ex?'genesis':'',financial:fin?'excel':ex?.shopee?.finance?.netRevenueReceived!=null?'genesis':'',date:field(m,'orderDate')?'screenshot':ex?'genesis':''}}}
-function buildState(excel){const {g,o}=groupShots(),fm=new Map((excel||[]).map(x=>[x.orderId,x])),ids=new Set([...g.keys(),...fm.keys()]);shopeeHybridState.groups=[...ids].map(id=>buildGroup(id,g.get(id)?.parts||[],fm.get(id)||null));shopeeHybridState.orphans=o}
+function buildGroup(id,parts,fin){
+  const m=parts.length?ShopeeScreenshotImporter.merge(parts):{fields:{},items:[],screenshots:[]};
+  m.items=cleanItems(m);
+  const ex=existingById(id),p=m.items[0]||{};
+  const itemSubtotal=p.subtotal??(p.unitPrice!=null?round2((Number(p.unitPrice)||0)*(Number(p.qty)||1)):null);
+  const gross=Number(nfield(m,'productValue')??itemSubtotal??ex?.shopee?.finance?.grossProductRevenue??ex?.productTotal??0)||0;
+  const screenshotNet=nfield(m,'netRevenue');
+  const net=fin?.netRevenueReceived??screenshotNet??ex?.shopee?.finance?.netRevenueReceived??null;
+  const screenshotFees=nfield(m,'fees');
+  const status=field(m,'shopeeStatus');
+  const receivedAt=fin?.receivedAt||field(m,'transferDate')||field(m,'completionDate')||ex?.shopee?.finance?.receivedAt||'';
+  const financialStatus=fin?.financialStatus||(net!=null&&(/concluido|transferencia de fundos concluida/.test(shopeeNorm(status+' '+m.rawText))||!!receivedAt)?'received':null)||ex?.shopee?.finance?.financialStatus||'pending';
+  return {
+    orderId:id,existingId:ex?.id||'',existing:ex,merged:m,finance:fin,
+    buyer:field(m,'buyerUsername')||field(m,'buyer')||ex?.client?.name||'',
+    orderDate:field(m,'orderDate')||ex?.shopee?.orderDate||'',
+    orderTime:field(m,'orderTime')||ex?.shopee?.orderTime||'',
+    paymentDate:field(m,'paymentDate')||ex?.shopee?.paymentDate||'',
+    paymentTime:field(m,'paymentTime')||ex?.shopee?.paymentTime||'',
+    completionDate:field(m,'completionDate')||ex?.shopee?.completionDate||'',
+    completionTime:field(m,'completionTime')||ex?.shopee?.completionTime||'',
+    shopeeStatus:status||ex?.shopee?.status||'',genesisStatus:ex?.status||mapStatus(status),
+    postingDeadline:field(m,'postingDeadline')||ex?.shopee?.postingDeadline||'',
+    city:field(m,'city')||ex?.shopee?.city||'',state:field(m,'state')||ex?.shopee?.state||'',
+    cep:field(m,'cep')||ex?.shopee?.cep||'',address:field(m,'address')||ex?.shopee?.address||'',
+    tracking:field(m,'tracking')||ex?.shopee?.trackingCode||'',
+    paymentMethod:field(m,'paymentMethod')||ex?.shopee?.paymentMethod||'',
+    items:m.items.length?m.items:(ex?.items||[]).map(x=>({...x})),
+    grossProductRevenue:gross,
+    buyerPayment:nfield(m,'paidValue')??nfield(m,'total')??ex?.shopee?.finance?.buyerPayment??null,
+    estimatedNetRevenue:ex?.shopee?.finance?.estimatedNetRevenue??null,
+    netRevenueReceived:net,
+    deductions:screenshotFees!=null?Math.abs(screenshotFees):(net!=null?Math.max(0,round2(gross-net)):(ex?.shopee?.finance?.deductions??null)),
+    financialStatus,receivedAt,
+    sources:{product:m.items.length?'screenshot/catalog':ex?'genesis':'',financial:fin?'excel':net!=null?'screenshot':ex?.shopee?.finance?.netRevenueReceived!=null?'genesis':'',date:field(m,'orderDate')?'screenshot':ex?'genesis':''}
+  };
+}
+function buildState(excel){const fm=new Map((excel||[]).map(x=>[x.orderId,x])),{g,o}=groupShots([...fm.keys()]),ids=new Set([...g.keys(),...fm.keys()]);shopeeHybridState.groups=[...ids].map(id=>buildGroup(id,g.get(id)?.parts||[],fm.get(id)||null));shopeeHybridState.orphans=o}
 function critical(g){return !g.orderId||(!g.items.length&&!g.existing&&!g.finance)}
-function renderHybrid(){const list=shopeeHybridState.groups,upd=list.filter(x=>x.existingId).length,rev=list.filter(x=>critical(x)||!x.items.length).length;hybridImportSummary.innerHTML=`<div class="hybrid-summary-card"><b>${list.length}</b><span>pedidos encontrados</span></div><div class="hybrid-summary-card"><b>${upd}</b><span>serão atualizados</span></div><div class="hybrid-summary-card"><b>${list.length-rev}</b><span>prontos</span></div><div class="hybrid-summary-card"><b>${rev}</b><span>revisar</span></div>`;hybridShopeeCatalogList.innerHTML=shopeeCatalog.map(x=>`<option value="${escapeHtml(x.name)}"></option>`).join('');hybridOrphanArea.innerHTML=shopeeHybridState.orphans.map((x,i)=>`<div class="hybrid-orphan"><b>Screenshot sem ID</b><div class="secondary-note">Não foi associado automaticamente.</div></div>`).join('');hybridOrderList.innerHTML='';list.forEach((g,i)=>{const p=g.items[0]||{},d=document.createElement('details');d.className='hybrid-order-card '+(!g.items.length?'needs-review':'');d.open=list.length<4||!g.items.length;d.innerHTML=`<summary class="hybrid-order-head"><span><strong>${g.orderId}</strong><small>${escapeHtml(p.productName||g.existing?.productName||'Produto pendente')} · ${escapeHtml(g.buyer||'Cliente pendente')}</small></span><span class="hybrid-pill ${g.existingId?'update':'new'}">${g.existingId?'♻ Atualizar':'Novo'}</span></summary><div class="hybrid-grid"><div class="field wide"><label>Cliente</label><input data-hg="${i}" data-k="buyer" value="${escapeHtml(g.buyer)}"></div><div class="field wide"><label>Produto</label><input list="hybridShopeeCatalogList" data-hg="${i}" data-k="product" value="${escapeHtml(p.productName||g.existing?.productName||'')}"></div><div class="field wide"><label>Variação</label><input data-hg="${i}" data-k="variation" value="${escapeHtml(p.variation||'')}"></div><div class="field"><label>Quantidade</label><input inputmode="numeric" data-hg="${i}" data-k="qty" value="${p.qty||g.existing?.qty||1}"></div><div class="field"><label>Venda bruta</label><input inputmode="decimal" data-hg="${i}" data-k="gross" value="${moneyInputValue(g.grossProductRevenue)}"></div><div class="field"><label>Data pedido</label><input type="date" data-hg="${i}" data-k="orderDate" value="${g.orderDate}"></div><div class="field"><label>Status Genesis</label><select data-hg="${i}" data-k="genesisStatus">${ORDER_STATUS_FLOW.map(s=>`<option value="${s}" ${s===g.genesisStatus?'selected':''}>${escapeHtml(ORDER_STATUS_LABELS[s])}</option>`).join('')}</select></div></div><div class="hybrid-finance"><div class="hybrid-finance-title">Financeiro</div><div class="hybrid-grid"><div class="field"><label>Líquido recebido</label><input inputmode="decimal" data-hg="${i}" data-k="net" value="${moneyInputValue(g.netRevenueReceived)}" placeholder="Não confirmado"></div><div class="field"><label>Status financeiro</label><select data-hg="${i}" data-k="finStatus"><option value="pending" ${g.financialStatus==='pending'?'selected':''}>Aguardando repasse</option><option value="received" ${g.financialStatus==='received'?'selected':''}>Recebido</option><option value="unknown" ${g.financialStatus==='unknown'?'selected':''}>Não identificado</option></select></div><div class="field"><label>Recebido em</label><input type="date" data-hg="${i}" data-k="receivedAt" value="${g.receivedAt}"></div><div class="field"><label>Deduções</label><input inputmode="decimal" data-hg="${i}" data-k="ded" value="${moneyInputValue(g.deductions)}"></div></div></div><div class="hybrid-source">Produto: ${g.sources.product||'—'} · Financeiro: ${g.sources.financial||'—'} · Data: ${g.sources.date||'—'}</div>`;hybridOrderList.appendChild(d)});hybridOrderList.querySelectorAll('[data-hg]').forEach(el=>el.oninput=()=>{const g=list[+el.dataset.hg],k=el.dataset.k;if(['product','variation','qty'].includes(k)&&!g.items.length)g.items=[{id:uid('ocritem'),productName:'',variation:'',qty:1}];if(k==='product')g.items[0].productName=el.value;else if(k==='variation')g.items[0].variation=el.value;else if(k==='qty')g.items[0].qty=Math.max(1,quoteInt(el.value,1));else if(k==='gross')g.grossProductRevenue=quoteMoneyInput(el.value);else if(k==='net')g.netRevenueReceived=el.value?quoteMoneyInput(el.value):null;else if(k==='ded')g.deductions=el.value?quoteMoneyInput(el.value):null;else if(k==='finStatus')g.financialStatus=el.value;else g[k]=el.value})}
+function renderHybridLegacy(){const list=shopeeHybridState.groups,upd=list.filter(x=>x.existingId).length,rev=list.filter(x=>critical(x)||!x.items.length).length;hybridImportSummary.innerHTML=`<div class="hybrid-summary-card"><b>${list.length}</b><span>pedidos encontrados</span></div><div class="hybrid-summary-card"><b>${upd}</b><span>serão atualizados</span></div><div class="hybrid-summary-card"><b>${list.length-rev}</b><span>prontos</span></div><div class="hybrid-summary-card"><b>${rev}</b><span>revisar</span></div>`;hybridShopeeCatalogList.innerHTML=shopeeCatalog.map(x=>`<option value="${escapeHtml(x.name)}"></option>`).join('');hybridOrphanArea.innerHTML=shopeeHybridState.orphans.map((x,i)=>`<div class="hybrid-orphan"><b>Screenshot sem ID</b><div class="secondary-note">Não foi associado automaticamente.</div></div>`).join('');hybridOrderList.innerHTML='';list.forEach((g,i)=>{const p=g.items[0]||{},d=document.createElement('details');d.className='hybrid-order-card '+(!g.items.length?'needs-review':'');d.open=list.length<4||!g.items.length;d.innerHTML=`<summary class="hybrid-order-head"><span><strong>${g.orderId}</strong><small>${escapeHtml(p.productName||g.existing?.productName||'Produto pendente')} · ${escapeHtml(g.buyer||'Cliente pendente')}</small></span><span class="hybrid-pill ${g.existingId?'update':'new'}">${g.existingId?'♻ Atualizar':'Novo'}</span></summary><div class="hybrid-grid"><div class="field wide"><label>Cliente</label><input data-hg="${i}" data-k="buyer" value="${escapeHtml(g.buyer)}"></div><div class="field wide"><label>Produto</label><input list="hybridShopeeCatalogList" data-hg="${i}" data-k="product" value="${escapeHtml(p.productName||g.existing?.productName||'')}"></div><div class="field wide"><label>Variação</label><input data-hg="${i}" data-k="variation" value="${escapeHtml(p.variation||'')}"></div><div class="field"><label>Quantidade</label><input inputmode="numeric" data-hg="${i}" data-k="qty" value="${p.qty||g.existing?.qty||1}"></div><div class="field"><label>Venda bruta</label><input inputmode="decimal" data-hg="${i}" data-k="gross" value="${moneyInputValue(g.grossProductRevenue)}"></div><div class="field"><label>Data pedido</label><input type="date" data-hg="${i}" data-k="orderDate" value="${g.orderDate}"></div><div class="field"><label>Status Genesis</label><select data-hg="${i}" data-k="genesisStatus">${ORDER_STATUS_FLOW.map(s=>`<option value="${s}" ${s===g.genesisStatus?'selected':''}>${escapeHtml(ORDER_STATUS_LABELS[s])}</option>`).join('')}</select></div></div><div class="hybrid-finance"><div class="hybrid-finance-title">Financeiro</div><div class="hybrid-grid"><div class="field"><label>Líquido recebido</label><input inputmode="decimal" data-hg="${i}" data-k="net" value="${moneyInputValue(g.netRevenueReceived)}" placeholder="Não confirmado"></div><div class="field"><label>Status financeiro</label><select data-hg="${i}" data-k="finStatus"><option value="pending" ${g.financialStatus==='pending'?'selected':''}>Aguardando repasse</option><option value="received" ${g.financialStatus==='received'?'selected':''}>Recebido</option><option value="unknown" ${g.financialStatus==='unknown'?'selected':''}>Não identificado</option></select></div><div class="field"><label>Recebido em</label><input type="date" data-hg="${i}" data-k="receivedAt" value="${g.receivedAt}"></div><div class="field"><label>Deduções</label><input inputmode="decimal" data-hg="${i}" data-k="ded" value="${moneyInputValue(g.deductions)}"></div></div></div><div class="hybrid-source">Produto: ${g.sources.product||'—'} · Financeiro: ${g.sources.financial||'—'} · Data: ${g.sources.date||'—'}</div>`;hybridOrderList.appendChild(d)});hybridOrderList.querySelectorAll('[data-hg]').forEach(el=>el.oninput=()=>{const g=list[+el.dataset.hg],k=el.dataset.k;if(['product','variation','qty'].includes(k)&&!g.items.length)g.items=[{id:uid('ocritem'),productName:'',variation:'',qty:1}];if(k==='product')g.items[0].productName=el.value;else if(k==='variation')g.items[0].variation=el.value;else if(k==='qty')g.items[0].qty=Math.max(1,quoteInt(el.value,1));else if(k==='gross')g.grossProductRevenue=quoteMoneyInput(el.value);else if(k==='net')g.netRevenueReceived=el.value?quoteMoneyInput(el.value):null;else if(k==='ded')g.deductions=el.value?quoteMoneyInput(el.value):null;else if(k==='finStatus')g.financialStatus=el.value;else g[k]=el.value})}
+function renderHybrid(){
+  const list=shopeeHybridState.groups;
+  const updated=list.filter(x=>x.existingId).length;
+  const review=list.filter(x=>critical(x)||!x.items.length).length;
+  hybridImportSummary.innerHTML=
+    `<div class="hybrid-summary-card"><b>${list.length}</b><span>pedidos encontrados</span></div>`+
+    `<div class="hybrid-summary-card"><b>${updated}</b><span>serão atualizados</span></div>`+
+    `<div class="hybrid-summary-card"><b>${list.length-review}</b><span>prontos</span></div>`+
+    `<div class="hybrid-summary-card"><b>${review}</b><span>revisar</span></div>`;
+  hybridShopeeCatalogList.innerHTML=shopeeCatalog.map(x=>`<option value="${escapeHtml(x.name)}"></option>`).join('');
+  hybridOrphanArea.innerHTML=shopeeHybridState.orphans.map(()=>
+    '<div class="hybrid-orphan"><b>Screenshot sem ID</b><div class="secondary-note">Há mais de um pedido possível. Selecione menos prints e tente novamente.</div></div>'
+  ).join('');
+  hybridOrderList.innerHTML='';
+  list.forEach((g,index)=>{
+    const product=g.items[0]||{};
+    const card=document.createElement('details');
+    card.className='hybrid-order-card '+(!g.items.length?'needs-review':'');
+    card.open=list.length<4||!g.items.length;
+    card.innerHTML=`
+      <summary class="hybrid-order-head">
+        <span><strong>${g.orderId}</strong><small>${escapeHtml(product.productName||g.existing?.productName||'Produto pendente')} · ${escapeHtml(g.buyer||'Comprador pendente')}</small></span>
+        <span class="hybrid-pill ${g.existingId?'update':'new'}">${g.existingId?'♻ Atualizar':'Novo'}</span>
+      </summary>
+      <div class="hybrid-grid">
+        <div class="field wide"><label>Comprador (usuário)</label><input data-hg="${index}" data-k="buyer" value="${escapeHtml(g.buyer)}"></div>
+        <div class="field wide"><label>Produto</label><input list="hybridShopeeCatalogList" data-hg="${index}" data-k="product" value="${escapeHtml(product.productName||g.existing?.productName||'')}"></div>
+        <div class="field wide"><label>Variação</label><input data-hg="${index}" data-k="variation" value="${escapeHtml(product.variation||'')}"></div>
+        <div class="field"><label>Quantidade</label><input inputmode="numeric" data-hg="${index}" data-k="qty" value="${product.qty||g.existing?.qty||1}"></div>
+        <div class="field"><label>Venda bruta</label><input inputmode="decimal" data-hg="${index}" data-k="gross" value="${moneyInputValue(g.grossProductRevenue)}"></div>
+        <div class="field"><label>Data do pedido</label><input type="date" data-hg="${index}" data-k="orderDate" value="${g.orderDate}"></div>
+        <div class="field"><label>Data do pagamento</label><input type="date" data-hg="${index}" data-k="paymentDate" value="${g.paymentDate}"></div>
+        <div class="field"><label>Data de conclusão</label><input type="date" data-hg="${index}" data-k="completionDate" value="${g.completionDate}"></div>
+        <div class="field"><label>Status Genesis</label><select data-hg="${index}" data-k="genesisStatus">${ORDER_STATUS_FLOW.map(s=>`<option value="${s}" ${s===g.genesisStatus?'selected':''}>${escapeHtml(ORDER_STATUS_LABELS[s])}</option>`).join('')}</select></div>
+      </div>
+      <div class="hybrid-finance">
+        <div class="hybrid-finance-title">Financeiro reconhecido</div>
+        <div class="hybrid-grid">
+          <div class="field"><label>Pagamento do comprador</label><input inputmode="decimal" data-hg="${index}" data-k="buyerPayment" value="${moneyInputValue(g.buyerPayment)}" placeholder="Não identificado"></div>
+          <div class="field"><label>Líquido recebido</label><input inputmode="decimal" data-hg="${index}" data-k="net" value="${moneyInputValue(g.netRevenueReceived)}" placeholder="Não confirmado"></div>
+          <div class="field"><label>Deduções</label><input inputmode="decimal" data-hg="${index}" data-k="ded" value="${moneyInputValue(g.deductions)}"></div>
+          <div class="field"><label>Método de pagamento</label><input data-hg="${index}" data-k="paymentMethod" value="${escapeHtml(g.paymentMethod||'')}"></div>
+          <div class="field"><label>Status financeiro</label><select data-hg="${index}" data-k="finStatus"><option value="pending" ${g.financialStatus==='pending'?'selected':''}>Aguardando repasse</option><option value="received" ${g.financialStatus==='received'?'selected':''}>Recebido</option><option value="unknown" ${g.financialStatus==='unknown'?'selected':''}>Não identificado</option></select></div>
+          <div class="field"><label>Repasse recebido em</label><input type="date" data-hg="${index}" data-k="receivedAt" value="${g.receivedAt}"></div>
+        </div>
+      </div>
+      <div class="hybrid-source">Produto: ${g.sources.product||'—'} · Financeiro: ${g.sources.financial||'—'} · Data: ${g.sources.date||'—'}</div>`;
+    hybridOrderList.appendChild(card);
+  });
+  hybridOrderList.querySelectorAll('[data-hg]').forEach(el=>el.oninput=()=>{
+    const g=list[+el.dataset.hg],key=el.dataset.k;
+    if(['product','variation','qty'].includes(key)&&!g.items.length)g.items=[{id:uid('ocritem'),productName:'',variation:'',qty:1}];
+    if(key==='product')g.items[0].productName=el.value;
+    else if(key==='variation')g.items[0].variation=el.value;
+    else if(key==='qty')g.items[0].qty=Math.max(1,quoteInt(el.value,1));
+    else if(key==='gross')g.grossProductRevenue=quoteMoneyInput(el.value);
+    else if(key==='buyerPayment')g.buyerPayment=el.value?quoteMoneyInput(el.value):null;
+    else if(key==='net')g.netRevenueReceived=el.value?quoteMoneyInput(el.value):null;
+    else if(key==='ded')g.deductions=el.value?quoteMoneyInput(el.value):null;
+    else if(key==='finStatus')g.financialStatus=el.value;
+    else g[key]=el.value;
+  });
+}
 async function processHybrid(){
   const files=ShopeeScreenshotImporter.getFiles(),excel=shopeeHybridState.excelFile;
   if(!files.length&&!excel){showToast('Adicione screenshots e/ou Excel.');return}
@@ -10711,14 +10881,59 @@ async function processHybrid(){
   }
 }
 function learnAlias(raw,canonical){const e=shopeeCatalog.find(x=>x.name===canonical);if(raw&&e){shopeeLearnedAliases[shopeeNorm(raw)]=e.id;saveShopeeAliases()}}
-function upsert(g){const ex=g.existing||existingById(g.orderId),now=Date.now(),p=g.items[0]||{},qty=Math.max(1,+p.qty||ex?.qty||1),gross=round2(+g.grossProductRevenue||0),unit=gross?round2(gross/qty):(+p.unitPrice||ex?.unitPrice||0),r=ex||{id:uid('order'),seq:nextSequence('order'),createdAt:now,source:g.finance&&!g.items.length?'shopee_excel':'shopee_hybrid',channel:'shopee',client:{},items:[],payment:{}};r.updatedAt=now;r.shopeeOrderId=g.orderId;r.client=r.client||{};if(g.buyer)r.client.name=g.buyer;if(g.items.length){r.items=g.items.map(x=>({...x}));r.productName=p.productName||r.productName;r.qty=qty;r.unitPrice=unit;r.productTotal=gross||unit*qty;r.total=r.productTotal;if(p.rawProductName)learnAlias(p.rawProductName,p.productName)}else{r.needsReconciliation=true;r.productName=r.productName||'Transação Shopee — conciliação pendente';r.qty=r.qty||1;r.unitPrice=r.unitPrice||0;r.productTotal=r.productTotal||0;r.total=r.total||0}r.status=g.genesisStatus||r.status||'a-produzir';r.shopee=r.shopee||{};const f={grossProductRevenue:gross,buyerPayment:g.buyerPayment,estimatedNetRevenue:g.estimatedNetRevenue,netRevenueReceived:g.netRevenueReceived,deductions:g.deductions,financialStatus:g.financialStatus,receivedAt:g.receivedAt,excelSource:g.finance?.rows?.[0]?.sourceFile||''};Object.assign(r.shopee,{number:g.orderId,orderDate:g.orderDate||r.shopee.orderDate||'',orderTime:g.orderTime||r.shopee.orderTime||'',status:g.shopeeStatus||r.shopee.status||'',postingDeadline:g.postingDeadline||r.shopee.postingDeadline||'',buyerName:g.buyer||r.shopee.buyerName||'',city:g.city||r.shopee.city||'',state:g.state||r.shopee.state||'',cep:g.cep||r.shopee.cep||'',address:g.address||r.shopee.address||'',trackingCode:g.tracking||r.shopee.trackingCode||'',finance:f});r.financialStatus=f.financialStatus;r.dataSources=Object.assign({},r.dataSources||{},g.sources);r.importHistory=Array.isArray(r.importHistory)?r.importHistory:[];r.importHistory.push({at:now,source:g.finance&&g.merged?.screenshots?.length?'hybrid':g.finance?'excel':'screenshot'});const paid=f.financialStatus==='received'?(+f.netRevenueReceived||0):0,expected=+f.estimatedNetRevenue||+f.netRevenueReceived||0;r.payment={...(r.payment||{}),total:expected,paid,balance:Math.max(0,expected-paid),status:f.financialStatus==='received'?'paid':'pending',receivedAt:f.receivedAt||''};const oldCost=ex?orderCost(ex):null;r.financialSnapshot={revenue:paid,grossRevenue:gross,cost:oldCost,fees:f.deductions,profit:f.financialStatus==='received'&&oldCost!=null?round2(paid-oldCost):null,basis:'shopee_hybrid'};if(!ex)orders.unshift(r);return r}
+function upsertLegacy(g){const ex=g.existing||existingById(g.orderId),now=Date.now(),p=g.items[0]||{},qty=Math.max(1,+p.qty||ex?.qty||1),gross=round2(+g.grossProductRevenue||0),unit=gross?round2(gross/qty):(+p.unitPrice||ex?.unitPrice||0),r=ex||{id:uid('order'),seq:nextSequence('order'),createdAt:now,source:g.finance&&!g.items.length?'shopee_excel':'shopee_hybrid',channel:'shopee',client:{},items:[],payment:{}};r.updatedAt=now;r.shopeeOrderId=g.orderId;r.client=r.client||{};if(g.buyer)r.client.name=g.buyer;if(g.items.length){r.items=g.items.map(x=>({...x}));r.productName=p.productName||r.productName;r.qty=qty;r.unitPrice=unit;r.productTotal=gross||unit*qty;r.total=r.productTotal;if(p.rawProductName)learnAlias(p.rawProductName,p.productName)}else{r.needsReconciliation=true;r.productName=r.productName||'Transação Shopee — conciliação pendente';r.qty=r.qty||1;r.unitPrice=r.unitPrice||0;r.productTotal=r.productTotal||0;r.total=r.total||0}r.status=g.genesisStatus||r.status||'a-produzir';r.shopee=r.shopee||{};const f={grossProductRevenue:gross,buyerPayment:g.buyerPayment,estimatedNetRevenue:g.estimatedNetRevenue,netRevenueReceived:g.netRevenueReceived,deductions:g.deductions,financialStatus:g.financialStatus,receivedAt:g.receivedAt,excelSource:g.finance?.rows?.[0]?.sourceFile||''};Object.assign(r.shopee,{number:g.orderId,orderDate:g.orderDate||r.shopee.orderDate||'',orderTime:g.orderTime||r.shopee.orderTime||'',status:g.shopeeStatus||r.shopee.status||'',postingDeadline:g.postingDeadline||r.shopee.postingDeadline||'',buyerName:g.buyer||r.shopee.buyerName||'',city:g.city||r.shopee.city||'',state:g.state||r.shopee.state||'',cep:g.cep||r.shopee.cep||'',address:g.address||r.shopee.address||'',trackingCode:g.tracking||r.shopee.trackingCode||'',finance:f});r.financialStatus=f.financialStatus;r.dataSources=Object.assign({},r.dataSources||{},g.sources);r.importHistory=Array.isArray(r.importHistory)?r.importHistory:[];r.importHistory.push({at:now,source:g.finance&&g.merged?.screenshots?.length?'hybrid':g.finance?'excel':'screenshot'});const paid=f.financialStatus==='received'?(+f.netRevenueReceived||0):0,expected=+f.estimatedNetRevenue||+f.netRevenueReceived||0;r.payment={...(r.payment||{}),total:expected,paid,balance:Math.max(0,expected-paid),status:f.financialStatus==='received'?'paid':'pending',receivedAt:f.receivedAt||''};const oldCost=ex?orderCost(ex):null;r.financialSnapshot={revenue:paid,grossRevenue:gross,cost:oldCost,fees:f.deductions,profit:f.financialStatus==='received'&&oldCost!=null?round2(paid-oldCost):null,basis:'shopee_hybrid'};if(!ex)orders.unshift(r);return r}
+function upsert(g){
+  const ex=g.existing||existingById(g.orderId),now=Date.now(),product=g.items[0]||{};
+  const qty=Math.max(1,+product.qty||ex?.qty||1);
+  const gross=round2(+g.grossProductRevenue||0);
+  const unit=gross?round2(gross/qty):(+product.unitPrice||ex?.unitPrice||0);
+  const record=ex||{id:uid('order'),seq:nextSequence('order'),createdAt:now,source:g.finance&&!g.items.length?'shopee_excel':'shopee_hybrid',channel:'shopee',client:{},items:[],payment:{}};
+  record.updatedAt=now;record.shopeeOrderId=g.orderId;record.client=record.client||{};
+  if(g.buyer)record.client.name=g.buyer;
+  if(g.items.length){
+    record.items=g.items.map(x=>({...x}));record.productName=product.productName||record.productName;
+    record.qty=qty;record.unitPrice=unit;record.productTotal=gross||unit*qty;record.total=record.productTotal;
+    record.needsReconciliation=false;
+    if(product.rawProductName)learnAlias(product.rawProductName,product.productName);
+  }else{
+    record.needsReconciliation=true;record.productName=record.productName||'Transação Shopee — conciliação pendente';
+    record.qty=record.qty||1;record.unitPrice=record.unitPrice||0;record.productTotal=record.productTotal||0;record.total=record.total||0;
+  }
+  record.status=g.genesisStatus||record.status||'a-produzir';
+  record.shopee=record.shopee||{};
+  const finance={
+    grossProductRevenue:gross,buyerPayment:g.buyerPayment,estimatedNetRevenue:g.estimatedNetRevenue,
+    netRevenueReceived:g.netRevenueReceived,deductions:g.deductions,financialStatus:g.financialStatus,
+    receivedAt:g.receivedAt,paymentMethod:g.paymentMethod||'',excelSource:g.finance?.rows?.[0]?.sourceFile||''
+  };
+  Object.assign(record.shopee,{
+    number:g.orderId,orderDate:g.orderDate||record.shopee.orderDate||'',orderTime:g.orderTime||record.shopee.orderTime||'',
+    paymentDate:g.paymentDate||record.shopee.paymentDate||'',paymentTime:g.paymentTime||record.shopee.paymentTime||'',
+    completionDate:g.completionDate||record.shopee.completionDate||'',completionTime:g.completionTime||record.shopee.completionTime||'',
+    status:g.shopeeStatus||record.shopee.status||'',postingDeadline:g.postingDeadline||record.shopee.postingDeadline||'',
+    buyerName:g.buyer||record.shopee.buyerName||'',paymentMethod:g.paymentMethod||record.shopee.paymentMethod||'',
+    city:g.city||record.shopee.city||'',state:g.state||record.shopee.state||'',cep:g.cep||record.shopee.cep||'',
+    address:g.address||record.shopee.address||'',trackingCode:g.tracking||record.shopee.trackingCode||'',finance
+  });
+  record.financialStatus=finance.financialStatus;
+  record.dataSources=Object.assign({},record.dataSources||{},g.sources);
+  record.importHistory=Array.isArray(record.importHistory)?record.importHistory:[];
+  record.importHistory.push({at:now,source:g.finance&&g.merged?.screenshots?.length?'hybrid':g.finance?'excel':'screenshot'});
+  const received=finance.financialStatus==='received'?(+finance.netRevenueReceived||0):0;
+  const expected=+finance.estimatedNetRevenue||+finance.netRevenueReceived||0;
+  record.payment={...(record.payment||{}),total:expected,paid:received,balance:Math.max(0,expected-received),status:finance.financialStatus==='received'?'paid':'pending',receivedAt:finance.receivedAt||'',method:g.paymentMethod||record.payment?.method||''};
+  const oldCost=ex?orderCost(ex):null;
+  record.financialSnapshot={revenue:received,grossRevenue:gross,cost:oldCost,fees:finance.deductions,profit:finance.financialStatus==='received'&&oldCost!=null?round2(received-oldCost):null,basis:'shopee_hybrid'};
+  if(!ex)orders.unshift(record);
+  return record;
+}
 function importAllHybrid(){if(shopeeHybridState.groups.some(critical)){showToast('Revise os registros com problema.');return}let c=0,u=0;for(const g of shopeeHybridState.groups){existingById(g.orderId)?u++:c++;upsert(g)}saveOrders();saveShopeeCatalog();saveShopeeAliases();renderOrders();refreshMoreCounts();rawCloseSheet('ovShopeeImport','sheetShopeeImport');ShopeeScreenshotImporter.cleanupSession();showScreen('orders');showToast(`${c} criado(s) · ${u} atualizado(s)`,true)}
 function renderHybridFinanceInsights(){if(!window.insHybridGross)return;const r=insightPeriodRange(insightsPeriod.value),list=orders.filter(o=>validSaleOrder(o)&&o.channel==='shopee'&&orderInRange(o,r));let gross=0,pending=0,received=0,ded=0;list.forEach(o=>{const f=o.shopee?.finance||{};gross+=+f.grossProductRevenue||+o.productTotal||0;if(f.financialStatus==='received'){received+=+f.netRevenueReceived||0;ded+=+f.deductions||0}else pending+=+f.estimatedNetRevenue||+f.netRevenueReceived||0});insHybridGross.textContent=fmtBRL(gross);insHybridPending.textContent=fmtBRL(pending);insHybridReceived.textContent=fmtBRL(received);insHybridDeductions.textContent=fmtBRL(ded)}
 const _rev=insightOrderRevenue;insightOrderRevenue=o=>o?.channel==='shopee'?(o.shopee?.finance?.financialStatus==='received'?(+o.shopee.finance.netRevenueReceived||0):0):_rev(o);
 const _payms=paymentReceivedMs;paymentReceivedMs=o=>{if(o?.channel==='shopee'){const f=o.shopee?.finance;if(f?.financialStatus!=='received'||!f.receivedAt)return null;return new Date(f.receivedAt+'T12:00:00').getTime()}return _payms(o)};
 const _of=orderFinancial;orderFinancial=o=>{if(o?.channel==='shopee'&&o.shopee?.finance){const f=o.shopee.finance,c=o.financialSnapshot?.cost??null,r=f.financialStatus==='received'?(+f.netRevenueReceived||0):0;return {revenue:r,cost:c,fees:f.deductions,profit:f.financialStatus==='received'&&c!=null?round2(r-c):null}}return _of(o)};
 const _ri=renderInsights;renderInsights=()=>{_ri();renderHybridFinanceInsights()};
-const _od=openOrderDetail;openOrderDetail=async id=>{await _od(id);const o=orders.find(x=>x.id===id),f=o?.shopee?.finance;if(!f)return;const b=document.createElement('div');b.innerHTML=`<div class="sheet-section">Financeiro Shopee</div><div class="detail-row"><span>Venda bruta</span><b>${fmtBRL(+f.grossProductRevenue||0)}</b></div><div class="detail-row"><span>Receita líquida recebida</span><b>${f.netRevenueReceived!=null?fmtBRL(+f.netRevenueReceived||0):'Não confirmada'}</b></div><div class="detail-row"><span>Deduções Shopee</span><b>${f.deductions!=null?fmtBRL(+f.deductions||0):'—'}</b></div>${f.effectiveFeesPercent!=null?`<div class="detail-row"><span>Taxa efetiva</span><b>${Number(f.effectiveFeesPercent).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%</b></div>`:''}<div class="detail-row"><span>Status financeiro</span><b>${f.financialStatus==='received'?'RECEBIDO':f.financialStatus==='pending'?'AGUARDANDO REPASSE':'NÃO IDENTIFICADO'}</b></div>${f.receivedAt?`<div class="detail-row"><span>Recebido em</span><b>${f.receivedAt.split('-').reverse().join('/')}</b></div>`:''}`;odBody.appendChild(b)};
+const _od=openOrderDetail;openOrderDetail=async id=>{await _od(id);const o=orders.find(x=>x.id===id),f=o?.shopee?.finance;if(!f)return;const b=document.createElement('div');b.innerHTML=`<div class="sheet-section">Financeiro Shopee</div><div class="detail-row"><span>Venda bruta</span><b>${fmtBRL(+f.grossProductRevenue||0)}</b></div><div class="detail-row"><span>Pagamento do comprador</span><b>${f.buyerPayment!=null?fmtBRL(+f.buyerPayment||0):'Não identificado'}</b></div><div class="detail-row"><span>Receita líquida recebida</span><b>${f.netRevenueReceived!=null?fmtBRL(+f.netRevenueReceived||0):'Não confirmada'}</b></div><div class="detail-row"><span>Deduções Shopee</span><b>${f.deductions!=null?fmtBRL(+f.deductions||0):'—'}</b></div>${f.paymentMethod?`<div class="detail-row"><span>Método de pagamento</span><b>${escapeHtml(f.paymentMethod)}</b></div>`:''}${f.effectiveFeesPercent!=null?`<div class="detail-row"><span>Taxa efetiva</span><b>${Number(f.effectiveFeesPercent).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%</b></div>`:''}<div class="detail-row"><span>Status financeiro</span><b>${f.financialStatus==='received'?'RECEBIDO':f.financialStatus==='pending'?'AGUARDANDO REPASSE':'NÃO IDENTIFICADO'}</b></div>${f.receivedAt?`<div class="detail-row"><span>Recebido em</span><b>${f.receivedAt.split('-').reverse().join('/')}</b></div>`:''}`;odBody.appendChild(b)};
 shopeeExcelFile.onchange=e=>{const f=e.target.files?.[0]||null;shopeeHybridState.excelFile=f;shopeeExcelStatus.textContent=f?f.name:'Nenhum Excel selecionado.'};btnShopeeProcessHybrid.onclick=processHybrid;btnHybridBack.onclick=()=>{shopeeHybridReviewStep.style.display='none';shopeeImportSelectStep.style.display='block'};btnHybridImportAll.onclick=importAllHybrid;
 const _openImp=openShopeeScreenshotImport;openShopeeScreenshotImport=()=>{shopeeHybridState={excelFile:null,excelRecords:[],groups:[],orphans:[]};_openImp();shopeeExcelFile.value='';shopeeExcelStatus.textContent='Nenhum Excel selecionado.';shopeeHybridReviewStep.style.display='none';const ai=document.getElementById('shopeeUseAI');if(ai)ai.checked=cfg.ai?.enabled!==false};
 function runShopeeHybridSelfTests(){const t=[shopeeOrderIdNormalize('#260717TQTAY6E3')==='260717TQTAY6E3',shopeeOrderIdNormalize('BR269279791088C')==='',shopeeMoney('R$ 38,62')===38.62,shopeeMoney('-R$ 9,80')===-9.8];if(t.some(x=>!x))console.error('[Genesis] Falha nos testes Shopee híbrido');else console.info('[Genesis] Testes Shopee híbrido OK')}
@@ -10838,6 +11053,15 @@ function runManagementSelfTests(){
     const b=ShopeeScreenshotImporter.parseScreenshot('Produto: Pomo de Ouro\nVariação: Dourado\nQuantidade: 2\nPreço unitário: R$ 19,90',90,1);
     const m=ShopeeScreenshotImporter.merge([a,b]);
     tests.push(['ocr merge multi print',m.fields.orderId?.value==='260717TQTAY6E3' && m.items.length>=1]);
+    const real=ShopeeScreenshotImporter.parseScreenshot(
+      'Concluído\nhugohackenhaar627\nProduto: Pomo de ouro Harry Potter\nVariação: Tradicional\nQuantidade: 1\nSubtotal dos Produtos R$60,00\nPagamento do Comprador R$61,44\nRenda do pedido R$44,00\nTaxas e Encargos -R$16,00\nID do pedido 260717TQTAY6E3\nHorário do pedido 16/07/2026 13:35\nData do pagamento 16/07/2026 13:35',
+      95,2
+    );
+    const realMerged=ShopeeScreenshotImporter.merge([real]);
+    tests.push(['ocr comprador exato',realMerged.fields.buyer?.value==='hugohackenhaar627']);
+    tests.push(['ocr pagamento comprador',Number(realMerged.fields.paidValue?.value)===61.44]);
+    tests.push(['ocr renda líquida',Number(realMerged.fields.netRevenue?.value)===44]);
+    tests.push(['ocr data pagamento',realMerged.fields.paymentDate?.value==='2026-07-16']);
   }catch(e){tests.push(['ocr parser self-test',false])}
   const failed=tests.filter(x=>!x[1]);
   if(failed.length) console.error('[Genesis 3D] Falhas nos testes de gestão:',failed);
@@ -11371,15 +11595,16 @@ async function loadGenesisCanvasLogo(){
   if(genesisCanvasLogoPromise)return genesisCanvasLogoPromise;
   genesisCanvasLogoPromise=(async()=>{
     const candidates=[
-      './genesis-logo.png',
+      // Os dois primeiros são exatamente os ícones usados pelo manifest/PWA.
       './genesis-192.png',
       './genesis-512.png',
-      'genesis-logo.png',
       'genesis-192.png',
       'genesis-512.png',
-      './assets/genesis-logo.png',
+      './genesis-logo.png',
+      'genesis-logo.png',
       './assets/genesis-192.png',
-      './assets/genesis-512.png'
+      './assets/genesis-512.png',
+      './assets/genesis-logo.png'
     ];
     for(const src of candidates){
       try{return await kitLoadImage(src)}catch(e){}
@@ -11488,6 +11713,18 @@ function canvasDrawCommercialBadge(ctx,x,y,w,h,icon,label,value,note){
   canvasWrapLines(ctx,String(note||''),w-72,2)
     .forEach((line,i)=>ctx.fillText(line,x+55,y+76+i*18));
 }
+function canvasDrawGenesisFooter(ctx,width,y){
+  const center=width/2;
+  ctx.strokeStyle='rgba(161,65,255,.65)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(42,y+22);ctx.lineTo(center-190,y+22);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(center+190,y+22);ctx.lineTo(width-42,y+22);ctx.stroke();
+  ctx.textAlign='center';ctx.fillStyle='#a34cff';ctx.font='900 24px -apple-system,Arial';
+  ctx.fillText('✦',center-170,y+30);ctx.fillText('✦',center+170,y+30);
+  ctx.fillStyle='#fff';ctx.font='800 22px -apple-system,Arial';
+  ctx.fillText('Genesis Prototipagem',center,y+20);
+  ctx.fillStyle='#a34cff';ctx.font='500 18px -apple-system,Arial';
+  ctx.fillText('Se você pode sonhar, nós podemos criar.',center,y+50);
+}
 async function canvasImageFromAsset(imageId,dataUrl){
   try{
     let src=imageId?await mediaGetObjectUrl(imageId):'';
@@ -11539,7 +11776,7 @@ async function createKitCollage(k){
   }
   y+=financeH;const badgeW=(width-side*2-gap*2)/3;canvasDrawCommercialBadge(ctx,side,y,badgeW,118,'🚚','FRETE',kitFreightText(k),Number(k.freight)>0?'Pago separadamente':'Sem custo adicional');canvasDrawCommercialBadge(ctx,side+badgeW+gap,y,badgeW,118,'◷','PRODUÇÃO',`${Math.max(1,Number(k.deadlineDays)||7)} dias úteis`,'A partir da confirmação do pedido');canvasDrawCommercialBadge(ctx,side+(badgeW+gap)*2,y,badgeW,118,'▣','VALIDADE',`${Math.max(1,Number(k.validityDays)||7)} dias`,'A partir do envio do orçamento');
   y+=badgesH;ctx.fillStyle='rgba(8,12,22,.98)';ctx.strokeStyle='rgba(126,76,190,.45)';canvasRoundRect(ctx,side,y,width-side*2,82,16,true,true);ctx.textAlign='left';ctx.fillStyle='#a44cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText(isSingle?'✓  Este orçamento inclui o produto exibido acima.':'✓  Este orçamento inclui todos os produtos exibidos acima.',side+26,y+34);ctx.fillStyle='#d5d6dc';ctx.font='500 17px -apple-system,Arial';ctx.fillText('Imagens meramente ilustrativas. Cores e detalhes podem variar.',side+26,y+62);
-  y+=noticeH;ctx.strokeStyle='rgba(161,65,255,.65)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(42,y+22);ctx.lineTo(width/2-190,y+22);ctx.stroke();ctx.beginPath();ctx.moveTo(width/2+190,y+22);ctx.lineTo(width-42,y+22);ctx.stroke();ctx.textAlign='center';ctx.fillStyle='#a34cff';ctx.font='900 24px -apple-system,Arial';ctx.fillText('✦',width/2-170,y+30);ctx.fillText('✦',width/2+170,y+30);ctx.fillStyle='#fff';ctx.font='800 22px -apple-system,Arial';ctx.fillText('Genesis Prototipagem',width/2,y+20);ctx.fillStyle='#a34cff';ctx.font='500 18px -apple-system,Arial';ctx.fillText('Se você pode sonhar, nós podemos criar.',width/2,y+50);return canvas;
+  y+=noticeH;canvasDrawGenesisFooter(ctx,width,y);return canvas;
 }
 let genesisKitPreviewUrl='';
 function revokeGenesisKitPreview(){

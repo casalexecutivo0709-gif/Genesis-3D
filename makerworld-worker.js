@@ -116,9 +116,15 @@ function normalizedShopeeScreenshot(raw,index){
     orderId:text('orderId',120),
     orderDate:text('orderDate',20),
     orderTime:text('orderTime',10),
+    paymentDate:text('paymentDate',20),
+    paymentTime:text('paymentTime',10),
+    completionDate:text('completionDate',20),
+    completionTime:text('completionTime',10),
+    transferDate:text('transferDate',20),
     shopeeStatus:text('shopeeStatus',120),
     postingDeadline:text('postingDeadline',20),
     buyer:text('buyer',180),
+    buyerUsername:text('buyerUsername',180),
     city:text('city',120),
     state:text('state',40),
     cep:text('cep',20),
@@ -128,6 +134,9 @@ function normalizedShopeeScreenshot(raw,index){
     freight:nullableNumber(raw?.freight),
     total:nullableNumber(raw?.total),
     paidValue:nullableNumber(raw?.paidValue),
+    netRevenue:nullableNumber(raw?.netRevenue),
+    fees:nullableNumber(raw?.fees),
+    paymentMethod:text('paymentMethod',80),
     logistics:text('logistics',180),
     tracking:text('tracking',180),
     items,
@@ -158,10 +167,21 @@ async function analyzeShopee(request,env,origin){
     }
   }
   if(totalChars>16*1024*1024)return json({ok:false,error:'Imagens maiores que o limite permitido.'},413,origin);
-  const question=`Leia este screenshot da Shopee Brasil. Extraia somente o que estiver visível; nunca invente.
+  const question=`Leia este screenshot da Shopee Brasil com atenção de OCR. Extraia somente o que estiver visível; nunca invente, complete, traduza ou corrija nomes, usuários, códigos, datas e valores.
 Responda SOMENTE com um objeto JSON válido, sem markdown, neste formato:
-{"screenType":"","orderId":"","orderDate":"","orderTime":"","shopeeStatus":"","postingDeadline":"","buyer":"","city":"","state":"","cep":"","address":"","productValue":null,"discount":null,"freight":null,"total":null,"paidValue":null,"logistics":"","tracking":"","items":[{"productName":"","variation":"","qty":1,"unitPrice":null,"subtotal":null,"sku":"","shopeeItemId":""}],"confidence":0,"notes":[]}
-Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horários HH:MM. Preserve exatamente pedido, SKU e rastreio. Separe nome, variação, quantidade, preço unitário e subtotal. Use string vazia ou null quando ausente.`;
+{"screenType":"","orderId":"","orderDate":"","orderTime":"","paymentDate":"","paymentTime":"","completionDate":"","completionTime":"","transferDate":"","shopeeStatus":"","postingDeadline":"","buyer":"","buyerUsername":"","city":"","state":"","cep":"","address":"","productValue":null,"discount":null,"freight":null,"total":null,"paidValue":null,"netRevenue":null,"fees":null,"paymentMethod":"","logistics":"","tracking":"","items":[{"productName":"","variation":"","qty":1,"unitPrice":null,"subtotal":null,"sku":"","shopeeItemId":""}],"confidence":0,"notes":[]}
+Regras importantes:
+- orderId: copie EXATAMENTE o texto após "ID do pedido", sem # e sem trocar letras ou números.
+- buyerUsername: copie EXATAMENTE o usuário ao lado do avatar. buyer deve receber esse mesmo usuário quando não houver outro nome explícito do comprador. "Driver's Name" nunca é comprador.
+- productName: é o título do produto ao lado da foto. Ignore selos como "Pré-encomenda". variation é a opção logo abaixo, como "Tradicional".
+- qty: leia "x 1", "x1" ou a quantidade mostrada.
+- productValue: "Subtotal dos Produtos", "Preço do Produto" ou preço do item.
+- paidValue: "Pagamento total" ou "Pagamento do Comprador".
+- netRevenue: "Renda do pedido", "Valor Final do Pedido" ou "Valor final do pedido".
+- fees: valor de "Taxas e Encargos", "Comissão e Taxas" ou a soma das taxas, preservando o sinal.
+- orderDate/orderTime: "Horário do pedido". paymentDate/paymentTime: "Data do pagamento". completionDate/completionTime: "Horário de conclusão". transferDate: "Pedido Completado em".
+- paymentMethod: método como Pix. shopeeStatus: estado como Concluído.
+Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horários HH:MM. Preserve exatamente pedido, usuário, SKU e rastreio. Use string vazia ou null quando ausente.`;
   const screenshots=[],warnings=[];
   for(let index=0;index<images.length;index++){
     let result;
@@ -172,7 +192,7 @@ Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horár
         question,
         reasoning:false,
         temperature:0,
-        max_tokens:1100,
+        max_tokens:1400,
         stream:false
       });
     }catch(error){
@@ -569,7 +589,7 @@ export default {
         return json({
           ok:true,
           service:'Genesis 3D Model Bridge',
-          version:8,
+          version:9,
           zeroCostMode,
           capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:freeAiReady},
           ai:freeAiReady?{provider:'cloudflare-workers-ai-free',model:FREE_AI_MODEL,dailyDeviceSafetyLimit:FREE_AI_DAILY_DEVICE_LIMIT}:null,
