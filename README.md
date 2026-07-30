@@ -72,7 +72,7 @@ Após publicar, teste:
 https://SEU-WORKER.workers.dev/health
 ```
 
-A resposta deve informar `version: 9`, `zeroCostMode: true`, `makerworld: true` e os estados do Thingiverse e da IA Shopee.
+A resposta deve informar `version: 10`, `zeroCostMode: true`, `makerworld: true` e os estados do Thingiverse e da IA Shopee.
 
 ## Guardar cópia no próprio computador
 
