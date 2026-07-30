@@ -1,6 +1,6 @@
-const CACHE_NAME='genesis3d-v28-quote-colors-logo-username-20260730';
-const SW_VERSION='28-quote-colors-logo-username-20260730';
-const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-logo.png','./genesis-192.png','./genesis-512.png'];
+const CACHE_NAME='genesis3d-v29-colored-hat-swatches-20260730';
+const SW_VERSION='29-colored-hat-swatches-20260730';
+const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
 self.addEventListener('install',e=>e.waitUntil(
   caches.open(CACHE_NAME)
     .then(cache=>Promise.all(CORE.map(url=>cache.add(url).catch(err=>console.warn('[Genesis cache]',url,err)))))
