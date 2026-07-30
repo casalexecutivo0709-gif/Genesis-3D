@@ -1,5 +1,5 @@
-const CACHE_NAME='genesis3d-v27-shopee-ai-quotes-20260730';
-const SW_VERSION='27-shopee-ai-quotes-20260730';
+const CACHE_NAME='genesis3d-v28-quote-colors-logo-username-20260730';
+const SW_VERSION='28-quote-colors-logo-username-20260730';
 const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-logo.png','./genesis-192.png','./genesis-512.png'];
 self.addEventListener('install',e=>e.waitUntil(
   caches.open(CACHE_NAME)

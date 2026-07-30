@@ -1509,7 +1509,37 @@ body{
 }
 .topbar::after{bottom:-42px!important;height:46px!important;background:linear-gradient(180deg,rgba(4,7,13,.09),transparent 100%)!important}
 .genesis-brand-lockup{gap:11px!important;min-height:42px!important}
-.genesis-brand-icon{width:39px!important;height:39px!important;border-radius:12px!important;box-shadow:0 7px 22px rgba(98,49,190,.28),inset 0 0 0 .5px rgba(255,255,255,.24)!important}
+.genesis-brand-icon-frame{
+  width:39px;height:39px;flex:0 0 39px;border-radius:12px;overflow:hidden;
+  box-shadow:0 7px 22px rgba(98,49,190,.28),inset 0 0 0 .5px rgba(255,255,255,.24);
+}
+.genesis-brand-icon{
+  width:112%!important;height:112%!important;max-width:none!important;border-radius:0!important;
+  object-fit:cover!important;display:block;transform:translate(-5.35%,-5.35%);
+  box-shadow:none!important;background:transparent!important;
+}
+.quote-color-picker{display:grid;gap:9px}
+.quote-color-toggle{width:100%;justify-content:space-between}
+.quote-color-panel{
+  display:grid;gap:8px;max-height:260px;overflow:auto;padding:10px;
+  border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.025);
+}
+.quote-color-panel[hidden]{display:none!important}
+.quote-color-option{
+  display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid rgba(255,255,255,.075);
+  border-radius:12px;background:rgba(255,255,255,.025);cursor:pointer;
+}
+.quote-color-option input{width:19px;height:19px;accent-color:#8f35ff;flex:0 0 auto}
+.quote-color-copy{min-width:0;display:grid;gap:2px}
+.quote-color-copy b{font-size:13px;color:var(--text)}
+.quote-color-copy small{font-size:10.5px;color:var(--muted)}
+.quote-color-summary{display:flex;flex-wrap:wrap;gap:6px}
+.quote-color-chip{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid rgba(174,94,255,.28);
+  border-radius:999px;background:rgba(135,55,230,.10);font-size:11.5px;font-weight:750;color:#d8b8ff;
+}
+.quote-color-dot{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#8c35ff,#47c9ff);box-shadow:0 0 0 1px rgba(255,255,255,.28)}
+.quote-color-empty{font-size:12px;color:var(--muted);line-height:1.45;padding:4px 2px}
 .topbar h1{font-size:18px!important;font-weight:760!important;letter-spacing:-.035em!important}
 .topbar p{font-size:11px!important;margin-top:1px!important;color:#a5aabd!important}
 
@@ -2553,7 +2583,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
 
   <div class="topbar">
     <div class="genesis-brand-lockup">
-      <img src="genesis-192.png" alt="Genesis" class="genesis-brand-icon">
+      <span class="genesis-brand-icon-frame"><img src="genesis-192.png" alt="Genesis" class="genesis-brand-icon"></span>
       <div class="genesis-brand-copy">
         <h1>Genesis 3D</h1>
         <p>Genesis Prototipagem</p>
@@ -3656,6 +3686,20 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <option value="expired">Expirado</option>
     </select>
   </div>
+  <div class="field">
+    <label>Cores disponíveis (opcional)</label>
+    <div class="quote-color-picker">
+      <button class="btn btn-secondary quote-color-toggle" id="btnQuoteColorsToggle" type="button">
+        <span>Selecionar nos filamentos cadastrados</span><span aria-hidden="true">⌄</span>
+      </button>
+      <div class="quote-color-panel" id="quoteColorPanel" hidden>
+        <div id="quoteColorOptions"></div>
+        <button class="btn btn-ghost btn-sm" id="btnQuoteColorsClear" type="button">Limpar seleção</button>
+      </div>
+      <div class="quote-color-summary" id="quoteColorSummary"></div>
+      <small>Sem seleção, nenhuma informação de cor aparece no orçamento.</small>
+    </div>
+  </div>
 
   <div class="quote-section">Forma de venda</div>
   <div class="seg" id="qSaleType">
@@ -4206,7 +4250,7 @@ const KEYS = {
   KITS:'genesis3d:kits'
 };
 const SCHEMA_VERSION = 22;
-const GENESIS_APP_VERSION = '2026.07.30.7';
+const GENESIS_APP_VERSION = '2026.07.30.8';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -6947,6 +6991,92 @@ let activeQuotePricing = {directUnit:0,shopeeUnit:0};
 let activeQuoteImageId = null;
 let activeQuoteDraftPhotoDataUrl = null;
 let activeQuoteInternalSnapshot = null;
+let activeQuoteColors = [];
+
+function quoteFilamentColorLabel(filament){
+  return String(filament?.color||filament?.name||'').trim();
+}
+function quoteColorSnapshot(filament){
+  const label=quoteFilamentColorLabel(filament);
+  return {
+    filamentId:String(filament?.id||''),
+    label,
+    color:String(filament?.color||'').trim(),
+    name:String(filament?.name||'').trim(),
+    material:String(filament?.material||'').trim()
+  };
+}
+function normalizedQuoteColors(colors){
+  const seen=new Set();
+  return (Array.isArray(colors)?colors:[]).map(item=>{
+    if(typeof item==='string')return {filamentId:'',label:item.trim(),color:item.trim(),name:'',material:''};
+    return {
+      filamentId:String(item?.filamentId||item?.id||''),
+      label:String(item?.label||item?.color||item?.name||'').trim(),
+      color:String(item?.color||'').trim(),
+      name:String(item?.name||'').trim(),
+      material:String(item?.material||'').trim()
+    };
+  }).filter(item=>{
+    const key=item.label.toLocaleLowerCase('pt-BR');
+    if(!key||seen.has(key))return false;
+    seen.add(key);return true;
+  });
+}
+function quoteColorLabels(source=activeQuoteColors){
+  return normalizedQuoteColors(source).map(item=>item.label);
+}
+function renderQuoteColorPicker(){
+  const options=document.getElementById('quoteColorOptions');
+  const summary=document.getElementById('quoteColorSummary');
+  if(!options||!summary)return;
+  const selectedIds=new Set(activeQuoteColors.map(item=>String(item.filamentId||'')));
+  const selectedLabels=new Set(quoteColorLabels().map(label=>label.toLocaleLowerCase('pt-BR')));
+  options.innerHTML='';
+  if(!filaments.length){
+    options.innerHTML='<div class="quote-color-empty">Cadastre seus filamentos em <b>Mais → Filamentos</b> para selecionar as cores.</div>';
+  }else{
+    filaments.forEach(filament=>{
+      const snapshot=quoteColorSnapshot(filament);
+      const checked=selectedIds.has(String(filament.id))||selectedLabels.has(snapshot.label.toLocaleLowerCase('pt-BR'));
+      const row=document.createElement('label');
+      row.className='quote-color-option';
+      row.innerHTML='<input type="checkbox" data-quote-filament-id="'+escapeHtml(String(filament.id))+'" '+(checked?'checked':'')+'>'+
+        '<span class="quote-color-copy"><b>'+escapeHtml(snapshot.label||'Cor não informada')+'</b><small>'+
+        escapeHtml([filament.name,filament.material,filament.brand].filter(Boolean).join(' · '))+'</small></span>';
+      options.appendChild(row);
+    });
+  }
+  summary.innerHTML=quoteColorLabels().map(label=>
+    '<span class="quote-color-chip"><span class="quote-color-dot"></span>'+escapeHtml(label)+'</span>'
+  ).join('');
+  const button=document.querySelector('#btnQuoteColorsToggle span:first-child');
+  if(button)button.textContent=activeQuoteColors.length
+    ? `${activeQuoteColors.length} ${activeQuoteColors.length===1?'cor selecionada':'cores selecionadas'}`
+    :'Selecionar nos filamentos cadastrados';
+}
+function readQuoteColorsFromPicker(){
+  activeQuoteColors=[...document.querySelectorAll('#quoteColorOptions input:checked')].map(input=>{
+    const filament=filaments.find(item=>String(item.id)===String(input.dataset.quoteFilamentId));
+    return filament?quoteColorSnapshot(filament):null;
+  }).filter(Boolean);
+  renderQuoteColorPicker();
+  quoteMessageDirty=false;
+  refreshQuoteUI();
+  scheduleActiveDraft('quote-colors');
+}
+document.getElementById('btnQuoteColorsToggle').addEventListener('click',()=>{
+  const panel=document.getElementById('quoteColorPanel');
+  panel.hidden=!panel.hidden;
+});
+document.getElementById('quoteColorOptions').addEventListener('change',readQuoteColorsFromPicker);
+document.getElementById('btnQuoteColorsClear').addEventListener('click',()=>{
+  activeQuoteColors=[];
+  renderQuoteColorPicker();
+  quoteMessageDirty=false;
+  refreshQuoteUI();
+  scheduleActiveDraft('quote-colors-clear');
+});
 
 function findRememberedShopeeLink(productName){
   const key = (productName||'').trim().toLowerCase();
@@ -6977,6 +7107,8 @@ function buildCommercialQuote(){
   const deadline=Math.max(1,quoteDays(document.getElementById('qProductionDeadline').value,7)||7);
   const validity=Math.max(1,quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7));
   const freight=Number(freightRaw)>0?fmtBRL(freightRaw):'Grátis';
+  const colors=quoteColorLabels();
+  const colorsLine=colors.length?`\n🎨 *Cores disponíveis:* ${colors.join(', ')}\n`:'';
   return cleanQuoteText(
 `✨ *SEU ORÇAMENTO ESTÁ PRONTO*
 
@@ -6993,6 +7125,7 @@ Olá! 😊
 ⏱️ Produção: ${deadline} dias úteis
 
 📅 Validade: ${validity} dias
+${colorsLine}
 
 ━━━━━━━━━━━━━━━━
 
@@ -7122,6 +7255,7 @@ async function openQuoteComposer(record){
     activeQuoteImageId=record.imageId||null;
     activeQuoteDraftPhotoDataUrl=null;
     activeQuoteInternalSnapshot=record.internalSnapshot||null;
+    activeQuoteColors=normalizedQuoteColors(record.availableColors);
   }else{
     const product=(inProduto.value||'').trim();
     document.getElementById('qClientName').value='';
@@ -7144,7 +7278,10 @@ async function openQuoteComposer(record){
     activeQuoteImageId=imageAsset.imageId||null;
     activeQuoteDraftPhotoDataUrl=imageAsset.imageId?null:(imageAsset.dataUrl||currentPhotoDataUrl||null);
     activeQuoteInternalSnapshot=captureInternalSnapshot();
+    activeQuoteColors=[];
   }
+  renderQuoteColorPicker();
+  document.getElementById('quoteColorPanel').hidden=true;
   refreshQuoteUI();
   openSheet('ovCopy','sheetCopy');
 }
@@ -7217,6 +7354,7 @@ async function saveQuoteFromComposer(showSuccess){
       ? quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7)
       : null,
     notes:document.getElementById('qNotes').value.trim(),
+    availableColors:normalizedQuoteColors(activeQuoteColors),
     messageOverride:quoteMessageDirty ? getQuoteMessage() : '',
     status:document.getElementById('qStatus').value||'waiting',
     pricingSnapshot:{directUnit:activeQuotePricing.directUnit||0,shopeeUnit:activeQuotePricing.shopeeUnit||0},
@@ -7245,7 +7383,8 @@ function quoteVisualKey(q){
     id:q?.id||'',productName:q?.productName||'',qty:Number(q?.qty)||1,
     unitPrice:Number(q?.unitPrice)||0,total:Number(q?.total)||0,freight:Number(q?.freight)||0,
     deadlineDays:Number(q?.deadlineDays)||7,validityDays:Number(q?.validityDays)||7,
-    imageId:q?.imageId||'',imageUrl:q?.imageUrl||'',imageDataUrl:(q?.imageDataUrl||'').slice(0,80)
+    imageId:q?.imageId||'',imageUrl:q?.imageUrl||'',imageDataUrl:(q?.imageDataUrl||'').slice(0,80),
+    availableColors:quoteColorLabels(q?.availableColors).join('|')
   });
 }
 function quoteSnapshotFromComposer(){
@@ -7261,7 +7400,8 @@ function quoteSnapshotFromComposer(){
     validityDays:quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7),
     imageId:activeQuoteImageId||existing?.imageId||null,
     imageUrl,
-    imageDataUrl:activeQuoteDraftPhotoDataUrl||existing?.imageDataUrl||''
+    imageDataUrl:activeQuoteDraftPhotoDataUrl||existing?.imageDataUrl||'',
+    availableColors:normalizedQuoteColors(activeQuoteColors)
   };
 }
 function updateIndividualShareButton(){
@@ -7296,7 +7436,8 @@ async function createIndividualQuoteCanvas(q){
   const unit=Number(q.unitPrice)||0;
   const freight=Number(q.freight)||0;
   const final=Number(q.total??(qty*unit+freight))||0;
-  const width=1080,height=1536;
+  const colors=quoteColorLabels(q.availableColors);
+  const width=1080,height=colors.length?1328:1214;
   const canvas=document.createElement('canvas');
   canvas.width=width;canvas.height=height;
   const ctx=canvas.getContext('2d');
@@ -7306,22 +7447,22 @@ async function createIndividualQuoteCanvas(q){
   ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);
   const glow=ctx.createRadialGradient(520,120,0,520,120,620);
   glow.addColorStop(0,'rgba(126,36,255,.24)');glow.addColorStop(1,'rgba(126,36,255,0)');
-  ctx.fillStyle=glow;ctx.fillRect(0,0,width,650);
+  ctx.fillStyle=glow;ctx.fillRect(0,0,width,520);
 
-  await drawGenesisCanvasLogo(ctx,44,42,132);
-  ctx.textAlign='center';ctx.fillStyle='#fff';ctx.font='900 49px -apple-system,Arial';ctx.fillText('ORÇAMENTO DO SEU',590,92);
-  ctx.fillStyle='#9b43ff';ctx.font='900 58px -apple-system,Arial';ctx.fillText('ITEM PERSONALIZADO',590,160);
-  ctx.fillStyle='#fff';ctx.font='600 23px -apple-system,Arial';ctx.fillText('✦  PRODUZIDO ESPECIALMENTE PARA VOCÊ  ✦',590,214);
+  await drawGenesisCanvasLogo(ctx,38,28,112);
+  ctx.textAlign='center';ctx.fillStyle='#fff';ctx.font='900 44px -apple-system,Arial';ctx.fillText('ORÇAMENTO DO SEU',590,76);
+  ctx.fillStyle='#9b43ff';ctx.font='900 52px -apple-system,Arial';ctx.fillText('ITEM PERSONALIZADO',590,134);
+  ctx.fillStyle='#fff';ctx.font='600 20px -apple-system,Arial';ctx.fillText('✦  PRODUZIDO ESPECIALMENTE PARA VOCÊ  ✦',590,175);
 
   // Quadro principal no mesmo padrão visual da referência enviada.
-  const px=32,py=278,pw=1016,ph=708;
+  const px=32,py=208,pw=1016,ph=610;
   ctx.fillStyle='rgba(7,9,18,.97)';ctx.strokeStyle='rgba(171,83,255,.72)';ctx.lineWidth=2;
   canvasRoundRect(ctx,px,py,pw,ph,22,true,true);
 
-  const leftX=58,leftY=306,leftW=522,leftH=650;
+  const leftX=58,leftY=232,leftW=522,leftH=562;
   ctx.fillStyle='rgba(13,14,26,.96)';canvasRoundRect(ctx,leftX,leftY,leftW,leftH,18,true,false);
   const img=await canvasImageFromAsset(q.imageId,q.imageDataUrl||q.imageUrl||q.productImage||'');
-  const imageX=leftX+18,imageY=leftY+58,imageW=leftW-36,imageH=492;
+  const imageX=leftX+18,imageY=leftY+55,imageW=leftW-36,imageH=414;
   if(img)canvasDrawCover(ctx,img,imageX,imageY,imageW,imageH,18);
   else{
     ctx.fillStyle='#171225';canvasRoundRect(ctx,imageX,imageY,imageW,imageH,18,true,false);
@@ -7333,11 +7474,11 @@ async function createIndividualQuoteCanvas(q){
 
   // Faixa produção sob encomenda.
   ctx.fillStyle='rgba(8,10,20,.96)';ctx.strokeStyle='rgba(155,67,255,.42)';ctx.lineWidth=1.5;
-  canvasRoundRect(ctx,leftX+18,leftY+570,leftW-36,66,14,true,true);
-  ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText('▣  Produção sob encomenda',leftX+42,leftY+598);
-  ctx.fillStyle='#fff';ctx.font='500 18px -apple-system,Arial';ctx.fillText('Impressão 3D de alta qualidade',leftX+42,leftY+625);
+  canvasRoundRect(ctx,leftX+18,leftY+484,leftW-36,62,14,true,true);
+  ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 20px -apple-system,Arial';ctx.fillText('▣  Produção sob encomenda',leftX+42,leftY+510);
+  ctx.fillStyle='#fff';ctx.font='500 17px -apple-system,Arial';ctx.fillText('Impressão 3D de alta qualidade',leftX+42,leftY+536);
 
-  const rx=620,ry=385,rw=372;
+  const rx=620,ry=285,rw=372;
   ctx.textAlign='left';ctx.fillStyle='#fff';
   canvasFitText(ctx,q.productName||'Produto',rw,40,26,800);
   const nameLines=canvasWrapLines(ctx,q.productName||'Produto',rw,3);
@@ -7352,22 +7493,33 @@ async function createIndividualQuoteCanvas(q){
 
   ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+250);
   ctx.fillStyle='#fff';ctx.font='800 25px -apple-system,Arial';ctx.fillText('Valor',rx+54,nameBottom+246);
-  ctx.fillStyle='#8f24ff';ctx.font='900 67px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+334);
+  ctx.fillStyle='#8f24ff';ctx.font='900 64px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+334);
 
   // Cartões comerciais inferiores.
-  const cardY=1037,cardGap=16,cardW=(1016-cardGap*2)/3,cardH=180;
+  const cardY=844,cardGap=16,cardW=(1016-cardGap*2)/3,cardH=142;
   canvasDrawCommercialBadge(ctx,32,cardY,cardW,cardH,'🚚','FRETE',freight>0?fmtBRL(freight):'Grátis',freight>0?'Pago separadamente':'Sem custo adicional');
   canvasDrawCommercialBadge(ctx,32+cardW+cardGap,cardY,cardW,cardH,'◷','PRODUÇÃO',`${Math.max(1,Number(q.deadlineDays)||7)} dias úteis`,'A partir da confirmação do pedido');
   canvasDrawCommercialBadge(ctx,32+(cardW+cardGap)*2,cardY,cardW,cardH,'▣','VALIDADE',`${Math.max(1,Number(q.validityDays)||7)} dias`,'A partir do envio do orçamento');
 
-  const noticeY=1240;
+  let nextY=1004;
+  if(colors.length){
+    ctx.fillStyle='rgba(7,9,18,.98)';ctx.strokeStyle='rgba(146,73,220,.55)';ctx.lineWidth=1.6;
+    canvasRoundRect(ctx,32,nextY,1016,96,18,true,true);
+    ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 20px -apple-system,Arial';
+    ctx.fillText('🎨  CORES DISPONÍVEIS',60,nextY+33);
+    ctx.fillStyle='#f2e9ff';ctx.font='700 18px -apple-system,Arial';
+    const lines=canvasWrapLines(ctx,colors.join('  •  '),952,2);
+    lines.forEach((line,index)=>ctx.fillText(line,60,nextY+62+index*23));
+    nextY+=114;
+  }
+  const noticeY=nextY;
   ctx.fillStyle='rgba(7,9,18,.98)';ctx.strokeStyle='rgba(146,73,220,.65)';ctx.lineWidth=1.8;
-  canvasRoundRect(ctx,32,noticeY,1016,116,18,true,true);
-  ctx.fillStyle='#a34cff';ctx.font='800 22px -apple-system,Arial';ctx.fillText('✓  Este orçamento inclui o item exibido acima.',78,noticeY+43);
-  ctx.fillStyle='#e3e3e8';ctx.font='500 18px -apple-system,Arial';ctx.fillText('Imagem meramente ilustrativa. Cores e detalhes podem variar.',78,noticeY+79);
+  canvasRoundRect(ctx,32,noticeY,1016,94,18,true,true);
+  ctx.fillStyle='#a34cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText('✓  Este orçamento inclui o item exibido acima.',72,noticeY+36);
+  ctx.fillStyle='#e3e3e8';ctx.font='500 17px -apple-system,Arial';ctx.fillText('Imagem ilustrativa. Tonalidades e detalhes podem variar conforme o lote.',72,noticeY+66);
 
   // Mesmo rodapé da arte de kit: linhas roxas e diamantes laterais.
-  canvasDrawGenesisFooter(ctx,width,1402);
+  canvasDrawGenesisFooter(ctx,width,noticeY+130);
   return canvas;
 }
 async function individualQuoteVisualFile(q){
@@ -7378,7 +7530,8 @@ async function individualQuoteVisualFile(q){
 }
 function buildIndividualShareMessage(q){
   const freight=Number(q.freight)>0?fmtBRL(Number(q.freight)):'Grátis';
-  return [
+  const colors=quoteColorLabels(q.availableColors);
+  const lines=[
     '✨ *SEU ORÇAMENTO ESTÁ PRONTO*',
     '',
     'Olá! 😊',
@@ -7394,13 +7547,17 @@ function buildIndividualShareMessage(q){
     `⏱️ Produção: ${Math.max(1,Number(q.deadlineDays)||7)} dias úteis`,
     '',
     `📅 Validade: ${Math.max(1,Number(q.validityDays)||7)} dias`,
+  ];
+  if(colors.length)lines.push('',`🎨 *Cores disponíveis:* ${colors.join(', ')}`);
+  lines.push(
     '',
     '━━━━━━━━━━━━━━━━',
     '',
     'Qualquer ajuste é só me chamar. 😊',
     '',
     '*Genesis Prototipagem*'
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 async function activeQuoteShareFile(){
@@ -7701,6 +7858,7 @@ async function openQuoteDetail(id){
   }
   const client=q.client||{};
   const sale=q.saleType==='shopee'?'Shopee':'Venda direta';
+  const colors=quoteColorLabels(q.availableColors);
   let links='';
   if(q.shopeeLink) links+='<button class="btn btn-secondary btn-sm" data-qd-link="shopee">🛒 Abrir Shopee</button>';
   if(q.sourceLink) links+='<button class="btn btn-secondary btn-sm" data-qd-link="source">'+(isMakerWorldUrl(q.sourceLink)?'◉ Abrir MakerWorld':'🔗 Abrir arquivo')+'</button>';
@@ -7715,6 +7873,7 @@ async function openQuoteDetail(id){
     '<div class="detail-row"><span>Frete</span><b>'+(q.freightType==='pending'?'A calcular':fmtBRL(q.freight||0))+'</b></div>'+
     (q.deadline?'<div class="detail-row"><span>Prazo</span><b>'+escapeHtml(q.deadline)+'</b></div>':'')+
     (q.saleType!=='shopee'&&q.validityDays?'<div class="detail-row"><span>Validade</span><b>'+q.validityDays+' '+(q.validityDays===1?'dia':'dias')+'</b></div>':'')+
+    (colors.length?'<div class="detail-row"><span>Cores disponíveis</span><b>'+escapeHtml(colors.join(', '))+'</b></div>':'')+
     (q.notes?'<div class="detail-row" style="display:block;"><span>Observações</span><p style="margin:6px 0 0;color:var(--text);font-size:13px;">'+escapeHtml(q.notes)+'</p></div>':'')+
     (links?'<div class="link-actions">'+links+'</div>':'')+
     (q.orderId?'<p class="secondary-note">Convertido para pedido '+escapeHtml(orderNumber(orders.find(o=>o.id===q.orderId)||{seq:0}))+'.</p>':'');
@@ -8420,6 +8579,7 @@ async function convertQuoteToOrder(q){
     channel:q.saleType==='shopee'?'shopee':'direct',
     deadline:q.deadline||'',
     notes:q.notes||'',
+    availableColors:normalizedQuoteColors(q.availableColors),
     sourceLink:q.sourceLink||'',
     shopee:{number:'',orderLink:'',listingLink:q.shopeeLink||''},
     items:[{id:uid('item'),productName:q.productName||'Produto',variation:'',qty:q.qty||1,unitPrice:q.unitPrice||0,subtotal:round2((q.unitPrice||0)*(q.qty||1)),sku:'',shopeeItemId:'',linkedModelId:null}],
@@ -11062,6 +11222,8 @@ function runManagementSelfTests(){
     tests.push(['ocr pagamento comprador',Number(realMerged.fields.paidValue?.value)===61.44]);
     tests.push(['ocr renda líquida',Number(realMerged.fields.netRevenue?.value)===44]);
     tests.push(['ocr data pagamento',realMerged.fields.paymentDate?.value==='2026-07-16']);
+    tests.push(['cores opcionais ausentes',quoteColorLabels([]).length===0]);
+    tests.push(['cores sem duplicação',quoteColorLabels([{label:'Branco'},{color:'branco'},{label:'Roxo'}]).join('|')==='Branco|Roxo']);
   }catch(e){tests.push(['ocr parser self-test',false])}
   const failed=tests.filter(x=>!x[1]);
   if(failed.length) console.error('[Genesis 3D] Falhas nos testes de gestão:',failed);
@@ -11101,7 +11263,8 @@ function saveActiveDraft(reason='autosave'){
         imageId:activeQuoteImageId||null,
         saleType:quoteState.saleType,
         freightType:quoteState.freightType,
-        messageDirty:quoteMessageDirty
+        messageDirty:quoteMessageDirty,
+        availableColors:normalizedQuoteColors(activeQuoteColors)
       },
       order:{
         active:openSheetId==='sheetOrderForm',
@@ -11133,6 +11296,8 @@ async function restoreActiveDraft({reopen=true}={}){
       activeQuoteDraftPhotoDataUrl=null;
       quoteState={saleType:draft.quote.saleType||'direct',freightType:draft.quote.freightType||'pending'};
       quoteMessageDirty=!!draft.quote.messageDirty;
+      activeQuoteColors=normalizedQuoteColors(draft.quote.availableColors);
+      renderQuoteColorPicker();
       refreshQuoteUI();
       if(reopen&&!document.getElementById('sheetCopy').classList.contains('open'))openSheet('ovCopy','sheetCopy');
     }else if(draft.order?.active){
@@ -11619,7 +11784,11 @@ async function drawGenesisCanvasLogo(ctx,x,y,size){
   ctx.save();
   ctx.shadowColor='rgba(145,60,255,.46)';
   ctx.shadowBlur=22;
-  canvasDrawCover(ctx,logo,x,y,size,size,20);
+  // O ícone do PWA possui uma pequena margem preta embutida. O recorte preserva
+  // exatamente a mesma arte, mas deixa o contorno neon encostar na moldura.
+  const cropX=logo.width*.047,cropY=logo.height*.047;
+  ctx.beginPath();ctx.roundRect(x,y,size,size,20);ctx.clip();
+  ctx.drawImage(logo,cropX,cropY,logo.width-cropX*2,logo.height-cropY*2,x,y,size,size);
   ctx.restore();
   return true;
 }

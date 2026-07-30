@@ -99,8 +99,15 @@ function nullableNumber(value){
   const parsed=Number(String(value).replace(/[^\d,.-]/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));
   return Number.isFinite(parsed)?parsed:null;
 }
+function normalizeShopeeUsername(value){
+  const candidate=cleanText(value,80).replace(/^@/,'').trim();
+  if(!/^[a-z0-9][a-z0-9._-]{3,49}$/i.test(candidate))return '';
+  if(/^(concluido|concluído|shopee|tradicional|pix|cliente|comprador)$/i.test(candidate))return '';
+  return candidate;
+}
 function normalizedShopeeScreenshot(raw,index){
   const text=(key,max=300)=>cleanText(raw?.[key],max);
+  const username=normalizeShopeeUsername(raw?.buyerUsername)||normalizeShopeeUsername(raw?.buyer);
   const items=(Array.isArray(raw?.items)?raw.items:[]).slice(0,30).map(item=>({
     productName:cleanText(item?.productName,500),
     variation:cleanText(item?.variation,300),
@@ -123,8 +130,8 @@ function normalizedShopeeScreenshot(raw,index){
     transferDate:text('transferDate',20),
     shopeeStatus:text('shopeeStatus',120),
     postingDeadline:text('postingDeadline',20),
-    buyer:text('buyer',180),
-    buyerUsername:text('buyerUsername',180),
+    buyer:username||text('buyer',180),
+    buyerUsername:username,
     city:text('city',120),
     state:text('state',40),
     cep:text('cep',20),
@@ -143,6 +150,24 @@ function normalizedShopeeScreenshot(raw,index){
     confidence:clamp(Math.round(Number(raw?.confidence)||65),0,100),
     notes:(Array.isArray(raw?.notes)?raw.notes:[]).slice(0,20).map(v=>cleanText(v,300)).filter(Boolean)
   };
+}
+async function readShopeeUsernameFromProductScreen(env,image){
+  const result=await env.AI.run(FREE_AI_MODEL,{
+    task:'query',
+    image,
+    question:`Observe somente a linha imediatamente acima do produto: há um avatar à esquerda, o nome de login da conta e uma seta à direita. Copie EXATAMENTE esse login, preservando letras e números. No padrão esperado ele se parece com "hugohackenhaar627". Não converta em nome real e não use Driver's Name. Responda apenas {"buyerUsername":"texto_exato"}.`,
+    reasoning:false,
+    temperature:0,
+    max_tokens:100,
+    stream:false
+  });
+  const answer=await modelAnswerText(result);
+  try{
+    const parsed=extractJsonObject(answer);
+    return normalizeShopeeUsername(parsed?.buyerUsername);
+  }catch{
+    return normalizeShopeeUsername(String(answer).replace(/[{}"']/g,'').replace(/^buyerUsername\s*:\s*/i,''));
+  }
 }
 function isFreeAiLimitError(error){
   return /quota|rate.?limit|daily.?limit|neurons?|exceeded|429|3036/i.test(String(error?.message||error||''));
@@ -172,7 +197,7 @@ Responda SOMENTE com um objeto JSON válido, sem markdown, neste formato:
 {"screenType":"","orderId":"","orderDate":"","orderTime":"","paymentDate":"","paymentTime":"","completionDate":"","completionTime":"","transferDate":"","shopeeStatus":"","postingDeadline":"","buyer":"","buyerUsername":"","city":"","state":"","cep":"","address":"","productValue":null,"discount":null,"freight":null,"total":null,"paidValue":null,"netRevenue":null,"fees":null,"paymentMethod":"","logistics":"","tracking":"","items":[{"productName":"","variation":"","qty":1,"unitPrice":null,"subtotal":null,"sku":"","shopeeItemId":""}],"confidence":0,"notes":[]}
 Regras importantes:
 - orderId: copie EXATAMENTE o texto após "ID do pedido", sem # e sem trocar letras ou números.
-- buyerUsername: copie EXATAMENTE o usuário ao lado do avatar. buyer deve receber esse mesmo usuário quando não houver outro nome explícito do comprador. "Driver's Name" nunca é comprador.
+- buyerUsername: na tela "Detalhes do pedido", copie EXATAMENTE o login na linha com avatar e seta, imediatamente acima da foto/título do produto. Exemplo do formato: hugohackenhaar627. Não transforme o login em nome real. buyer deve receber esse mesmo login. "Driver's Name" nunca é comprador.
 - productName: é o título do produto ao lado da foto. Ignore selos como "Pré-encomenda". variation é a opção logo abaixo, como "Tradicional".
 - qty: leia "x 1", "x1" ou a quantidade mostrada.
 - productValue: "Subtotal dos Produtos", "Preço do Produto" ou preço do item.
@@ -205,6 +230,21 @@ Valores monetários são números em reais sem R$. Datas são YYYY-MM-DD; horár
     try{
       const answer=await modelAnswerText(result);
       const parsed=extractJsonObject(answer);
+      let username=normalizeShopeeUsername(parsed?.buyerUsername)||normalizeShopeeUsername(parsed?.buyer);
+      const hasProductEvidence=Array.isArray(parsed?.items)&&parsed.items.some(item=>cleanText(item?.productName,80));
+      const likelyOrderScreen=hasProductEvidence||!!cleanText(parsed?.orderId,80)||!!cleanText(parsed?.buyer,80)||/pedido|produto/i.test(cleanText(parsed?.screenType,80));
+      if((!username||!/\d/.test(username))&&likelyOrderScreen){
+        try{
+          username=(await readShopeeUsernameFromProductScreen(env,images[index]))||username;
+        }catch(usernameError){
+          console.warn('[Genesis3D Free AI username pass]',usernameError);
+          warnings.push(`Print ${index+1}: não foi possível confirmar o login do comprador.`);
+        }
+      }
+      if(username){
+        parsed.buyerUsername=username;
+        parsed.buyer=username;
+      }
       screenshots.push(normalizedShopeeScreenshot(parsed,index));
     }catch(error){
       console.error('[Genesis3D Free AI output]',error);
@@ -589,7 +629,7 @@ export default {
         return json({
           ok:true,
           service:'Genesis 3D Model Bridge',
-          version:9,
+          version:10,
           zeroCostMode,
           capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:freeAiReady},
           ai:freeAiReady?{provider:'cloudflare-workers-ai-free',model:FREE_AI_MODEL,dailyDeviceSafetyLimit:FREE_AI_DAILY_DEVICE_LIMIT}:null,
