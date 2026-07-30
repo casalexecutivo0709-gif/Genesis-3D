@@ -1,5 +1,5 @@
-const CACHE_NAME='genesis3d-v22-resilience-20260730';
-const SW_VERSION='22-resilience-20260730';
+const CACHE_NAME='genesis3d-v23-ai-local-resilience-20260730';
+const SW_VERSION='23-ai-local-resilience-20260730';
 const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-logo.png','./genesis-192.png','./genesis-512.png'];
 self.addEventListener('install',e=>e.waitUntil(
   caches.open(CACHE_NAME)

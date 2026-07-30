@@ -11,6 +11,9 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Mensagem automática e arte pronta para compartilhar com o cliente.
 - Kits com várias peças, quantidades, desconto, prazo, frete, layout visual e conversão em pedido.
 - Uso no celular como PWA e funcionamento offline do conteúdo já salvo.
+- Leitura de prints da Shopee com IA segura e OCR local de reserva, sempre com revisão antes de importar.
+- Cópia automática de segurança no IndexedDB para preservar o histórico entre atualizações.
+- Espelhamento opcional dos dados e imagens no próprio computador.
 - Sincronização opcional entre aparelhos usando Supabase.
 
 O download do arquivo 3D é aberto na página oficial do MakerWorld ou Thingiverse. Login, licença e condições do autor continuam sendo respeitados.
@@ -51,10 +54,18 @@ do GitHub.
 ```powershell
 npx wrangler login
 npx wrangler secret put THINGIVERSE_ACCESS_TOKEN
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put GENESIS_AI_ACCESS_TOKEN
 npx wrangler deploy
 ```
 
-O token do Thingiverse é opcional, mas necessário para habilitar a busca nessa fonte. Nunca coloque esse token diretamente no GitHub.
+O token do Thingiverse é opcional, mas necessário para habilitar a busca nessa fonte.
+Para habilitar a leitura inteligente da Shopee, configure os dois segredos da OpenAI:
+
+- `OPENAI_API_KEY`: chave da API da OpenAI;
+- `GENESIS_AI_ACCESS_TOKEN`: código privado criado por você para proteger o endpoint. Digite o mesmo código em **Mais → Configurações → Reconhecimento inteligente Shopee**.
+
+Nunca coloque nenhum desses segredos diretamente no GitHub ou no HTML.
 
 Se o aplicativo for publicado em outro domínio, acrescente somente a origem HTTPS, sem caminho, à variável `ALLOWED_ORIGINS` no `wrangler.jsonc`, separando múltiplas origens por vírgula. Depois execute `npx wrangler deploy` novamente.
 
@@ -64,7 +75,19 @@ Após publicar, teste:
 https://SEU-WORKER.workers.dev/health
 ```
 
-A resposta deve informar `version: 4`, `makerworld: true` e o estado do Thingiverse.
+A resposta deve informar `version: 5`, `makerworld: true` e os estados do Thingiverse e da IA Shopee.
+
+## Guardar cópia no próprio computador
+
+O diretório [`genesis-local-server`](genesis-local-server/) contém um servidor sem dependências externas que guarda snapshots e imagens dentro do computador.
+
+1. Abra o README dessa pasta e configure HTTPS para a rede local.
+2. Execute `start-server.cmd`.
+3. No aplicativo, abra **Mais → Configurações → Cópia no seu computador**.
+4. Informe o endereço HTTPS e o código de pareamento.
+5. Teste e ative a cópia automática.
+
+Atualizar o aplicativo no mesmo endereço não apaga `localStorage` nem IndexedDB. O Service Worker também só instala a nova versão depois da confirmação do usuário. A cópia no computador oferece recuperação adicional caso os dados do site sejam apagados manualmente ou pelo sistema.
 
 ## Ativar sincronização com Supabase
 
@@ -97,5 +120,6 @@ Use apenas a chave pública no aplicativo. A chave `service_role` nunca deve ser
 - `service-worker.js`: instalação e cache offline.
 - `manifest.json`: nome, ícones e aparência da PWA.
 - `makerworld-worker.js`: ponte para MakerWorld, Thingiverse e imagens.
+- `genesis-local-server/`: cópia opcional no próprio computador.
 - `supabase-schema.sql`: tabela e políticas de segurança da sincronização.
 
