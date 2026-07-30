@@ -2,6 +2,16 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
+## Concluídas na versão 2026.07.30.9
+
+- [x] Usar a silhueta exata do chapéu Genesis para representar as cores disponíveis.
+- [x] Tingir automaticamente cada chapéu conforme o nome da cor cadastrada no filamento.
+- [x] Aplicar contorno branco nas cores escuras, especialmente no preto, para manter a leitura no fundo preto.
+- [x] Exibir os chapéus coloridos tanto no orçamento individual quanto no orçamento de kit.
+- [x] Adicionar a seleção opcional de cores também ao compositor de kits.
+- [x] Manter a seção totalmente oculta nas artes quando nenhuma cor estiver selecionada.
+- [x] Salvar as cores do kit e preservá-las ao converter o kit em pedido.
+
 ## Concluídas na versão 2026.07.30.8
 
 - [x] Remover a faixa preta externa da logo no cabeçalho, preservando a mesma arte do ícone instalado na tela inicial.

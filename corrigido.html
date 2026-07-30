@@ -1535,10 +1535,18 @@ body{
 .quote-color-copy small{font-size:10.5px;color:var(--muted)}
 .quote-color-summary{display:flex;flex-wrap:wrap;gap:6px}
 .quote-color-chip{
-  display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid rgba(174,94,255,.28);
-  border-radius:999px;background:rgba(135,55,230,.10);font-size:11.5px;font-weight:750;color:#d8b8ff;
+  min-width:64px;display:inline-flex;flex-direction:column;align-items:center;gap:3px;padding:7px 8px 6px;
+  border:1px solid rgba(174,94,255,.28);border-radius:12px;background:rgba(135,55,230,.10);
+  font-size:10.5px;font-weight:750;color:#d8b8ff;text-align:center;
 }
-.quote-color-dot{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#8c35ff,#47c9ff);box-shadow:0 0 0 1px rgba(255,255,255,.28)}
+.quote-color-option.unavailable{opacity:.55;cursor:not-allowed}
+.quote-color-hat{
+  width:45px;height:30px;background:var(--hat-color,#9b43ff);
+  -webkit-mask:url("./genesis-hat-mask.png") center/contain no-repeat;
+  mask:url("./genesis-hat-mask.png") center/contain no-repeat;
+}
+.quote-color-hat.is-dark{filter:drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)}
+.quote-color-option .quote-color-hat{width:38px;height:26px;flex:0 0 38px}
 .quote-color-empty{font-size:12px;color:var(--muted);line-height:1.45;padding:4px 2px}
 .topbar h1{font-size:18px!important;font-weight:760!important;letter-spacing:-.035em!important}
 .topbar p{font-size:11px!important;margin-top:1px!important;color:#a5aabd!important}
@@ -3424,6 +3432,21 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
         <div class="kit-floor-warning" id="kitFloorWarning"></div>
       </div>
 
+      <div class="kit-section-title">
+        <div><h3>Cores disponíveis</h3><small>Opcional — aparece no orçamento do cliente</small></div>
+      </div>
+      <div class="quote-color-picker" style="margin-bottom:18px;">
+        <button class="btn btn-secondary quote-color-toggle" id="btnKitColorsToggle" type="button">
+          <span>Selecionar nos filamentos cadastrados</span><span aria-hidden="true">⌄</span>
+        </button>
+        <div class="quote-color-panel" id="kitColorPanel" hidden>
+          <div id="kitColorOptions"></div>
+          <button class="btn btn-ghost btn-sm" id="btnKitColorsClear" type="button">Limpar seleção</button>
+        </div>
+        <div class="quote-color-summary" id="kitColorSummary"></div>
+        <small>Sem seleção, os chapéus de cores não aparecem na arte do kit.</small>
+      </div>
+
       <div class="kit-notes-grid">
         <div class="field"><label>Prazo de produção</label><div class="kit-days-input"><input id="kitDeadline" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex.: 6"><span>dias úteis</span></div></div>
         <div class="field"><label>Validade</label><div class="kit-days-input"><input id="kitValidity" type="number" min="1" value="7"><span>dias</span></div></div>
@@ -4250,7 +4273,7 @@ const KEYS = {
   KITS:'genesis3d:kits'
 };
 const SCHEMA_VERSION = 22;
-const GENESIS_APP_VERSION = '2026.07.30.8';
+const GENESIS_APP_VERSION = '2026.07.30.9';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -6994,7 +7017,10 @@ let activeQuoteInternalSnapshot = null;
 let activeQuoteColors = [];
 
 function quoteFilamentColorLabel(filament){
-  return String(filament?.color||filament?.name||'').trim();
+  const registered=String(filament?.color||'').trim();
+  if(registered)return registered;
+  const name=String(filament?.name||'').trim();
+  return name.match(/#[0-9a-f]{3,6}\b|azul\s+(?:marinho|escuro|claro|beb[eê])|preto|branco|verde|vermelho|roxo|violeta|lil[aá]s|rosa|laranja|marrom|caramelo|amarelo|cinza|grafite|dourado|prata|bege|creme|turquesa/i)?.[0]||'';
 }
 function quoteColorSnapshot(filament){
   const label=quoteFilamentColorLabel(filament);
@@ -7026,6 +7052,44 @@ function normalizedQuoteColors(colors){
 function quoteColorLabels(source=activeQuoteColors){
   return normalizedQuoteColors(source).map(item=>item.label);
 }
+function genesisColorSpec(label){
+  const raw=String(label||'').trim();
+  const normalized=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const explicit=normalized.match(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/i)?.[0];
+  if(explicit){
+    const hex=explicit.length===4?'#'+explicit.slice(1).split('').map(char=>char+char).join(''):explicit;
+    const rgb=[1,3,5].map(index=>parseInt(hex.slice(index,index+2),16));
+    return {hex,isDark:(rgb[0]*299+rgb[1]*587+rgb[2]*114)/1000<92};
+  }
+  const palette=[
+    [/(azul marinho|azul escuro|navy)/,'#123865'],[/(azul claro|azul bebe|celeste)/,'#24a9df'],
+    [/(roxo|violeta|purple)/,'#922ee8'],[/(lilas|lavanda)/,'#b77bea'],
+    [/(vermelho|red)/,'#e52a25'],[/(verde|green)/,'#16a345'],
+    [/(laranja|orange)/,'#ff8a18'],[/(marrom|brown|caramelo)/,'#8b552d'],
+    [/(preto|black)/,'#050505'],[/(branco|white)/,'#ffffff'],
+    [/(rosa|pink)/,'#f28eb6'],[/(amarelo|yellow)/,'#f5d328'],
+    [/(cinza|gray|grey|grafite)/,'#747b88'],[/(dourado|gold)/,'#d5a11e'],
+    [/(prata|silver)/,'#bec5cf'],[/(bege|creme|cream)/,'#d9c4a5'],
+    [/(turquesa|teal)/,'#16b8a9'],[/(azul|blue)/,'#125aa0']
+  ];
+  const matched=palette.find(([pattern])=>pattern.test(normalized));
+  if(matched){
+    const hex=matched[1],rgb=[1,3,5].map(index=>parseInt(hex.slice(index,index+2),16));
+    return {hex,isDark:(rgb[0]*299+rgb[1]*587+rgb[2]*114)/1000<92};
+  }
+  let hash=0;
+  for(const char of normalized)hash=(hash*31+char.charCodeAt(0))>>>0;
+  return {hex:`hsl(${hash%360} 68% 52%)`,isDark:false};
+}
+function genesisColorHatMarkup(label){
+  const spec=genesisColorSpec(label);
+  return '<span class="quote-color-hat '+(spec.isDark?'is-dark':'')+'" style="--hat-color:'+spec.hex+'"></span>';
+}
+function genesisColorSummaryMarkup(colors){
+  return quoteColorLabels(colors).map(label=>
+    '<span class="quote-color-chip">'+genesisColorHatMarkup(label)+'<span>'+escapeHtml(label)+'</span></span>'
+  ).join('');
+}
 function renderQuoteColorPicker(){
   const options=document.getElementById('quoteColorOptions');
   const summary=document.getElementById('quoteColorSummary');
@@ -7038,18 +7102,18 @@ function renderQuoteColorPicker(){
   }else{
     filaments.forEach(filament=>{
       const snapshot=quoteColorSnapshot(filament);
-      const checked=selectedIds.has(String(filament.id))||selectedLabels.has(snapshot.label.toLocaleLowerCase('pt-BR'));
+      const available=!!snapshot.label;
+      const checked=available&&(selectedIds.has(String(filament.id))||selectedLabels.has(snapshot.label.toLocaleLowerCase('pt-BR')));
       const row=document.createElement('label');
-      row.className='quote-color-option';
-      row.innerHTML='<input type="checkbox" data-quote-filament-id="'+escapeHtml(String(filament.id))+'" '+(checked?'checked':'')+'>'+
-        '<span class="quote-color-copy"><b>'+escapeHtml(snapshot.label||'Cor não informada')+'</b><small>'+
-        escapeHtml([filament.name,filament.material,filament.brand].filter(Boolean).join(' · '))+'</small></span>';
+      row.className='quote-color-option'+(available?'':' unavailable');
+      row.innerHTML='<input type="checkbox" data-quote-filament-id="'+escapeHtml(String(filament.id))+'" '+(checked?'checked':'')+' '+(available?'':'disabled')+'>'+
+        (available?genesisColorHatMarkup(snapshot.label):'<span class="quote-color-hat" style="--hat-color:#596170"></span>')+
+        '<span class="quote-color-copy"><b>'+escapeHtml(snapshot.label||'Cor não cadastrada')+'</b><small>'+
+        escapeHtml([filament.name,filament.material,filament.brand].filter(Boolean).join(' · '))+(available?'':' · edite o filamento para informar a cor')+'</small></span>';
       options.appendChild(row);
     });
   }
-  summary.innerHTML=quoteColorLabels().map(label=>
-    '<span class="quote-color-chip"><span class="quote-color-dot"></span>'+escapeHtml(label)+'</span>'
-  ).join('');
+  summary.innerHTML=genesisColorSummaryMarkup(activeQuoteColors);
   const button=document.querySelector('#btnQuoteColorsToggle span:first-child');
   if(button)button.textContent=activeQuoteColors.length
     ? `${activeQuoteColors.length} ${activeQuoteColors.length===1?'cor selecionada':'cores selecionadas'}`
@@ -7429,6 +7493,58 @@ function scheduleIndividualShareWarm(){
   clearTimeout(individualShareWarmTimer);
   individualShareWarmTimer=setTimeout(()=>warmIndividualQuoteShare(quoteSnapshotFromComposer()),180);
 }
+let genesisHatMaskPromise=null;
+function loadGenesisHatMask(){
+  if(!genesisHatMaskPromise)genesisHatMaskPromise=kitLoadImage('./genesis-hat-mask.png');
+  return genesisHatMaskPromise;
+}
+function canvasAvailableColorsHeight(colors,width){
+  const count=quoteColorLabels(colors).length;
+  if(!count)return 0;
+  const columns=Math.min(count,count<=5?count:9);
+  const rows=Math.ceil(count/Math.max(1,columns));
+  return 58+rows*76+14;
+}
+function genesisTintedHatCanvas(mask,color,width=84,height=52){
+  const offscreen=document.createElement('canvas');
+  offscreen.width=width;offscreen.height=height;
+  const ox=offscreen.getContext('2d');
+  // Recorte transparente da silhueta enviada: remove o espaço vazio do arquivo quadrado.
+  const sx=mask.width*.14,sy=mask.height*.24,sw=mask.width*.74,sh=mask.height*.44;
+  ox.drawImage(mask,sx,sy,sw,sh,0,0,width,height);
+  ox.globalCompositeOperation='source-in';
+  ox.fillStyle=color;ox.fillRect(0,0,width,height);
+  ox.globalCompositeOperation='source-over';
+  return offscreen;
+}
+async function canvasDrawAvailableColorHats(ctx,colors,x,y,width){
+  const labels=quoteColorLabels(colors);
+  if(!labels.length)return 0;
+  const height=canvasAvailableColorsHeight(labels,width);
+  ctx.fillStyle='rgba(7,9,18,.98)';ctx.strokeStyle='rgba(146,73,220,.58)';ctx.lineWidth=1.7;
+  canvasRoundRect(ctx,x,y,width,height,18,true,true);
+  ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 20px -apple-system,Arial';
+  ctx.fillText('CORES DISPONÍVEIS',x+26,y+31);
+  const mask=await loadGenesisHatMask();
+  const columns=Math.min(labels.length,labels.length<=5?labels.length:9);
+  const cellWidth=width/Math.max(1,columns),rowHeight=76,gridTop=y+45;
+  for(let index=0;index<labels.length;index++){
+    const label=labels[index],spec=genesisColorSpec(label);
+    const col=index%columns,row=Math.floor(index/columns);
+    const cx=x+col*cellWidth+cellWidth/2,iconW=Math.min(78,cellWidth-14),iconH=46;
+    const icon=genesisTintedHatCanvas(mask,spec.hex,iconW,iconH);
+    const iconX=cx-iconW/2,iconY=gridTop+row*rowHeight;
+    if(spec.isDark){
+      const outline=genesisTintedHatCanvas(mask,'#ffffff',iconW,iconH);
+      for(const [dx,dy] of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]])ctx.drawImage(outline,iconX+dx,iconY+dy);
+    }
+    ctx.drawImage(icon,iconX,iconY);
+    ctx.textAlign='center';ctx.fillStyle='#f3f0f8';
+    canvasFitText(ctx,label,cellWidth-8,14,10,650);
+    ctx.fillText(label,cx,iconY+iconH+17);
+  }
+  return height;
+}
 async function createIndividualQuoteCanvas(q){
   // Usa exatamente o mesmo resolvedor de imagem do orçamento de kit.
   if(!q.imageId)q.imageId=await GenesisImageManager.attach(q);
@@ -7437,7 +7553,8 @@ async function createIndividualQuoteCanvas(q){
   const freight=Number(q.freight)||0;
   const final=Number(q.total??(qty*unit+freight))||0;
   const colors=quoteColorLabels(q.availableColors);
-  const width=1080,height=colors.length?1328:1214;
+  const colorsHeight=canvasAvailableColorsHeight(colors,1016);
+  const width=1080,height=1214+(colorsHeight?colorsHeight+18:0);
   const canvas=document.createElement('canvas');
   canvas.width=width;canvas.height=height;
   const ctx=canvas.getContext('2d');
@@ -7503,14 +7620,8 @@ async function createIndividualQuoteCanvas(q){
 
   let nextY=1004;
   if(colors.length){
-    ctx.fillStyle='rgba(7,9,18,.98)';ctx.strokeStyle='rgba(146,73,220,.55)';ctx.lineWidth=1.6;
-    canvasRoundRect(ctx,32,nextY,1016,96,18,true,true);
-    ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 20px -apple-system,Arial';
-    ctx.fillText('🎨  CORES DISPONÍVEIS',60,nextY+33);
-    ctx.fillStyle='#f2e9ff';ctx.font='700 18px -apple-system,Arial';
-    const lines=canvasWrapLines(ctx,colors.join('  •  '),952,2);
-    lines.forEach((line,index)=>ctx.fillText(line,60,nextY+62+index*23));
-    nextY+=114;
+    const drawnHeight=await canvasDrawAvailableColorHats(ctx,colors,32,nextY,1016);
+    nextY+=drawnHeight+18;
   }
   const noticeY=nextY;
   ctx.fillStyle='rgba(7,9,18,.98)';ctx.strokeStyle='rgba(146,73,220,.65)';ctx.lineWidth=1.8;
@@ -11224,6 +11335,8 @@ function runManagementSelfTests(){
     tests.push(['ocr data pagamento',realMerged.fields.paymentDate?.value==='2026-07-16']);
     tests.push(['cores opcionais ausentes',quoteColorLabels([]).length===0]);
     tests.push(['cores sem duplicação',quoteColorLabels([{label:'Branco'},{color:'branco'},{label:'Roxo'}]).join('|')==='Branco|Roxo']);
+    tests.push(['chapéu roxo automático',genesisColorSpec('Roxo').hex==='#922ee8']);
+    tests.push(['chapéu preto com contorno',genesisColorSpec('Preto').isDark===true]);
   }catch(e){tests.push(['ocr parser self-test',false])}
   const failed=tests.filter(x=>!x[1]);
   if(failed.length) console.error('[Genesis 3D] Falhas nos testes de gestão:',failed);
@@ -11473,8 +11586,54 @@ document.getElementById('mwDirectLink')?.addEventListener('keydown',e=>{if(e.key
 ========================================================= */
 let activeKitId=null;
 let activeKitItems=[];
+let activeKitColors=[];
 let kitPickerSelection=new Set();
 let kitPickerSource='all';
+
+function renderKitColorPicker(){
+  const options=document.getElementById('kitColorOptions');
+  const summary=document.getElementById('kitColorSummary');
+  if(!options||!summary)return;
+  const selectedIds=new Set(activeKitColors.map(item=>String(item.filamentId||'')));
+  const selectedLabels=new Set(quoteColorLabels(activeKitColors).map(label=>label.toLocaleLowerCase('pt-BR')));
+  options.innerHTML='';
+  if(!filaments.length){
+    options.innerHTML='<div class="quote-color-empty">Cadastre seus filamentos em <b>Mais → Filamentos</b> para selecionar as cores.</div>';
+  }else{
+    filaments.forEach(filament=>{
+      const snapshot=quoteColorSnapshot(filament);
+      const available=!!snapshot.label;
+      const checked=available&&(selectedIds.has(String(filament.id))||selectedLabels.has(snapshot.label.toLocaleLowerCase('pt-BR')));
+      const row=document.createElement('label');
+      row.className='quote-color-option'+(available?'':' unavailable');
+      row.innerHTML='<input type="checkbox" data-kit-filament-id="'+escapeHtml(String(filament.id))+'" '+(checked?'checked':'')+' '+(available?'':'disabled')+'>'+
+        (available?genesisColorHatMarkup(snapshot.label):'<span class="quote-color-hat" style="--hat-color:#596170"></span>')+
+        '<span class="quote-color-copy"><b>'+escapeHtml(snapshot.label||'Cor não cadastrada')+'</b><small>'+
+        escapeHtml([filament.name,filament.material,filament.brand].filter(Boolean).join(' · '))+(available?'':' · edite o filamento para informar a cor')+'</small></span>';
+      options.appendChild(row);
+    });
+  }
+  summary.innerHTML=genesisColorSummaryMarkup(activeKitColors);
+  const button=document.querySelector('#btnKitColorsToggle span:first-child');
+  if(button)button.textContent=activeKitColors.length
+    ?`${activeKitColors.length} ${activeKitColors.length===1?'cor selecionada':'cores selecionadas'}`
+    :'Selecionar nos filamentos cadastrados';
+}
+function readKitColorsFromPicker(){
+  activeKitColors=[...document.querySelectorAll('#kitColorOptions input:checked')].map(input=>{
+    const filament=filaments.find(item=>String(item.id)===String(input.dataset.kitFilamentId));
+    return filament?quoteColorSnapshot(filament):null;
+  }).filter(Boolean);
+  renderKitColorPicker();
+}
+document.getElementById('btnKitColorsToggle')?.addEventListener('click',()=>{
+  const panel=document.getElementById('kitColorPanel');
+  panel.hidden=!panel.hidden;
+});
+document.getElementById('kitColorOptions')?.addEventListener('change',readKitColorsFromPicker);
+document.getElementById('btnKitColorsClear')?.addEventListener('click',()=>{
+  activeKitColors=[];renderKitColorPicker();
+});
 
 function kitUid(){return uid('kit')}
 function kitNextSeq(){
@@ -11628,6 +11787,7 @@ function renderKitComposer(){
     </div>`).join('');
   document.getElementById('kitItemsCount').textContent=activeKitItems.length?`${activeKitItems.length} produto(s)`:'Nenhum item';
   activeKitItems.forEach(i=>kitThumb(document.querySelector(`[data-kit-thumb="${CSS.escape(i.id)}"]`),i.imageId,i.name,i));
+  renderKitColorPicker();
   renderKitSummary();
   renderSavedKits();
 }
@@ -11670,7 +11830,7 @@ function renderKitSummary(){
   renderKitDetails();
 }
 function kitReset(){
-  activeKitId=null;activeKitItems=[];
+  activeKitId=null;activeKitItems=[];activeKitColors=[];
   document.getElementById('kitName').value='';
   document.getElementById('kitClient').value='';
   document.getElementById('kitDeadline').value='7';
@@ -11678,7 +11838,8 @@ function kitReset(){
   document.getElementById('kitFreight').value='';
   document.getElementById('kitPaymentTerms').value='PIX, cartão ou boleto';
   document.getElementById('kitNotes').value='';
-  kitSetDiscount(0);document.getElementById('kitDeleteBtn').style.display='none';renderKitComposer();
+  kitSetDiscount(0);document.getElementById('kitDeleteBtn').style.display='none';
+  document.getElementById('kitColorPanel').hidden=true;renderKitComposer();
 }
 function openKitPicker(){
   kitPickerSelection=new Set(activeKitItems.map(i=>kitItemKey(i.source,i.sourceId)));
@@ -11712,7 +11873,9 @@ function saveActiveKit(status='draft'){
     validityDays:Math.max(1,Math.round(Number(document.getElementById('kitValidity').value)||7)),
     freight:Math.max(0,quoteMoneyInput(document.getElementById('kitFreight').value)||0),
     paymentTerms:document.getElementById('kitPaymentTerms').value.trim()||'PIX, cartão ou boleto',
-    notes:document.getElementById('kitNotes').value.trim(),status,
+    notes:document.getElementById('kitNotes').value.trim(),
+    availableColors:normalizedQuoteColors(activeKitColors),
+    previewImageId:null,status,
     totals:{...m,itemMachineRows:JSON.parse(JSON.stringify(m.itemMachineRows||[]))}
   };
   if(record)Object.assign(record,data);else kits.unshift(data);
@@ -11721,6 +11884,7 @@ function saveActiveKit(status='draft'){
 function loadKit(id){
   const k=kits.find(x=>x.id===id);if(!k)return;
   activeKitId=k.id;activeKitItems=JSON.parse(JSON.stringify(k.items||[]));
+  activeKitColors=normalizedQuoteColors(k.availableColors);
   document.getElementById('kitName').value=k.name||'';
   document.getElementById('kitClient').value=k.client?.name||'';
   document.getElementById('kitDeadline').value=k.deadlineDays||parseInt(k.deadline,10)||7;
@@ -11728,7 +11892,8 @@ function loadKit(id){
   document.getElementById('kitFreight').value=k.freight?String(k.freight.toFixed(2)).replace('.',','):'';
   document.getElementById('kitPaymentTerms').value=k.paymentTerms||'PIX, cartão ou boleto';
   document.getElementById('kitNotes').value=k.notes||'';
-  kitSetDiscount(k.discountPct||0);document.getElementById('kitDeleteBtn').style.display='block';renderKitComposer();window.scrollTo({top:0,behavior:'smooth'});
+  kitSetDiscount(k.discountPct||0);document.getElementById('kitDeleteBtn').style.display='block';
+  document.getElementById('kitColorPanel').hidden=true;renderKitComposer();window.scrollTo({top:0,behavior:'smooth'});
 }
 function renderSavedKits(){
   const root=document.getElementById('kitSavedList'),empty=document.getElementById('kitSavedEmpty');
@@ -11916,7 +12081,8 @@ async function createKitCollage(k){
   const items=Array.isArray(k.items)?k.items:[],n=Math.max(1,items.length),width=1080;
   const cols=n<=3?n:n<=6?3:4,rows=Math.ceil(n/cols),side=34,gap=12;
   const isSingle=k.visualType==='single';
-  const cardW=(width-side*2-gap*(cols-1))/cols,cardH=isSingle?650:(cols<=3?430:350),headerH=220,gridH=rows*cardH+(rows-1)*gap,financeH=220,badgesH=150,noticeH=108,footerH=90,height=headerH+gridH+financeH+badgesH+noticeH+footerH+110;
+  const colors=quoteColorLabels(k.availableColors),colorsHeight=canvasAvailableColorsHeight(colors,width-side*2);
+  const cardW=(width-side*2-gap*(cols-1))/cols,cardH=isSingle?650:(cols<=3?430:350),headerH=220,gridH=rows*cardH+(rows-1)*gap,financeH=220,badgesH=150,noticeH=108,footerH=90,height=headerH+gridH+financeH+badgesH+noticeH+footerH+110+(colorsHeight?colorsHeight+18:0);
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');
   const bg=ctx.createLinearGradient(0,0,width,height);bg.addColorStop(0,'#09070f');bg.addColorStop(.48,'#040711');bg.addColorStop(1,'#020307');ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);
   const glow=ctx.createRadialGradient(width*.52,100,0,width*.52,100,560);glow.addColorStop(0,'rgba(130,45,255,.22)');glow.addColorStop(1,'rgba(130,45,255,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,width,620);
@@ -11944,7 +12110,12 @@ async function createKitCollage(k){
     ctx.fillStyle='#42df64';ctx.font='900 42px -apple-system,Arial';ctx.fillText(fmtBRL(m.customerSaving||0),side+colW*1.5,y+120);ctx.fillStyle='#0d541c';canvasRoundRect(ctx,side+colW*1.5-80,y+133,160,42,20,true,false);ctx.fillStyle='#55e66d';ctx.font='800 24px -apple-system,Arial';ctx.fillText(fmtPct(savingPct),side+colW*1.5,y+162);ctx.fillStyle='#a34cff';ctx.font='900 48px -apple-system,Arial';ctx.fillText(fmtBRL(m.final||0),side+colW*2.5,y+135);
   }
   y+=financeH;const badgeW=(width-side*2-gap*2)/3;canvasDrawCommercialBadge(ctx,side,y,badgeW,118,'🚚','FRETE',kitFreightText(k),Number(k.freight)>0?'Pago separadamente':'Sem custo adicional');canvasDrawCommercialBadge(ctx,side+badgeW+gap,y,badgeW,118,'◷','PRODUÇÃO',`${Math.max(1,Number(k.deadlineDays)||7)} dias úteis`,'A partir da confirmação do pedido');canvasDrawCommercialBadge(ctx,side+(badgeW+gap)*2,y,badgeW,118,'▣','VALIDADE',`${Math.max(1,Number(k.validityDays)||7)} dias`,'A partir do envio do orçamento');
-  y+=badgesH;ctx.fillStyle='rgba(8,12,22,.98)';ctx.strokeStyle='rgba(126,76,190,.45)';canvasRoundRect(ctx,side,y,width-side*2,82,16,true,true);ctx.textAlign='left';ctx.fillStyle='#a44cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText(isSingle?'✓  Este orçamento inclui o produto exibido acima.':'✓  Este orçamento inclui todos os produtos exibidos acima.',side+26,y+34);ctx.fillStyle='#d5d6dc';ctx.font='500 17px -apple-system,Arial';ctx.fillText('Imagens meramente ilustrativas. Cores e detalhes podem variar.',side+26,y+62);
+  y+=badgesH;
+  if(colors.length){
+    const drawnHeight=await canvasDrawAvailableColorHats(ctx,colors,side,y,width-side*2);
+    y+=drawnHeight+18;
+  }
+  ctx.fillStyle='rgba(8,12,22,.98)';ctx.strokeStyle='rgba(126,76,190,.45)';canvasRoundRect(ctx,side,y,width-side*2,82,16,true,true);ctx.textAlign='left';ctx.fillStyle='#a44cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText(isSingle?'✓  Este orçamento inclui o produto exibido acima.':'✓  Este orçamento inclui todos os produtos exibidos acima.',side+26,y+34);ctx.fillStyle='#d5d6dc';ctx.font='500 17px -apple-system,Arial';ctx.fillText('Imagens meramente ilustrativas. Tonalidades e detalhes podem variar conforme o lote.',side+26,y+62);
   y+=noticeH;canvasDrawGenesisFooter(ctx,width,y);return canvas;
 }
 let genesisKitPreviewUrl='';
@@ -11976,7 +12147,8 @@ function kitShareText(k){
   const m=k.totals||{};
   const savingPct=kitSavingPctValue(k,m);
   const freight=Number(k.freight)>0?fmtBRL(Number(k.freight)):'Grátis';
-  return [
+  const colors=quoteColorLabels(k.availableColors);
+  const lines=[
     '✨ *ORÇAMENTO DO SEU KIT PERSONALIZADO*',
     '',
     'Olá! 😊',
@@ -11998,13 +12170,17 @@ function kitShareText(k){
     `⏱️ Produção: ${Math.max(1,Number(k.deadlineDays)||7)} dias úteis`,
     '',
     `📅 Validade: ${Math.max(1,Number(k.validityDays)||7)} dias`,
+  ];
+  if(colors.length)lines.push('',`🎨 *Cores disponíveis:* ${colors.join(', ')}`);
+  lines.push(
     '',
     '━━━━━━━━━━━━━━━━',
     '',
     'Qualquer ajuste é só me chamar. 😊',
     '',
     '*Genesis Prototipagem*'
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 async function convertKitToOrder(k){
   if(k.orderId){showToast('Este kit já foi convertido em pedido.');return}
@@ -12027,6 +12203,7 @@ async function convertKitToOrder(k){
     client:{name:k.client?.name||'',phone:'',whatsapp:'',instagram:''},
     productName:k.name||'Kit Personalizado',qty:1,unitPrice:m.final||0,productTotal:m.final||0,total:orderTotal,
     channel:'direct',freight,notes:k.notes||'',kitId:k.id,
+    availableColors:normalizedQuoteColors(k.availableColors),
     kitItems:(k.items||[]).map(it=>{const original=(Number(it.unitPrice)||0)*Math.max(1,Number(it.qty)||1);const share=(m.individual||0)>0?original/m.individual:1/Math.max(1,(k.items||[]).length);return {...JSON.parse(JSON.stringify(it)),allocatedRevenue:(m.final||0)*share,effectiveUnitPrice:((m.final||0)*share)/Math.max(1,Number(it.qty)||1)};}),
     internalSnapshot:{timeHours:m.hours||0,pesoG:m.weight||0,custoUnitario:m.totalCost||0,qty:1,imageId:previewImageId||fallbackImageId},
     payment:{total:orderTotal,paid:0,balance:orderTotal,status:'pending',dueDate:'',note:k.paymentTerms||''}
