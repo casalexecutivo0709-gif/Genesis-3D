@@ -7,7 +7,7 @@ Este pequeno servidor guarda os dados e as imagens dentro da pasta `GenesisData`
 1. Instale o Node.js LTS no computador.
 2. Clique duas vezes em `start-server.cmd`.
 3. Na primeira execução será criado o arquivo privado `config.json` e será mostrado um código de pareamento.
-4. Configure um certificado HTTPS confiável em `tls.pfxPath`. O Safari bloqueia conexões HTTP iniciadas pelo aplicativo HTTPS.
+4. Configure um certificado HTTPS confiável em `tls.pfxPath` ou, preferencialmente, em `tls.certPath` e `tls.keyPath`. O Safari bloqueia conexões HTTP iniciadas pelo aplicativo HTTPS.
 5. No Genesis, abra **Mais → Configurações → Cópia no seu computador**, informe o endereço HTTPS e o código de pareamento.
 
 O arquivo `config.json`, o certificado e a pasta `GenesisData` não devem ser publicados no GitHub.
