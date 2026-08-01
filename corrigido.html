@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="genesis-192.png">
 <link rel="icon" type="image/png" href="genesis-192.png">
 <link rel="manifest" href="manifest.json" onerror="this.remove()">
+<link rel="stylesheet" href="genesis-workspace.css">
 <title>Genesis 3D · Calculadora</title>
 <style>
 :root{
@@ -4287,10 +4288,11 @@ const KEYS = {
   MW_CACHE:'genesis3d:makerworldCache',
   SHOPEE_CATALOG:'genesis3d:shopeeCatalog',
   SHOPEE_ALIASES:'genesis3d:shopeeAliases',
-  KITS:'genesis3d:kits'
+  KITS:'genesis3d:kits',
+  IMAGES:'genesis3d:imageMetadata'
 };
-const SCHEMA_VERSION = 23;
-const GENESIS_APP_VERSION = '2026.08.01.1';
+const SCHEMA_VERSION = 24;
+const GENESIS_APP_VERSION = '2026.08.01.2';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -4595,6 +4597,7 @@ let savedModels = loadJSON(KEYS.MODELS, []);
 let makerWorldCache = loadJSON(KEYS.MW_CACHE, {});
 let shopeeCatalog=loadJSON(KEYS.SHOPEE_CATALOG,DEFAULT_SHOPEE_CATALOG);
 let shopeeLearnedAliases=loadJSON(KEYS.SHOPEE_ALIASES,{});
+let imageEntities=loadJSON(KEYS.IMAGES,[]);
 DEFAULT_SHOPEE_CATALOG.forEach(def=>{if(!shopeeCatalog.some(x=>x.id===def.id||String(x.name||'').toLowerCase()===def.name.toLowerCase()))shopeeCatalog.push(JSON.parse(JSON.stringify(def)))});
 kits=Array.isArray(kits)?kits:[];
 orders.forEach(o=>{
@@ -4642,6 +4645,7 @@ function saveModels(){ store.set(KEYS.MODELS, JSON.stringify(savedModels)); sche
 function saveMakerWorldCache(){ try{ store.set(KEYS.MW_CACHE, JSON.stringify(makerWorldCache)); }catch(e){} }
 function saveShopeeCatalog(){store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));scheduleCloudSync();scheduleStateSnapshot('catalog')}
 function saveShopeeAliases(){store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));scheduleCloudSync();scheduleStateSnapshot('aliases')}
+function saveImages(){store.set(KEYS.IMAGES,JSON.stringify(imageEntities));scheduleCloudSync();scheduleStateSnapshot('images')}
 function saveCounters(){ store.set(KEYS.COUNTERS, JSON.stringify(counters)); scheduleCloudSync(); scheduleStateSnapshot('counters'); }
 function saveUI(){ store.set(KEYS.UI, JSON.stringify(uiState)); scheduleCloudSync(); scheduleStateSnapshot('ui'); }
 
@@ -4658,7 +4662,7 @@ function nextSequence(type){
 
 /* ---------- IndexedDB: imagens novas não ficam no localStorage ---------- */
 const MEDIA_DB_NAME = 'genesis3d-media';
-const MEDIA_DB_VERSION = 3;
+const MEDIA_DB_VERSION = 4;
 const MEDIA_STORE = 'images';
 const STATE_STORE = 'stateSnapshots';
 const RECORD_STORE = 'records';
@@ -4667,6 +4671,8 @@ const DRAFT_STORE = 'drafts';
 const DIAGNOSTIC_STORE = 'diagnostics';
 const META_STORE = 'syncMeta';
 const LEGACY_BACKUP_STORE = 'legacyBackups';
+const IMAGE_QUEUE_STORE = 'imageQueue';
+const IMAGE_VERSION_STORE = 'imageVersions';
 let mediaDbPromise = null;
 const mediaObjectUrlCache = new Map();
 /* Fallback somente de sessão para ambientes que bloqueiam IndexedDB (ex.: algumas prévias/arquivos locais).
@@ -4690,6 +4696,8 @@ function openMediaDb(){
       if(!db.objectStoreNames.contains(DIAGNOSTIC_STORE)) db.createObjectStore(DIAGNOSTIC_STORE, {keyPath:'id'});
       if(!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, {keyPath:'id'});
       if(!db.objectStoreNames.contains(LEGACY_BACKUP_STORE)) db.createObjectStore(LEGACY_BACKUP_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(IMAGE_QUEUE_STORE)) db.createObjectStore(IMAGE_QUEUE_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(IMAGE_VERSION_STORE)) db.createObjectStore(IMAGE_VERSION_STORE, {keyPath:'id'});
     };
     req.onsuccess = ()=> resolve(req.result);
     req.onerror = ()=> resolve(null);
@@ -4879,7 +4887,7 @@ function genesisCoreSnapshot(){
   return {
     version:7,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),
     config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,
-    shopeeCatalog,shopeeLearnedAliases
+    shopeeCatalog,shopeeLearnedAliases,imageEntities
   };
 }
 function scheduleStateSnapshot(reason='change'){
@@ -4941,6 +4949,7 @@ function applyGenesisCoreSnapshot(data){
   uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{}},data.uiState||{});
   shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
   shopeeLearnedAliases=data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object'?data.shopeeLearnedAliases:{};
+  imageEntities=Array.isArray(data.imageEntities)?data.imageEntities:[];
 }
 function persistGenesisCoreToLocalStorage(){
   store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));
@@ -4949,6 +4958,7 @@ function persistGenesisCoreToLocalStorage(){
   store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.COUNTERS,JSON.stringify(counters));
   store.set(KEYS.UI,JSON.stringify(uiState));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));
   store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));
+  store.set(KEYS.IMAGES,JSON.stringify(imageEntities));
 }
 async function restoreStateSnapshotIfNeeded(){
   if(genesisHasBusinessData({history,quotes,orders,kits}))return false;
@@ -5178,7 +5188,7 @@ async function runSchemaMigration(){
   }
   if(changedFilaments) saveFilaments();
   if(changedHistory) saveHistory();
-  saveQuotes(); saveOrders(); saveKits(); saveModels(); saveCounters();
+  saveQuotes(); saveOrders(); saveKits(); saveModels(); saveImages(); saveCounters();
   store.set(KEYS.SCHEMA, String(SCHEMA_VERSION));
   return oldVersion;
 }
@@ -6471,6 +6481,15 @@ function restoreLastCalc(){
 /* ---- Foto da peça ---- */
 let currentPhotoDataUrl = null;
 let currentPhotoImageId = null;
+const genesisImageRequestTokens={calc:0,quote:0,order:0};
+function setGenesisImageLoading(kind,loading){
+  const target=kind==='quote'?document.getElementById('qPhotoManager'):kind==='order'?document.getElementById('oPhotoManager'):document.getElementById('photoPreviewWrap')?.parentElement;
+  if(!target)return;
+  target.classList.toggle('genesis-image-loading',!!loading);
+  let status=target.querySelector('.genesis-image-loading-status');
+  if(loading&&!status){status=document.createElement('div');status.className='genesis-image-loading-status';status.textContent='Carregando nova imagem…';target.prepend(status);}
+  if(status)status.hidden=!loading;
+}
 function resizeImageBlob(file, maxDim=1200, quality=.8){
   return new Promise((resolve, reject)=>{
     if(!file){reject(new Error('Arquivo de imagem ausente.'));return;}
@@ -6521,8 +6540,11 @@ function setPhoto(dataUrl,imageId){
   const wrap = document.getElementById('photoPreviewWrap');
   if(dataUrl){
     document.getElementById('photoPreview').src = dataUrl;
+    document.getElementById('photoPreview').dataset.imageId=currentPhotoImageId||'';
     wrap.style.display = 'block';
   } else {
+    document.getElementById('photoPreview').removeAttribute('src');
+    document.getElementById('photoPreview').dataset.imageId='';
     wrap.style.display = 'none';
   }
 }
@@ -7307,7 +7329,67 @@ function setQuoteClient(c){
 }
 attachCustomerSuggestions('qClientName','qClientSuggestions',setQuoteClient);
 
-async function openQuoteComposer(record){
+let genesisCalculatorEditContext=null;
+function genesisEditRecordLabel(){
+  const context=genesisCalculatorEditContext;if(!context)return '';
+  const record=context.type==='quote'?quotes.find(item=>item.id===context.id):orders.find(item=>item.id===context.id);
+  if(!record)return '';
+  return context.type==='quote'?`Editando ${quoteNumber(record)}`:`Editando ${orderNumber(record)}`;
+}
+function refreshGenesisCalculatorEditBanner(){
+  let banner=document.getElementById('genesisCalculatorEditBanner');
+  if(!banner){
+    banner=document.createElement('div');banner.id='genesisCalculatorEditBanner';banner.className='card genesis-edit-banner';banner.hidden=true;
+    banner.innerHTML='<div><strong id="genesisCalculatorEditTitle"></strong><small>Altere tempo, peso, filamento, margem, lucro, preço, foto e demais dados. Depois continue para salvar no mesmo registro.</small></div><button type="button" class="btn btn-ghost btn-sm" id="btnCancelFullEdit">Cancelar edição</button>';
+    document.getElementById('screen-calc')?.prepend(banner);
+    banner.querySelector('#btnCancelFullEdit').addEventListener('click',()=>{genesisCalculatorEditContext=null;resetCalculatorForNewQuote();refreshGenesisCalculatorEditBanner();showToast('Edição cancelada. O registro original não foi alterado.');});
+  }
+  const label=genesisEditRecordLabel();banner.hidden=!label;
+  if(label)banner.querySelector('#genesisCalculatorEditTitle').textContent=label;
+  const quoteButton=document.getElementById('btnCopiarOrc'),orderButton=document.getElementById('btnCreateOrder');
+  if(quoteButton)quoteButton.textContent=genesisCalculatorEditContext?.type==='quote'?'Continuar edição do orçamento':'Criar orçamento';
+  if(orderButton)orderButton.textContent=genesisCalculatorEditContext?.type==='order'?'Continuar edição do pedido':'Criar pedido';
+}
+async function openGenesisRecordInCalculator(record,type){
+  if(!record)return;
+  saveActiveDraft('before-full-record-edit');
+  genesisCalculatorEditContext={type,id:record.id,startedAt:Date.now()};
+  const snapshot=record.internalSnapshot||{};
+  setTimeMode(snapshot.timeMode||'hhmm',false);
+  const totalHours=Number(snapshot.timeHours)||0;
+  inHoras.value=snapshot.horas!==undefined?String(snapshot.horas):(totalHours?String(Math.floor(totalHours)):'');
+  inMinutos.value=snapshot.minutos!==undefined?String(snapshot.minutos):(totalHours?String(Math.round((totalHours-Math.floor(totalHours))*60)):'');
+  inDecimal.value=snapshot.decimal!==undefined?String(snapshot.decimal):(totalHours?String(round2(totalHours)):'');
+  inPeso.value=snapshot.pesoG!=null?String(snapshot.pesoG):'';
+  inQtd.value=String(record.qty||snapshot.qty||1);
+  inProduto.value=record.productName||'';
+  document.getElementById('inObservacoes').value=record.notes||record.observacoes||'';
+  document.getElementById('inLinkImpressao').value=record.sourceLink||record.linkImpressao||'';
+  if(snapshot.filamentId&&filaments.some(item=>item.id===snapshot.filamentId)){document.getElementById('selFilament').value=snapshot.filamentId;cfg.lastFilamentId=snapshot.filamentId;}
+  if(Number(snapshot.configSnapshot?.margin)>=0&&Number(snapshot.configSnapshot?.margin)<100)cfg.margin=Number(snapshot.configSnapshot.margin);
+  syncQuickMarginFromConfig();
+  const pricing=record.pricingSnapshot||{};
+  const suggestedDirect=Number(pricing.suggestedDirectUnit??snapshot.precoDiretoUnit);
+  const suggestedShopee=Number(pricing.suggestedShopeeUnit??snapshot.precoShopeeUnit);
+  const legacyDirect=Number(pricing.directUnit);
+  const legacyShopee=Number(pricing.shopeeUnit);
+  const directManual=pricing.directManual!==undefined
+    ? pricing.directManual
+    : (Number.isFinite(legacyDirect)&&Number.isFinite(suggestedDirect)&&Math.abs(legacyDirect-suggestedDirect)>.009?legacyDirect:null);
+  const shopeeManual=pricing.shopeeManual!==undefined
+    ? pricing.shopeeManual
+    : (Number.isFinite(legacyShopee)&&Number.isFinite(suggestedShopee)&&Math.abs(legacyShopee-suggestedShopee)>.009?legacyShopee:null);
+  document.getElementById('manualDirectPrice').value=directManual!=null?String(directManual).replace('.',','):'';
+  document.getElementById('manualShopeePrice').value=shopeeManual!=null?String(shopeeManual).replace('.',','):'';
+  setPhoto(null,null);
+  const imageId=record.imageId||snapshot.imageId||null;
+  if(imageId){const url=await mediaGetObjectUrl(imageId);if(url)setPhoto(url,imageId);}
+  recalc();persistLastCalc();refreshGenesisCalculatorEditBanner();showScreen('calc');
+  saveActiveDraft('full-record-edit-opened');
+  showToast('Todos os dados disponíveis foram carregados para edição.',true);
+}
+
+async function openQuoteComposer(record,{fromCalculator=false}={}){
   const selectedModelSnapshot=readSelectedModelSnapshot();
   if(!currentPhotoDataUrl&&selectedModelSnapshot?.imageDataUrl)setPhoto(selectedModelSnapshot.imageDataUrl);
 
@@ -7338,7 +7420,7 @@ async function openQuoteComposer(record){
     quoteMessageDirty=!!(record.messageOverride||record.customMessage);
     document.getElementById('qMessage').value=record.messageOverride||record.customMessage||'';
     quoteState={saleType:record.saleType||'direct',freightType:record.freightType||'pending'};
-    activeQuotePricing={
+    activeQuotePricing=fromCalculator?currentEffectivePricing():{
       directUnit:round2(record.pricingSnapshot?.directUnit ?? record.directUnit ?? (record.saleType==='direct'?record.unitPrice:0) ?? 0),
       shopeeUnit:round2(record.pricingSnapshot?.shopeeUnit ?? record.shopeeUnit ?? (record.saleType==='shopee'?record.unitPrice:0) ?? 0)
     };
@@ -7346,10 +7428,15 @@ async function openQuoteComposer(record){
       const recovered=await GenesisImageManager.fromRecord(record);
       if(recovered.imageId){record.imageId=recovered.imageId;saveQuotes();}
     }
-    activeQuoteImageId=record.imageId||null;
+    activeQuoteImageId=fromCalculator?(currentPhotoImageId||record.imageId||null):(record.imageId||null);
     activeQuoteDraftPhotoDataUrl=null;
-    activeQuoteInternalSnapshot=record.internalSnapshot||null;
+    activeQuoteInternalSnapshot=fromCalculator?(captureInternalSnapshot()||record.internalSnapshot||null):(record.internalSnapshot||null);
     activeQuoteColors=normalizedQuoteColors(record.availableColors);
+    if(fromCalculator){
+      document.getElementById('qProduct').value=(inProduto.value||record.productName||'').trim();
+      document.getElementById('qQty').value=Math.max(1,parseInt(inQtd.value,10)||record.qty||1);
+      document.getElementById('qSourceLink').value=document.getElementById('inLinkImpressao').value.trim()||record.sourceLink||'';
+    }
   }else{
     const product=(inProduto.value||'').trim();
     document.getElementById('qClientName').value='';
@@ -7451,9 +7538,9 @@ async function saveQuoteFromComposer(showSuccess){
     availableColors:normalizedQuoteColors(activeQuoteColors),
     messageOverride:quoteMessageDirty ? getQuoteMessage() : '',
     status:document.getElementById('qStatus').value||'waiting',
-    pricingSnapshot:{directUnit:activeQuotePricing.directUnit||0,shopeeUnit:activeQuotePricing.shopeeUnit||0},
+    pricingSnapshot:{...activeQuotePricing,directUnit:activeQuotePricing.directUnit||0,shopeeUnit:activeQuotePricing.shopeeUnit||0},
     internalSnapshot:(()=>{
-      const snapshot=existing?.internalSnapshot||activeQuoteInternalSnapshot||captureInternalSnapshot();
+      const snapshot=activeQuoteInternalSnapshot||existing?.internalSnapshot||captureInternalSnapshot();
       if(snapshot&&!snapshot.imageId)snapshot.imageId=imageId||existing?.imageId||null;
       return snapshot;
     })(),
@@ -7463,6 +7550,7 @@ async function saveQuoteFromComposer(showSuccess){
   else quotes.unshift(record);
   quoteEditId=record.id;
   saveQuotes();
+  if(genesisCalculatorEditContext?.type==='quote'&&genesisCalculatorEditContext.id===record.id){genesisCalculatorEditContext=null;refreshGenesisCalculatorEditBanner();}
   renderQuoteList();
   if(showSuccess) showToast('Orçamento '+quoteNumber(record)+' salvo',true);
   clearActiveDraft();
@@ -7773,7 +7861,11 @@ async function quoteFallbackWithoutRedirect(text,q){
   showToast(copied?'Imagem disponibilizada e texto copiado. Use o botão Compartilhar novamente no Safari.':'Imagem do orçamento disponibilizada.');
 }
 
-document.getElementById('btnCopiarOrc').addEventListener('click',()=>openQuoteComposer(null));
+document.getElementById('btnCopiarOrc').addEventListener('click',()=>{
+  const context=genesisCalculatorEditContext;
+  const record=context?.type==='quote'?quotes.find(item=>item.id===context.id):null;
+  openQuoteComposer(record||null,{fromCalculator:!!record});
+});
 document.getElementById('btnCloseQuote').addEventListener('click',()=>closeSheet('ovCopy','sheetCopy'));
 document.getElementById('btnSaveQuote').addEventListener('click',async()=>{ await saveQuoteFromComposer(true); });
 document.getElementById('qSaleDirect').addEventListener('click',()=>{quoteState.saleType='direct';refreshQuoteUI();});
@@ -8034,7 +8126,7 @@ async function openQuoteDetail(id){
 document.getElementById('btnQdClose').addEventListener('click',()=>closeSheet('ovQuoteDetail','sheetQuoteDetail'));
 document.getElementById('btnQdEdit').addEventListener('click',()=>{
   const q=quotes.find(x=>x.id===openQuoteId); if(!q)return;
-  rawCloseSheet('ovQuoteDetail','sheetQuoteDetail'); openQuoteComposer(q);
+  rawCloseSheet('ovQuoteDetail','sheetQuoteDetail'); openGenesisRecordInCalculator(q,'quote');
 });
 document.getElementById('btnQdShare').addEventListener('click',()=>{
   const q=quotes.find(x=>x.id===openQuoteId); if(!q)return;
@@ -8451,6 +8543,8 @@ function setOrderUnitFromChannel(){
 }
 async function openOrderFormFromCalc(){
   if(!lastResult || !lastResult.ok){ showToast('Preencha peso e tempo antes de criar o pedido.'); return; }
+  const editing=genesisCalculatorEditContext?.type==='order'?orders.find(item=>item.id===genesisCalculatorEditContext.id):null;
+  if(editing){await openOrderForm(editing,{fromCalculator:true});return;}
   orderEditId=null; activeOrderOriginQuoteId=null; clearOrderForm();
   document.getElementById('orderFormTitle').textContent='Criar pedido';
   document.getElementById('orderFormSub').textContent='Venda já confirmada: os valores atuais serão guardados como snapshot.';
@@ -8468,7 +8562,7 @@ async function openOrderFormFromCalc(){
   refreshOrderForm();
   openSheet('ovOrderForm','sheetOrderForm');
 }
-async function openOrderForm(record){
+async function openOrderForm(record,{fromCalculator=false}={}){
   if(!record){ openOrderFormFromCalc(); return; }
   orderEditId=record.id; activeOrderOriginQuoteId=record.originQuoteId||null;
   document.getElementById('orderFormTitle').textContent='Editar pedido '+orderNumber(record);
@@ -8500,15 +8594,21 @@ async function openOrderForm(record){
   document.getElementById('oPaymentDueDate').value=record.payment?.dueDate||'';
   document.getElementById('oPaymentReceivedAt').value=record.payment?.receivedAt||'';
   document.getElementById('oPaymentNote').value=record.payment?.note||'';
-  activeOrderPricing=record.pricingSnapshot||{directUnit:record.unitPrice||0,shopeeUnit:record.unitPrice||0};
-  activeOrderInternalSnapshot=record.internalSnapshot||null;
+  activeOrderPricing=fromCalculator?currentEffectivePricing():(record.pricingSnapshot||{directUnit:record.unitPrice||0,shopeeUnit:record.unitPrice||0});
+  activeOrderInternalSnapshot=fromCalculator?(captureInternalSnapshot()||record.internalSnapshot||null):(record.internalSnapshot||null);
   if(!record.imageId){
     const recovered=await GenesisImageManager.fromRecord(record);
     if(recovered.imageId){record.imageId=recovered.imageId;saveOrders();}
   }
-  activeOrderImageId=record.imageId||null;
+  activeOrderImageId=fromCalculator?(currentPhotoImageId||record.imageId||null):(record.imageId||null);
   activeOrderDraftPhotoDataUrl=null;
-  orderAutoPrice=false;
+  if(fromCalculator){
+    document.getElementById('oProduct').value=(inProduto.value||record.productName||'').trim();
+    document.getElementById('oQty').value=Math.max(1,parseInt(inQtd.value,10)||record.qty||1);
+    document.getElementById('oSourceLink').value=document.getElementById('inLinkImpressao').value.trim()||record.sourceLink||'';
+    document.getElementById('oUnitPrice').value=String((record.channel==='shopee'?activeOrderPricing.shopeeUnit:activeOrderPricing.directUnit)||record.unitPrice||0).replace('.',',');
+  }
+  orderAutoPrice=!!fromCalculator;
   refreshOrderForm();
   openSheet('ovOrderForm','sheetOrderForm');
 }
@@ -8609,9 +8709,9 @@ async function saveOrderFromForm(showSuccess){
     }),
     items:existing?.items||[{id:uid('item'),productName:document.getElementById('oProduct').value.trim(),variation:'',qty,unitPrice:isShopeeManual&&shopeeManual.gross>0?round2(shopeeManual.gross/Math.max(1,qty)):unitPrice,subtotal:isShopeeManual&&shopeeManual.gross>0?round2(shopeeManual.gross):round2(unitPrice*qty),sku:'',shopeeItemId:'',linkedModelId:null}],
     source:existing?.source||'manual',
-    pricingSnapshot:existing?.pricingSnapshot||activeOrderPricing,
+    pricingSnapshot:activeOrderPricing||existing?.pricingSnapshot,
     internalSnapshot:(()=>{
-      const snapshot=existing?.internalSnapshot||activeOrderInternalSnapshot||captureInternalSnapshot();
+      const snapshot=activeOrderInternalSnapshot||existing?.internalSnapshot||captureInternalSnapshot();
       if(snapshot&&!snapshot.imageId)snapshot.imageId=imageId||existing?.imageId||null;
       return snapshot;
     })(),
@@ -8643,6 +8743,7 @@ async function saveOrderFromForm(showSuccess){
   if(!isShopeeManual&&record.payment?.status==='pending'&&record.status==='novo')record.status='aguardando-pagamento';
   if(!isShopeeManual&&record.payment?.status==='paid'&&record.status==='aguardando-pagamento')record.status='a-produzir';
   if(existing) Object.assign(existing,record); else orders.unshift(record);
+  if(genesisCalculatorEditContext?.type==='order'&&genesisCalculatorEditContext.id===record.id){genesisCalculatorEditContext=null;refreshGenesisCalculatorEditBanner();}
   saveOrders();renderOrders();refreshMoreCounts();renderPendingPayments();if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();
   orderEditId=record.id;
   if(showSuccess) showToast('Pedido '+orderNumber(record)+' salvo',true);
@@ -9108,7 +9209,7 @@ document.getElementById('btnOdEdit').addEventListener('click',async()=>{
     const recovered=await GenesisImageManager.attach(o);
     if(recovered)saveOrders();
   }
-  rawCloseSheet('ovOrderDetail','sheetOrderDetail');openOrderForm(o);
+  rawCloseSheet('ovOrderDetail','sheetOrderDetail');openGenesisRecordInCalculator(o,'order');
 });
 document.getElementById('btnOdDelete').addEventListener('click',()=>{
   const o=orders.find(x=>x.id===openOrderId);if(!o)return;
@@ -9123,6 +9224,7 @@ document.getElementById('btnOdDelete').addEventListener('click',()=>{
 /* ===== Evolução 17: acesso rápido à calculadora e MakerWorld ===== */
 
 function resetCalculatorForNewQuote(){
+  genesisCalculatorEditContext=null;
   setTimeMode('hhmm',false);
   inHoras.value='';
   inMinutos.value='';
@@ -9148,6 +9250,7 @@ function resetCalculatorForNewQuote(){
   syncQuickMarginFromConfig();
   refreshManualPriceHints();
   refreshMarginLiveValues();
+  refreshGenesisCalculatorEditBanner();
 }
 
 function openMwQuick(prefill){
@@ -9569,10 +9672,15 @@ function genesisImageContext(kind){
   };
 }
 async function useFoundImage(kind){
+  const requestToken=++genesisImageRequestTokens[kind];
   const context=genesisImageContext(kind);
   const normalizedLink=normalizeExternalUrl(context.link)||context.link.trim();
   const productKey=mwNormalizeText(context.product);
   showToast('Carregando imagem da peça...');
+  setGenesisImageLoading(kind,true);
+  if(kind==='calc')setPhoto(null,null);
+  else if(kind==='quote'){activeQuoteImageId=null;activeQuoteDraftPhotoDataUrl=null;await refreshQuotePhotoEditor();}
+  else if(kind==='order'){activeOrderImageId=null;activeOrderDraftPhotoDataUrl=null;await refreshOrderPhotoEditor();}
   genesisLog('image.link.start',{kind,sourceUrl:normalizedLink});
   try{
     const selected=readSelectedModelSnapshot()||null;
@@ -9600,6 +9708,7 @@ async function useFoundImage(kind){
       asset=await GenesisImageManager.materializeCandidate(model,model);
     }
     if(!asset.imageId)throw new Error('Nenhuma imagem foi encontrada nesse link.');
+    if(requestToken!==genesisImageRequestTokens[kind])return;
 
     if(kind==='quote'){
       activeQuoteImageId=asset.imageId;activeQuoteDraftPhotoDataUrl=null;
@@ -9616,17 +9725,21 @@ async function useFoundImage(kind){
     genesisLog('image.link.success',{kind,imageId:asset.imageId,sourceUrl:normalizedLink});
     showToast('Imagem adicionada com sucesso',true);
   }catch(error){
+    if(requestToken!==genesisImageRequestTokens[kind])return;
     genesisLog('image.link.error',{kind,sourceUrl:normalizedLink,error},'error');
     showToast('Não foi possível carregar essa imagem. Você pode escolher outra foto.');
-  }
+  }finally{if(requestToken===genesisImageRequestTokens[kind])setGenesisImageLoading(kind,false);}
 }
 document.getElementById('btnUseFoundCalcPhoto')?.addEventListener('click',()=>useFoundImage('calc'));
 document.getElementById('btnUseFoundQuotePhoto')?.addEventListener('click',()=>useFoundImage('quote'));
 document.getElementById('btnUseFoundOrderPhoto')?.addEventListener('click',()=>useFoundImage('order'));
 function readSelectedModelSnapshot(){try{return JSON.parse(sessionStorage.getItem('genesisSelectedModel')||'null');}catch(e){return null;}}
 async function applyProfileToCalculator(m,p={},quoteAfter=false){
+  const requestToken=++genesisImageRequestTokens.calc;
+  setPhoto(null,null);setGenesisImageLoading('calc',true);
   const t=profileTimeMinutes(p),w=profileWeight(p);
   const modelSnapshot=await persistSelectedModelAsset(m);
+  if(requestToken!==genesisImageRequestTokens.calc)return;
   const currentCanonicalUrl=modelSnapshot?.modelUrl||canonicalModelUrl(m)||modelPublicUrl(m)||'';
 
   // Ao selecionar um modelo novo, nenhum dado textual do modelo anterior pode permanecer.
@@ -9645,6 +9758,7 @@ async function applyProfileToCalculator(m,p={},quoteAfter=false){
   inPeso.value=w?String(w):'';
 
   const imageDataUrl=modelSnapshot?.imageDataUrl||await modelImageToDataUrl(m);
+  if(requestToken!==genesisImageRequestTokens.calc)return;
   if(imageDataUrl)setPhoto(imageDataUrl);
   else{
     const remote=modelImageUrl(m);
@@ -9652,6 +9766,7 @@ async function applyProfileToCalculator(m,p={},quoteAfter=false){
   }
 
   recalc();persistLastCalc();showScreen('calc');
+  setGenesisImageLoading('calc',false);
 
   if(t&&w)showToast(imageDataUrl?'Tempo, peso e imagem enviados para a calculadora':'Tempo e peso enviados; a imagem ficou vinculada.',true);
   else showToast(imageDataUrl?'Nome, link e imagem carregados. Preencha tempo e peso.':'Modelo carregado. Preencha tempo e peso.');
@@ -10155,7 +10270,7 @@ async function cloudEnsureSession(){
 }
 async function cloudSnapshot(){
   const images=await mediaExportAll();
-  return {version:6,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,shopeeCatalog,shopeeLearnedAliases,images};
+  return {version:7,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,shopeeCatalog,shopeeLearnedAliases,imageMetadata:imageEntities,images};
 }
 async function cloudApplySnapshot(data){
   if(!data||typeof data!=='object')throw new Error('Dados da nuvem inválidos.');
@@ -10172,10 +10287,11 @@ async function cloudApplySnapshot(data){
     savedModels=Array.isArray(data.savedModels)?data.savedModels:[];
     shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
     shopeeLearnedAliases=(data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object')?data.shopeeLearnedAliases:{};
+    imageEntities=Array.isArray(data.imageMetadata)?data.imageMetadata:[];
     counters=Object.assign({quote:0,order:0},data.counters||{});
     uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}},data.uiState||{});
     await mediaClear();await mediaImportAll(data.images||[]);
-    store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));store.set(KEYS.HISTORY,JSON.stringify(history));store.set(KEYS.QUOTES,JSON.stringify(quotes));store.set(KEYS.ORDERS,JSON.stringify(orders));store.set(KEYS.KITS,JSON.stringify(kits));store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));store.set(KEYS.COUNTERS,JSON.stringify(counters));store.set(KEYS.UI,JSON.stringify(uiState));
+    store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));store.set(KEYS.HISTORY,JSON.stringify(history));store.set(KEYS.QUOTES,JSON.stringify(quotes));store.set(KEYS.ORDERS,JSON.stringify(orders));store.set(KEYS.KITS,JSON.stringify(kits));store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));store.set(KEYS.IMAGES,JSON.stringify(imageEntities));store.set(KEYS.COUNTERS,JSON.stringify(counters));store.set(KEYS.UI,JSON.stringify(uiState));
     await runSchemaMigration();
     renderFilamentSelect();renderFilamentList();renderHistoryList();populateSettingsForm();renderDefaultFilamentSelect();applyOrderUIState();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();recalc();
   }finally{cloudApplying=false;}
@@ -11250,7 +11366,7 @@ function enhanceOrderListHierarchy(){
 document.getElementById('btnExportBackup').addEventListener('click', async ()=>{
   const images=await mediaExportAll();
   const backup={
-    version:5,
+    version:7,
     schemaVersion:SCHEMA_VERSION,
     exportedAt:new Date().toISOString(),
     config:cfg,
@@ -11265,6 +11381,7 @@ document.getElementById('btnExportBackup').addEventListener('click', async ()=>{
     uiState,
     shopeeCatalog,
     shopeeLearnedAliases,
+    imageMetadata:imageEntities,
     images
   };
   const text=JSON.stringify(backup,null,2);
@@ -11302,11 +11419,12 @@ document.getElementById('fileImport').addEventListener('change',(e)=>{
       makerWorldCache=(data.makerWorldCache&&typeof data.makerWorldCache==='object')?data.makerWorldCache:{};
       shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
       shopeeLearnedAliases=(data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object')?data.shopeeLearnedAliases:{};
+      imageEntities=Array.isArray(data.imageMetadata)?data.imageMetadata:[];
       counters=Object.assign({quote:0,order:0,kit:0},data.counters||{});
       uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}},data.uiState||{});
       await mediaClear();
       await mediaImportAll(data.images||[]);
-      saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveCounters();saveUI();
+      saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveImages();saveCounters();saveUI();
       await runSchemaMigration();
       renderFilamentSelect();renderFilamentList();renderHistoryList();populateSettingsForm();renderDefaultFilamentSelect();
       applyOrderUIState();renderQuoteList();renderOrders();recalc();
@@ -11327,9 +11445,9 @@ document.getElementById('btnResetDefaults').addEventListener('click',()=>{
 document.getElementById('btnEraseAll').addEventListener('click',()=>{
   showConfirm('Apagar todos os dados','Esta ação excluirá permanentemente configurações, filamentos, histórico, orçamentos, pedidos e imagens. Deseja continuar?',async()=>{
     cfg=JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    filaments=[];history=[];quotes=[];orders=[];kits=[];savedModels=[];makerWorldCache={};shopeeCatalog=JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));shopeeLearnedAliases={};counters={quote:0,order:0,kit:0};
+    filaments=[];history=[];quotes=[];orders=[];kits=[];savedModels=[];imageEntities=[];makerWorldCache={};shopeeCatalog=JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));shopeeLearnedAliases={};counters={quote:0,order:0,kit:0};
     uiState={orderView:'list',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}};
-    saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveCounters();saveUI();
+    saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveImages();saveCounters();saveUI();
     await mediaClear();
     await stateSnapshotClear();
     renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();applyOrderUIState();renderOrders();populateSettingsForm();renderDefaultFilamentSelect();
@@ -12352,5 +12470,6 @@ async function genesisRepairImagesInBatches(){
 }
 </script>
 <script src="./genesis-data.js"></script>
+<script src="./genesis-workspace.js"></script>
 </body>
 </html>

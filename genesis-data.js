@@ -12,14 +12,15 @@
     makerWorldCache:{kind:'object',get:()=>makerWorldCache,set:value=>{makerWorldCache=value||{};}},
     shopeeCatalog:{kind:'array',get:()=>shopeeCatalog,set:value=>{shopeeCatalog=value;}},
     shopeeLearnedAliases:{kind:'object',get:()=>shopeeLearnedAliases,set:value=>{shopeeLearnedAliases=value||{};}},
+    images:{kind:'array',get:()=>imageEntities,set:value=>{imageEntities=Array.isArray(value)?value:[];}},
     counters:{kind:'object',get:()=>counters,set:value=>{counters=Object.assign({quote:0,order:0,kit:0},value||{});}},
     uiState:{kind:'object',get:()=>uiState,set:value=>{uiState=value||{};}}
   };
   const LARGE_LOCAL_KEYS=()=>[
     KEYS.FILAMENTS,KEYS.HISTORY,KEYS.QUOTES,KEYS.ORDERS,KEYS.KITS,KEYS.MODELS,
-    KEYS.MW_CACHE,KEYS.SHOPEE_CATALOG,KEYS.SHOPEE_ALIASES
+    KEYS.MW_CACHE,KEYS.SHOPEE_CATALOG,KEYS.SHOPEE_ALIASES,KEYS.IMAGES
   ];
-  const COLLECTION_LOCAL_KEYS={filaments:()=>KEYS.FILAMENTS,history:()=>KEYS.HISTORY,quotes:()=>KEYS.QUOTES,orders:()=>KEYS.ORDERS,kits:()=>KEYS.KITS,savedModels:()=>KEYS.MODELS,makerWorldCache:()=>KEYS.MW_CACHE,shopeeCatalog:()=>KEYS.SHOPEE_CATALOG,shopeeLearnedAliases:()=>KEYS.SHOPEE_ALIASES};
+  const COLLECTION_LOCAL_KEYS={filaments:()=>KEYS.FILAMENTS,history:()=>KEYS.HISTORY,quotes:()=>KEYS.QUOTES,orders:()=>KEYS.ORDERS,kits:()=>KEYS.KITS,savedModels:()=>KEYS.MODELS,makerWorldCache:()=>KEYS.MW_CACHE,shopeeCatalog:()=>KEYS.SHOPEE_CATALOG,shopeeLearnedAliases:()=>KEYS.SHOPEE_ALIASES,images:()=>KEYS.IMAGES};
   let sheetsConfig={url:'',token:'',enabled:false,lastSyncAt:'',lastSuccessAt:''};
   let sheetsSyncBusy=false,sheetsApplying=false,sheetsQueueTimer=0,sheetsRetryTimer=0;
   let rawWriteTimers=new Map(),genericDraftTimer=0;
@@ -175,6 +176,7 @@
       Vendas:sales.map(sale=>({...commonRecord(sale.id,{createdAt:sale.date,updatedAt:sale.date},'venda_normalizada'),venda_id:sale.id,pedido_id:sale.orderId,data:safeIso(sale.date),canal:sale.channel,cliente_id:sale.clientId,status:sale.status,valor_bruto_total:sale.gross,taxas_canal_total:sale.fees,valor_recebido_total:sale.received,faturamento_total:sale.revenue,custo_producao_total:sale.cost,lucro_total:sale.profit,margem_total:sale.margin,desconto_total:sale.discount,dados_json:jsonCell(sale)})),
       Venda_Itens:sales.flatMap(sale=>sale.items.map(item=>({...commonRecord(`${sale.id}-${item.id}`,{createdAt:sale.date,updatedAt:sale.date},'venda_normalizada'),venda_item_id:`${sale.id}-${item.id}`,venda_id:sale.id,pedido_id:sale.orderId,produto_id:item.productId,produto_nome_snapshot:item.productName,quantidade:item.qty,origem_item:item.originItem,kit_id:item.kitId,kit_nome_snapshot:item.kitName,preco_normal_unitario:item.normalUnitPrice,percentual_desconto:item.discountPercent,valor_bruto_alocado:item.gross,taxas_alocadas:item.fees,faturamento_alocado:item.revenue,custo_unitario_snapshot:item.costUnit,custo_total:item.cost,lucro:item.profit,margem:item.margin,dados_json:jsonCell(item)}))),
       Custos:history.map(item=>({...commonRecord(`cost-${item.id}`,item),calculo_id:item.id,produto_nome:item.productName||'',energia:Number(item.custoEnergia)||0,maquina:Number(item.custoMaquina)||0,filamento:Number(item.custoFilamento)||0,custo_total:Number(item.custoUnitario)||0,dados_json:jsonCell(item)})),
+      Imagens:imageEntities.map(item=>({...commonRecord(item.id,item,item.origem||item.sourceType||'genesis'),entidade:item.entidade||'',entidade_id:item.entidade_id||'',produto_id:item.produto_id||'',orcamento_id:item.orcamento_id||'',pedido_id:item.pedido_id||'',nome_original:item.nome_original||'',nome_arquivo:item.nome_arquivo||'',tipo_mime:item.tipo_mime||'',tamanho_bytes:Number(item.tamanho_bytes)||0,largura:Number(item.largura)||0,altura:Number(item.altura)||0,hash:item.hash||'',imagem_original_id:item.imagem_original_id||item.id||'',imagem_editada_id:item.imagem_editada_id||'',thumbnail_id:item.thumbnail_id||'',local_file_id:item.local_file_id||'',local_url:item.local_url||'',drive_file_id:item.drive_file_id||'',drive_url:item.drive_url||'',versao:Number(item.versao)||1,principal:item.principal!==false,origem:item.origem||item.sourceType||'',sync_status:item.sync_status||'pending',deleted:!!item.deleted,dados_json:jsonCell(item)})),
       Diagnosticos:(()=>{try{return JSON.parse(store.get(GENESIS_ERROR_LOG_KEY)||'[]').slice(-100).map((item,index)=>({...commonRecord(`diag-${stableHash(item.at+'-'+item.event+'-'+index)}`,{createdAt:item.at,updatedAt:item.at},'app'),nivel:item.level||'',evento:item.event||'',tela:item.screen||'',versao_app:item.appVersion||'',dados_json:jsonCell(item)}));}catch(error){return [];}})()
     };
     return result;
@@ -252,7 +254,7 @@
   }
   async function applyRemoteRecords(records){
     if(!Array.isArray(records)||!records.length)return 0;
-    const map={Filamentos:'filaments',Calculos:'history',Orcamentos:'quotes',Kits:'kits',Pedidos:'orders'};
+    const map={Filamentos:'filaments',Calculos:'history',Orcamentos:'quotes',Kits:'kits',Pedidos:'orders',Imagens:'images'};
     const grouped=new Map();let applied=0;
     for(const remote of records){
       if(remote.entity==='Configuracoes'){
@@ -291,7 +293,7 @@
     return applied;
   }
   async function pullSheetsUpdates(){
-    const response=await sheetsApi('readSince',{since:sheetsConfig.lastSyncAt||'',entities:['Configuracoes','Produtos','Filamentos','Calculos','Orcamentos','Kits','Pedidos']});
+    const response=await sheetsApi('readSince',{since:sheetsConfig.lastSyncAt||'',entities:['Configuracoes','Produtos','Filamentos','Calculos','Orcamentos','Kits','Pedidos','Imagens']});
     const applied=await applyRemoteRecords(response.records||[]);
     sheetsConfig.lastSyncAt=response.server_time||new Date().toISOString();saveSheetsConfig();
     return applied;
@@ -479,6 +481,7 @@
     saveMakerWorldCache=function(){changed('makerWorldCache');};
     saveShopeeCatalog=function(){changed('shopeeCatalog');};
     saveShopeeAliases=function(){changed('shopeeLearnedAliases');};
+    saveImages=function(){changed('images');};
     saveCounters=function(){changed('counters',KEYS.COUNTERS,counters);};
     saveUI=function(){changed('uiState',KEYS.UI,uiState);};
     persistGenesisCoreToLocalStorage=function(){
@@ -535,4 +538,6 @@
   window.genesisPersistDraftToIndexedDb=persistDraft;
   window.populateSheetsSettings=populateSheetsSettings;
   window.genesisSheetsSync=syncSheets;
+  window.genesisSheetsApi=sheetsApi;
+  window.genesisSheetsConfigured=sheetsConfigured;
 })();

@@ -1,7 +1,7 @@
-const STATIC_CACHE='genesis3d-static-v30-sheets-20260801';
-const RUNTIME_CACHE='genesis3d-runtime-v30-sheets-20260801';
-const SW_VERSION='30-sheets-finance-stability-20260801';
-const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-finance.js','./genesis-data.js','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
+const STATIC_CACHE='genesis3d-static-v31-desktop-images-20260801';
+const RUNTIME_CACHE='genesis3d-runtime-v31-desktop-images-20260801';
+const SW_VERSION='31-desktop-images-local-sync-20260801';
+const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-finance.js','./genesis-data.js','./genesis-workspace.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
 const MAX_RUNTIME_ENTRIES=60;
 
 self.addEventListener('install',event=>event.waitUntil(

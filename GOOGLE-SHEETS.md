@@ -29,6 +29,7 @@ No editor, escolha a função `setupGenesisDatabase` e clique em **Executar**. A
 - Custos
 - Sincronizacao
 - Diagnosticos
+- Imagens
 
 Depois crie um token aleatório com pelo menos 20 caracteres. No editor, execute uma função temporária como esta uma única vez:
 
@@ -66,8 +67,10 @@ O indicador mostra quantas alterações aguardam envio e o horário do último s
 
 - Nunca coloque o token no repositório, em capturas de tela ou em logs.
 - O envio usa lotes de até 60 operações no aplicativo e até 100 na API.
-- Imagens completas não são colocadas em células. Elas permanecem no IndexedDB e no backup opcional do computador.
-- A API possui operação opcional `uploadImage`, que grava no Drive, mas ela não é usada automaticamente para evitar tráfego e consumo desnecessário da cota gratuita.
+- Imagens completas não são colocadas em células. A aba `Imagens` contém apenas IDs estáveis, hash, dimensões, origem, vínculos, versão, URLs e estado de sincronização.
+- A API possui a operação opcional `uploadImage`, que grava a versão otimizada no Drive somente quando **Enviar versão otimizada ao Google Drive** estiver ativado nas configurações.
+- O arquivo original permanece no servidor local quando ele estiver configurado; IndexedDB preserva o rascunho, a miniatura e a fila de arquivos ainda não sincronizados.
+- O modo privado entrega a imagem pelo Apps Script autenticado. O modo por link facilita o uso fora da rede local, mas só deve ser habilitado quando essa forma de acesso for desejada.
 - Se o Google ficar indisponível, não há perda: a fila fica no IndexedDB e usa tentativas com atraso progressivo.
 - Operações têm `operation_id`; reenvios não duplicam registros.
 - Conflitos de versão não sobrescrevem silenciosamente a cópia existente e são registrados em `Diagnosticos`.
@@ -81,3 +84,5 @@ Depois do primeiro envio, confirme:
 3. Componentes de kits aparecem separadamente em `Venda_Itens`.
 4. Pedidos aguardando pagamento e cancelados não aparecem em `Vendas`.
 5. A soma de `faturamento_alocado` dos itens é igual a `faturamento_total` da venda.
+6. A aba `Imagens` contém somente metadados e referências, nunca Base64.
+7. Ao ativar o Drive, `drive_file_id`, `drive_url` e `sync_status` são atualizados depois do envio.

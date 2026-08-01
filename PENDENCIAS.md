@@ -2,6 +2,51 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
+## Concluídas na versão 2026.08.01.2
+
+### URGENTE — impedir que a imagem do item anterior apareça no novo orçamento
+
+- [x] Ao iniciar um novo item ou orçamento, desvincular e retirar imediatamente da tela a imagem do item anterior.
+- [x] Exibir um estado neutro ou a mensagem **“Carregando nova imagem…”** enquanto a imagem correta estiver sendo buscada, processada e salva.
+- [x] Vincular a imagem somente se ela pertencer ao item/orçamento atualmente aberto, validando o ID do registro antes de atualizar a tela.
+- [x] Cancelar ou ignorar respostas atrasadas de buscas e importações anteriores para impedir que uma imagem antiga substitua a imagem atual.
+- [x] Invalidar corretamente o cache de imagem e atualizar o preview assim que a nova imagem estiver pronta.
+- [x] Não exigir que o usuário feche, reabra ou atualize manualmente o aplicativo para visualizar a imagem correta.
+- [x] Preservar a imagem certa durante todo o fluxo: cálculo, orçamento, edição, kit, pedido, compartilhamento e histórico.
+- [x] O gesto de puxar para atualizar deve funcionar como recurso adicional, e não como solução obrigatória para corrigir a imagem.
+
+### Atualização ao puxar a tela para baixo
+
+- [x] Implementar o gesto **puxar para atualizar** (pull-to-refresh), semelhante ao Instagram, quando o usuário estiver no topo da tela.
+- [x] Exibir um indicador visual enquanto a atualização estiver acontecendo e uma confirmação discreta ao terminar.
+- [x] Atualizar os dados da tela atual, incluindo alterações sincronizadas, sem trocar de página.
+- [x] Preservar formulários em edição, imagens, rascunhos, filtros, posição da tela e todo o histórico durante a atualização.
+- [x] Impedir atualizações duplicadas caso o usuário puxe a tela várias vezes seguidas.
+- [x] Se existir uma nova versão do aplicativo, avisar o usuário e pedir confirmação antes de aplicá-la, sem forçar o recarregamento durante uma edição.
+
+### Edição completa de orçamentos e pedidos
+
+- [x] Ao tocar em **Editar** em um orçamento, voltar à tela inicial completa de criação/cálculo, com todos os dados originais preenchidos.
+- [x] Ao tocar em **Editar** em um pedido, voltar ao mesmo fluxo completo de criação/cálculo usado para gerar o orçamento ou pedido.
+- [x] Restaurar para edição: produto, tempo de impressão, peso, filamento, quantidade, margem, lucro, custos, preços direto/Shopee, frete, prazo, validade, cliente, foto, cores, observações e links.
+- [x] Manter disponíveis todas as funções da calculadora, inclusive recálculo automático de custo, preço e lucro durante a edição.
+- [x] Ao salvar, atualizar o orçamento ou pedido original em vez de criar uma duplicata.
+- [x] Preservar o mesmo ID, número, imagem, vínculo entre orçamento/pedido/kit, status e histórico da operação.
+- [x] Antes de abrir a edição, salvar um rascunho e permitir restauração caso o aplicativo seja fechado ou colocado em segundo plano.
+- [x] Para registros históricos com dados incompletos, carregar tudo o que estiver disponível e indicar claramente quais campos precisam ser preenchidos, sem inventar valores.
+
+### Desktop, servidor local e imagens
+
+- [x] Criar modos Automático, Celular e Desktop sem nova aplicação, nova rota ou nova base de dados.
+- [x] Adicionar menu lateral, formulário amplo, painel de imagem e prévia do orçamento em tempo real no computador.
+- [x] Ampliar o servidor local existente para originais, editadas, otimizadas, miniaturas, biblioteca, versões, status e backup.
+- [x] Criar a entidade `Imagens` no IndexedDB e no Google Sheets, salvando apenas metadados e referências na planilha.
+- [x] Adicionar fila offline, deduplicação por hash e fallback para IndexedDB quando computador ou Drive estiverem indisponíveis.
+- [x] Adicionar seleção, arrastar e soltar, Ctrl + V, biblioteca, imagens recentes, MakerWorld e reutilização de registros anteriores.
+- [x] Adicionar menu customizado e editor não destrutivo com recorte, giro, espelhamento, zoom, proporções, desfazer, refazer e restauração do original.
+- [x] Preservar rascunho, imagem, enquadramento e fila depois de fechamento inesperado.
+- [x] Manter o uso 100% gratuito: servidor próprio, IndexedDB, Google Sheets/Drive opcionais e nenhuma cobrança automática.
+
 ## Concluídas na versão 2026.08.01.1
 
 - [x] Criar fonte financeira única para venda direta, Shopee, kits e Genesis Insights.
