@@ -14,7 +14,8 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Leitura de prints da Shopee com a franquia gratuita do Cloudflare Workers AI e OCR local de reserva, sempre com revisão antes de importar.
 - Cópia automática de segurança no IndexedDB para preservar o histórico entre atualizações.
 - Espelhamento opcional dos dados e imagens no próprio computador.
-- Sincronização opcional entre aparelhos usando Supabase.
+- Banco principal gratuito no Google Sheets, com fila offline e API em Google Apps Script.
+- Compatibilidade opcional com a sincronização legada do Supabase.
 
 O download do arquivo 3D é aberto na página oficial do MakerWorld ou Thingiverse. Login, licença e condições do autor continuam sendo respeitados.
 
@@ -30,9 +31,15 @@ O download do arquivo 3D é aberto na página oficial do MakerWorld ou Thingiver
 
 O reconhecimento visual usa o binding `AI` do Cloudflare Workers AI em **modo gratuito rígido**. O aplicativo limita o uso a 24 prints por dia em cada aparelho e troca automaticamente para o OCR local quando a IA gratuita não estiver disponível. Mantenha a conta no plano Workers Free, sem cadastrar forma de pagamento nem aceitar upgrade.
 
-### Supabase
+### Google Sheets + Apps Script
 
-É opcional para uso em apenas um aparelho. É recomendado para login, backup e restauração dos mesmos dados em mais de um celular ou computador.
+É a opção principal para manter uma cópia central gratuita dos dados. A planilha fica no Google Drive do proprietário e o Apps Script recebe lotes idempotentes, com token configurado fora do repositório.
+
+O aplicativo não depende da planilha para abrir: primeiro grava no IndexedDB e sincroniza quando a internet volta. Veja o passo a passo completo em [`GOOGLE-SHEETS.md`](GOOGLE-SHEETS.md).
+
+### Supabase (legado e opcional)
+
+Foi preservado para quem já o utilizava. Uma nova instalação pode usar apenas Google Sheets, IndexedDB e a cópia opcional no computador.
 
 Se for usado, mantenha o projeto exclusivamente no plano gratuito e sem cobrança automática. O caminho principal sem nuvem continua sendo IndexedDB no celular e a cópia opcional no próprio computador.
 
@@ -86,7 +93,15 @@ O diretório [`genesis-local-server`](genesis-local-server/) contém um servidor
 
 Atualizar o aplicativo no mesmo endereço não apaga `localStorage` nem IndexedDB. O Service Worker também só instala a nova versão depois da confirmação do usuário. A cópia no computador oferece recuperação adicional caso os dados do site sejam apagados manualmente ou pelo sistema.
 
-## Ativar sincronização com Supabase
+## Ativar sincronização com Google Sheets
+
+1. Siga [`GOOGLE-SHEETS.md`](GOOGLE-SHEETS.md) para criar a planilha e implantar o Apps Script.
+2. No aplicativo, abra **Mais → Configurações → Google Sheets**.
+3. Informe a URL terminada em `/exec` e o token criado por você.
+4. Toque em **Testar conexão** e depois em **Preparar dados atuais**.
+5. Ative a sincronização automática.
+
+## Ativar sincronização legada com Supabase
 
 1. Crie um projeto no Supabase.
 2. Abra o **SQL Editor** e execute todo o arquivo `supabase-schema.sql`.
@@ -114,9 +129,12 @@ Use apenas a chave pública no aplicativo. A chave `service_role` nunca deve ser
 ## Arquivos principais
 
 - `corrigido.html`: aplicativo.
+- `genesis-finance.js`: fonte única dos cálculos de vendas, taxas, kits e Insights.
+- `genesis-data.js`: IndexedDB, rascunhos, fila offline, migração e Google Sheets.
 - `service-worker.js`: instalação e cache offline.
 - `manifest.json`: nome, ícones e aparência da PWA.
 - `makerworld-worker.js`: ponte para MakerWorld, Thingiverse e imagens.
 - `genesis-local-server/`: cópia opcional no próprio computador.
+- `google-apps-script/`: API e criação automática da planilha Google.
 - `supabase-schema.sql`: tabela e políticas de segurança da sincronização.
 

@@ -1,0 +1,538 @@
+/* Genesis 3D — camada local IndexedDB, sincronização Google Sheets e finanças normalizadas. */
+(function(){
+  const SHEETS_CONFIG_KEY='genesis3d:sheetsConfig';
+  const COLLECTIONS={
+    config:{kind:'object',get:()=>cfg,set:value=>{cfg=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)),value||{});}},
+    filaments:{kind:'array',get:()=>filaments,set:value=>{filaments=value;}},
+    history:{kind:'array',get:()=>history,set:value=>{history=value;}},
+    quotes:{kind:'array',get:()=>quotes,set:value=>{quotes=value;}},
+    orders:{kind:'array',get:()=>orders,set:value=>{orders=value;}},
+    kits:{kind:'array',get:()=>kits,set:value=>{kits=value;}},
+    savedModels:{kind:'array',get:()=>savedModels,set:value=>{savedModels=value;}},
+    makerWorldCache:{kind:'object',get:()=>makerWorldCache,set:value=>{makerWorldCache=value||{};}},
+    shopeeCatalog:{kind:'array',get:()=>shopeeCatalog,set:value=>{shopeeCatalog=value;}},
+    shopeeLearnedAliases:{kind:'object',get:()=>shopeeLearnedAliases,set:value=>{shopeeLearnedAliases=value||{};}},
+    counters:{kind:'object',get:()=>counters,set:value=>{counters=Object.assign({quote:0,order:0,kit:0},value||{});}},
+    uiState:{kind:'object',get:()=>uiState,set:value=>{uiState=value||{};}}
+  };
+  const LARGE_LOCAL_KEYS=()=>[
+    KEYS.FILAMENTS,KEYS.HISTORY,KEYS.QUOTES,KEYS.ORDERS,KEYS.KITS,KEYS.MODELS,
+    KEYS.MW_CACHE,KEYS.SHOPEE_CATALOG,KEYS.SHOPEE_ALIASES
+  ];
+  const COLLECTION_LOCAL_KEYS={filaments:()=>KEYS.FILAMENTS,history:()=>KEYS.HISTORY,quotes:()=>KEYS.QUOTES,orders:()=>KEYS.ORDERS,kits:()=>KEYS.KITS,savedModels:()=>KEYS.MODELS,makerWorldCache:()=>KEYS.MW_CACHE,shopeeCatalog:()=>KEYS.SHOPEE_CATALOG,shopeeLearnedAliases:()=>KEYS.SHOPEE_ALIASES};
+  let sheetsConfig={url:'',token:'',enabled:false,lastSyncAt:'',lastSuccessAt:''};
+  let sheetsSyncBusy=false,sheetsApplying=false,sheetsQueueTimer=0,sheetsRetryTimer=0;
+  let rawWriteTimers=new Map(),genericDraftTimer=0;
+  try{sheetsConfig=Object.assign(sheetsConfig,JSON.parse(store.get(SHEETS_CONFIG_KEY)||'{}'));}catch(error){}
+
+  function dbAll(storeName){
+    return openMediaDb().then(db=>new Promise(resolve=>{
+      if(!db||!db.objectStoreNames.contains(storeName)){resolve([]);return;}
+      try{const request=db.transaction(storeName,'readonly').objectStore(storeName).getAll();request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>resolve([]);}catch(error){resolve([]);}
+    }));
+  }
+  function dbGet(storeName,key){
+    return openMediaDb().then(db=>new Promise(resolve=>{
+      if(!db||!db.objectStoreNames.contains(storeName)){resolve(null);return;}
+      try{const request=db.transaction(storeName,'readonly').objectStore(storeName).get(key);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>resolve(null);}catch(error){resolve(null);}
+    }));
+  }
+  function dbPut(storeName,value){
+    return openMediaDb().then(db=>new Promise(resolve=>{
+      if(!db||!db.objectStoreNames.contains(storeName)){resolve(false);return;}
+      try{const tx=db.transaction(storeName,'readwrite');tx.objectStore(storeName).put(value);tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);}catch(error){resolve(false);}
+    }));
+  }
+  function dbDelete(storeName,key){
+    return openMediaDb().then(db=>new Promise(resolve=>{
+      if(!db||!db.objectStoreNames.contains(storeName)){resolve(false);return;}
+      try{const tx=db.transaction(storeName,'readwrite');tx.objectStore(storeName).delete(key);tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);}catch(error){resolve(false);}
+    }));
+  }
+  async function dbReplaceCollection(name,value){
+    const descriptor=COLLECTIONS[name],db=await openMediaDb();
+    if(!descriptor||!db)return false;
+    const values=descriptor.kind==='array'?(Array.isArray(value)?value:[]):[value||{}];
+    values.forEach((item,index)=>{
+      if(descriptor.kind==='array'&&item&&!item.id)item.id=uid(name.replace(/s$/,'')||'record');
+    });
+    const rows=values.map((payload,index)=>({
+      key:`${name}:${descriptor.kind==='array'?(payload.id||index):'singleton'}`,
+      collection:name,id:descriptor.kind==='array'?(payload.id||String(index)):'singleton',
+      position:index,payload,updatedAt:Date.now()
+    }));
+    const existing=(await dbAll(RECORD_STORE)).filter(row=>row.collection===name);
+    const wanted=new Set(rows.map(row=>row.key));
+    return new Promise(resolve=>{
+      try{
+        const tx=db.transaction([RECORD_STORE,META_STORE],'readwrite'),records=tx.objectStore(RECORD_STORE);
+        existing.forEach(row=>{if(!wanted.has(row.key))records.delete(row.key);});
+        rows.forEach(row=>records.put(row));
+        tx.objectStore(META_STORE).put({id:`collection:${name}`,collection:name,ids:rows.map(row=>row.id),count:rows.length,updatedAt:Date.now()});
+        tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);
+      }catch(error){resolve(false);}
+    });
+  }
+  function scheduleRawCollection(name){
+    clearTimeout(rawWriteTimers.get(name));
+    rawWriteTimers.set(name,setTimeout(async()=>{
+      rawWriteTimers.delete(name);
+      const descriptor=COLLECTIONS[name];if(!descriptor)return;
+      const ok=await dbReplaceCollection(name,descriptor.get());
+      if(ok&&COLLECTION_LOCAL_KEYS[name])try{localStorage.removeItem(COLLECTION_LOCAL_KEYS[name]());}catch(error){}
+    },120));
+  }
+  async function restoreRawCollections(){
+    const rows=await dbAll(RECORD_STORE),metas=await dbAll(META_STORE);
+    const known=new Set(metas.filter(meta=>String(meta.id||'').startsWith('collection:')).map(meta=>meta.collection));
+    for(const [name,descriptor] of Object.entries(COLLECTIONS)){
+      if(!known.has(name))continue;
+      const selected=rows.filter(row=>row.collection===name).sort((a,b)=>(Number(a.position)||0)-(Number(b.position)||0)||String(a.id).localeCompare(String(b.id)));
+      descriptor.set(descriptor.kind==='array'?selected.map(row=>row.payload):selected[0]?.payload||{});
+    }
+    return known.size>0;
+  }
+  async function persistAllRawCollections(){
+    for(const [name,descriptor] of Object.entries(COLLECTIONS))await dbReplaceCollection(name,descriptor.get());
+  }
+  async function validateRawMigration(){
+    const metas=await dbAll(META_STORE);
+    return Object.entries(COLLECTIONS).every(([name,descriptor])=>{
+      const meta=metas.find(item=>item.id===`collection:${name}`);
+      const expected=descriptor.kind==='array'?(descriptor.get()||[]).length:1;
+      return meta&&Number(meta.count)===expected;
+    });
+  }
+  async function migrateLegacyStorage(){
+    const marker=await dbGet(META_STORE,'local-migration-v23');
+    if(marker?.status==='complete')return true;
+    const backup={id:`legacy-v23-${Date.now()}`,createdAt:Date.now(),schemaVersion:SCHEMA_VERSION,data:genesisCoreSnapshot()};
+    if(!await dbPut(LEGACY_BACKUP_STORE,backup))return false;
+    await persistAllRawCollections();
+    const valid=await validateRawMigration();
+    if(!valid){genesisLog('indexeddb.migration.validation_failed',{},'error');return false;}
+    await dbPut(META_STORE,{id:'local-migration-v23',status:'complete',backupId:backup.id,updatedAt:Date.now()});
+    try{LARGE_LOCAL_KEYS().forEach(key=>localStorage.removeItem(key));}catch(error){}
+    genesisLog('indexeddb.migration.complete',{backupId:backup.id,quotes:quotes.length,orders:orders.length,kits:kits.length});
+    return true;
+  }
+
+  function safeIso(value){
+    const date=value instanceof Date?value:new Date(typeof value==='number'?value:(value||0));
+    return Number.isNaN(date.getTime())?new Date(0).toISOString():date.toISOString();
+  }
+  function stableHash(value){
+    let hash=2166136261;for(const char of String(value||'')){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);
+  }
+  function sanitize(value,depth=0){
+    if(depth>7)return null;
+    if(value===null||value===undefined||['string','number','boolean'].includes(typeof value))return value;
+    if(Array.isArray(value))return value.slice(0,300).map(item=>sanitize(item,depth+1));
+    if(typeof Blob!=='undefined'&&value instanceof Blob)return undefined;
+    if(typeof value!=='object')return String(value);
+    const output={};
+    Object.entries(value).forEach(([key,item])=>{
+      if(/password|senha|token|anonkey|secret|imageDataUrl|photoDataUrl|dataUrl|imageBlob|blob|rawText|ocrText|screenshots/i.test(key))return;
+      const clean=sanitize(item,depth+1);if(clean!==undefined)output[key]=clean;
+    });
+    return output;
+  }
+  function jsonCell(value){
+    const text=JSON.stringify(sanitize(value));
+    return text.length>48000?JSON.stringify({truncated:true,id:value?.id||'',summary:String(value?.productName||value?.name||'').slice(0,500)}):text;
+  }
+  function commonRecord(id,record={},origin='genesis'){
+    return {id:String(id),created_at:safeIso(record.createdAt||record.created_at),updated_at:safeIso(record.updatedAt||record.updated_at||record.createdAt||record.created_at),version:Math.max(1,Number(record.version)||1),origem:record.source||record.origem||origin,sync_status:'pending',deleted:!!record.deleted};
+  }
+  function clientRecords(){
+    const map=new Map();
+    [...quotes,...orders].forEach(record=>{
+      const client=record.client||{},name=String(client.name||'').trim(),phone=String(client.whatsapp||client.phone||'').replace(/\D/g,''),instagram=String(client.instagram||'').trim();
+      if(!name&&!phone&&!instagram)return;
+      const id=client.id||`client-${stableHash(phone||instagram.toLowerCase()||name.toLowerCase())}`;
+      const existing=map.get(id)||{};
+      map.set(id,{...commonRecord(id,record),nome:name||existing.nome||'',telefone:client.phone||existing.telefone||'',whatsapp:client.whatsapp||existing.whatsapp||'',instagram:instagram||existing.instagram||'',dados_json:jsonCell(client)});
+    });
+    return [...map.values()];
+  }
+  function normalizedSales(){return GenesisFinance.deduplicateOrders(orders).map(order=>GenesisFinance.normalizeSale(order)).filter(Boolean);}
+  function buildSheetsEntities(){
+    const sales=normalizedSales(),products=[
+      ...savedModels.map(model=>({...model,_type:'modelo'})),
+      ...shopeeCatalog.map(product=>({...product,_type:'catalogo_shopee'}))
+    ];
+    const result={
+      Configuracoes:[{...commonRecord('genesis-config',cfg),chave:'genesis_config',valor_json:jsonCell(cfg),dados_json:jsonCell(cfg)}],
+      Produtos:products.map(product=>({...commonRecord(product.id,product),nome:product.name||product.productName||'',tipo:product._type,categoria:product.category||product.commercial?.category||'',ativo:product.deleted!==true,dados_json:jsonCell(product)})),
+      Filamentos:filaments.map(item=>({...commonRecord(item.id,item),nome:item.name||'',material:item.material||'',marca:item.brand||'',cor:item.color||'',preco_rolo:Number(item.rollPrice)||0,peso_rolo:Number(item.rollWeight)||0,dados_json:jsonCell(item)})),
+      Clientes:clientRecords(),
+      Calculos:history.map(item=>({...commonRecord(item.id,item),produto_nome:item.productName||'',filamento_id:item.filamentId||'',quantidade:Number(item.qty)||1,custo_unitario:Number(item.custoUnitario)||0,preco_direto:Number(item.precoDiretoUnit)||0,preco_shopee:Number(item.precoShopeeUnit)||0,image_id:item.imageId||'',dados_json:jsonCell(item)})),
+      Orcamentos:quotes.map(item=>({...commonRecord(item.id,item),numero:item.seq||'',cliente_nome:item.client?.name||'',status:item.status||'',valor_total:Number(item.total)||0,image_id:item.imageId||'',dados_json:jsonCell(item)})),
+      Orcamento_Itens:quotes.map(item=>({...commonRecord(`quote-item-${item.id}`,item),orcamento_id:item.id,produto_id:item.productId||item.internalSnapshot?.modelId||'',produto_nome_snapshot:item.productName||'',quantidade:Number(item.qty)||1,valor_unitario:Number(item.unitPrice)||0,valor_total:Number(item.total)||0,dados_json:jsonCell({availableColors:item.availableColors,imageId:item.imageId})})),
+      Kits:kits.map(item=>({...commonRecord(item.id,item),numero:item.seq||'',nome:item.name||'',status:item.status||'',valor_normal:Number(item.totals?.individual)||0,desconto_total:Number(item.totals?.customerSaving)||0,valor_final:Number(item.totals?.final)||0,dados_json:jsonCell(item)})),
+      Kit_Itens:kits.flatMap(kit=>(kit.items||[]).map((item,index)=>({...commonRecord(item.id||`${kit.id}-item-${index+1}`,item),kit_id:kit.id,produto_id:item.sourceId||'',produto_nome_snapshot:item.name||'',quantidade:Number(item.qty)||1,preco_normal_unitario:Number(item.unitPrice)||0,custo_unitario_snapshot:Number(item.unitCost)||0,dados_json:jsonCell(item)}))),
+      Pedidos:orders.map(item=>({...commonRecord(item.id,item),numero:item.seq||'',shopee_order_id:item.shopeeOrderId||item.shopee?.number||'',cliente_nome:item.client?.name||'',canal:item.channel||'',status:item.status||'',valor_total:Number(item.total)||0,image_id:item.imageId||'',dados_json:jsonCell(item)})),
+      Vendas:sales.map(sale=>({...commonRecord(sale.id,{createdAt:sale.date,updatedAt:sale.date},'venda_normalizada'),venda_id:sale.id,pedido_id:sale.orderId,data:safeIso(sale.date),canal:sale.channel,cliente_id:sale.clientId,status:sale.status,valor_bruto_total:sale.gross,taxas_canal_total:sale.fees,valor_recebido_total:sale.received,faturamento_total:sale.revenue,custo_producao_total:sale.cost,lucro_total:sale.profit,margem_total:sale.margin,desconto_total:sale.discount,dados_json:jsonCell(sale)})),
+      Venda_Itens:sales.flatMap(sale=>sale.items.map(item=>({...commonRecord(`${sale.id}-${item.id}`,{createdAt:sale.date,updatedAt:sale.date},'venda_normalizada'),venda_item_id:`${sale.id}-${item.id}`,venda_id:sale.id,pedido_id:sale.orderId,produto_id:item.productId,produto_nome_snapshot:item.productName,quantidade:item.qty,origem_item:item.originItem,kit_id:item.kitId,kit_nome_snapshot:item.kitName,preco_normal_unitario:item.normalUnitPrice,percentual_desconto:item.discountPercent,valor_bruto_alocado:item.gross,taxas_alocadas:item.fees,faturamento_alocado:item.revenue,custo_unitario_snapshot:item.costUnit,custo_total:item.cost,lucro:item.profit,margem:item.margin,dados_json:jsonCell(item)}))),
+      Custos:history.map(item=>({...commonRecord(`cost-${item.id}`,item),calculo_id:item.id,produto_nome:item.productName||'',energia:Number(item.custoEnergia)||0,maquina:Number(item.custoMaquina)||0,filamento:Number(item.custoFilamento)||0,custo_total:Number(item.custoUnitario)||0,dados_json:jsonCell(item)})),
+      Diagnosticos:(()=>{try{return JSON.parse(store.get(GENESIS_ERROR_LOG_KEY)||'[]').slice(-100).map((item,index)=>({...commonRecord(`diag-${stableHash(item.at+'-'+item.event+'-'+index)}`,{createdAt:item.at,updatedAt:item.at},'app'),nivel:item.level||'',evento:item.event||'',tela:item.screen||'',versao_app:item.appVersion||'',dados_json:jsonCell(item)}));}catch(error){return [];}})()
+    };
+    return result;
+  }
+  function fingerprint(record){
+    const copy={...record};delete copy.updated_at;delete copy.sync_status;delete copy.version;return stableHash(JSON.stringify(copy));
+  }
+  async function enqueueSheetsRecords(reason='change',force=false){
+    if(sheetsApplying)return 0;
+    const entities=buildSheetsEntities(),queue=await dbAll(SYNC_QUEUE_STORE),metaRows=await dbAll(META_STORE);
+    const metaMap=new Map(metaRows.map(item=>[item.id,item]));
+    const existingQueue=new Map(queue.filter(item=>['pending','failed'].includes(item.status)).map(item=>[`${item.entity}:${item.entity_id}`,item]));
+    let count=0;
+    for(const [entity,records] of Object.entries(entities)){
+      const currentIds=new Set(records.map(record=>String(record.id)));
+      const knownMeta=metaMap.get(`sheets-ids:${entity}`),knownIds=new Set(knownMeta?.ids||[]);
+      for(const record of records){
+        const key=`${entity}:${record.id}`,fp=fingerprint(record),fpMeta=metaMap.get(`sheets-fp:${key}`);
+        if(!force&&fpMeta?.fingerprint===fp)continue;
+        const previous=existingQueue.get(key),operation={
+          operation_id:previous?.operation_id||`op-${Date.now().toString(36)}-${stableHash(key+'-'+Math.random())}`,
+          entity,entity_id:String(record.id),action:'upsert',payload:{...record,updated_at:new Date().toISOString(),version:Math.max(1,Number(record.version)||1)+(Number(fpMeta?.version)||0)},
+          created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),attempts:Number(previous?.attempts)||0,last_error:'',status:'pending',reason
+        };
+        await dbPut(SYNC_QUEUE_STORE,operation);existingQueue.set(key,operation);count++;
+      }
+      for(const missing of knownIds){
+        if(currentIds.has(String(missing)))continue;
+        const key=`${entity}:${missing}`,previous=existingQueue.get(key),operation={operation_id:previous?.operation_id||`op-${Date.now().toString(36)}-${stableHash(key+'-delete')}`,entity,entity_id:String(missing),action:'delete',payload:{id:String(missing),deleted:true,updated_at:new Date().toISOString()},created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),attempts:Number(previous?.attempts)||0,last_error:'',status:'pending',reason};
+        await dbPut(SYNC_QUEUE_STORE,operation);count++;
+      }
+      await dbPut(META_STORE,{id:`sheets-ids:${entity}`,ids:[...currentIds],updatedAt:Date.now()});
+    }
+    await refreshSheetsStatus();
+    if(sheetsConfig.enabled&&navigator.onLine)scheduleSheetsRetry(350);
+    return count;
+  }
+  function scheduleSheetsQueue(reason='change'){
+    clearTimeout(sheetsQueueTimer);sheetsQueueTimer=setTimeout(()=>enqueueSheetsRecords(reason).catch(error=>genesisLog('sheets.queue.error',{error},'error')),700);
+  }
+
+  function saveSheetsConfig(){store.set(SHEETS_CONFIG_KEY,JSON.stringify(sheetsConfig));}
+  function sheetsConfigured(){return /^https:\/\/script\.google\.com\/macros\/s\//i.test(String(sheetsConfig.url||''))&&!!String(sheetsConfig.token||'').trim();}
+  function setSheetsStatus(state,text){
+    const dot=document.getElementById('sheetsStatusDot'),label=document.getElementById('sheetsStatusText');
+    if(dot)dot.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');
+    if(label)label.textContent=text;
+  }
+  async function sheetsApi(operation,payload={}){
+    if(!sheetsConfigured())throw new Error('Informe a URL e o token do Google Apps Script.');
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+    try{
+      const response=await fetch(sheetsConfig.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:sheetsConfig.token,operation,...payload}),signal:controller.signal,redirect:'follow'});
+      const text=await response.text();let data={};try{data=text?JSON.parse(text):{};}catch(error){throw new Error('Resposta inválida do Google Apps Script.');}
+      if(!response.ok||data.ok===false)throw new Error(data.error||`Google Apps Script respondeu ${response.status}`);
+      return data;
+    }catch(error){if(error.name==='AbortError')throw new Error('Tempo limite ao acessar o Google Sheets.');throw error;}finally{clearTimeout(timer);}
+  }
+  async function refreshSheetsStatus(message){
+    const queue=await dbAll(SYNC_QUEUE_STORE),pending=queue.filter(item=>item.status!=='synced').length,conflicts=queue.filter(item=>item.status==='conflict').length;
+    const details=document.getElementById('sheetsSyncDetails');
+    if(details)details.textContent=`${pending} alteração(ões) pendente(s)${conflicts?` · ${conflicts} conflito(s) preservado(s)`:''}${sheetsConfig.lastSuccessAt?` · último envio ${new Date(sheetsConfig.lastSuccessAt).toLocaleString('pt-BR')}`:''}.`;
+    if(message)return setSheetsStatus(message.state,message.text);
+    if(!navigator.onLine)setSheetsStatus('','Offline · dados protegidos neste aparelho');
+    else if(!sheetsConfigured())setSheetsStatus('','Google Sheets não configurado');
+    else if(conflicts)setSheetsStatus('bad','Conflito preservado · revise o diagnóstico');
+    else if(pending)setSheetsStatus('',`${pending} alteração(ões) aguardando envio`);
+    else setSheetsStatus('ok','Sincronizado');
+    return pending;
+  }
+  function scheduleSheetsRetry(delay=1500){
+    clearTimeout(sheetsRetryTimer);
+    if(!sheetsConfig.enabled||!sheetsConfigured()||!navigator.onLine||document.visibilityState==='hidden')return;
+    sheetsRetryTimer=setTimeout(()=>syncSheets({silent:true}).catch(()=>{}),delay);
+  }
+  async function applyRemoteRecords(records){
+    if(!Array.isArray(records)||!records.length)return 0;
+    const map={Filamentos:'filaments',Calculos:'history',Orcamentos:'quotes',Kits:'kits',Pedidos:'orders'};
+    const grouped=new Map();let applied=0;
+    for(const remote of records){
+      if(remote.entity==='Configuracoes'){
+        let configRaw=remote.payload?.dados_json??remote.payload?.valor_json;
+        try{configRaw=typeof configRaw==='string'?JSON.parse(configRaw):configRaw;}catch(error){configRaw=null;}
+        if(configRaw&&!configRaw.truncated){cfg=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)),configRaw);await dbReplaceCollection('config',cfg);applied++;}
+        continue;
+      }
+      if(remote.entity==='Produtos'){
+        let productRaw=remote.payload?.dados_json;
+        try{productRaw=typeof productRaw==='string'?JSON.parse(productRaw):productRaw;}catch(error){productRaw=null;}
+        if(productRaw&&!productRaw.truncated&&productRaw.id){
+          const target=productRaw._type==='catalogo_shopee'?'shopeeCatalog':'savedModels';
+          if(!grouped.has(target))grouped.set(target,[]);grouped.get(target).push(productRaw);
+        }
+        continue;
+      }
+      const name=map[remote.entity];if(!name)continue;
+      let raw=remote.payload?.dados_json??remote.dados_json;
+      try{raw=typeof raw==='string'?JSON.parse(raw):raw;}catch(error){continue;}
+      if(!raw||raw.truncated||!raw.id)continue;
+      if(!grouped.has(name))grouped.set(name,[]);grouped.get(name).push(raw);
+    }
+    sheetsApplying=true;
+    try{
+      for(const [name,incoming] of grouped){
+        const descriptor=COLLECTIONS[name],current=Array.isArray(descriptor.get())?descriptor.get():[],byId=new Map(current.map(item=>[String(item.id),item]));
+        incoming.forEach(item=>{const existing=byId.get(String(item.id));if(!existing||Number(item.updatedAt||0)>=Number(existing.updatedAt||0)){byId.set(String(item.id),item);applied++;}});
+        descriptor.set([...byId.values()]);await dbReplaceCollection(name,descriptor.get());
+      }
+    }finally{sheetsApplying=false;}
+    if(applied){
+      renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();populateSettingsForm();
+      await persistStateSnapshot('sheets-pull');
+    }
+    return applied;
+  }
+  async function pullSheetsUpdates(){
+    const response=await sheetsApi('readSince',{since:sheetsConfig.lastSyncAt||'',entities:['Configuracoes','Produtos','Filamentos','Calculos','Orcamentos','Kits','Pedidos']});
+    const applied=await applyRemoteRecords(response.records||[]);
+    sheetsConfig.lastSyncAt=response.server_time||new Date().toISOString();saveSheetsConfig();
+    return applied;
+  }
+  async function syncSheets({silent=false}={}){
+    if(sheetsSyncBusy)return false;
+    if(!navigator.onLine){await refreshSheetsStatus();if(!silent)showToast('Sem internet. As alterações continuam salvas no aparelho.');return false;}
+    if(!sheetsConfigured()){await refreshSheetsStatus();if(!silent)showToast('Configure a URL e o token do Google Apps Script.');return false;}
+    sheetsSyncBusy=true;setSheetsStatus('','Sincronizando com Google Sheets…');
+    try{
+      await enqueueSheetsRecords('sync');
+      let queue=(await dbAll(SYNC_QUEUE_STORE)).filter(item=>['pending','failed','syncing'].includes(item.status)&&(!item.next_attempt_at||item.next_attempt_at<=Date.now())).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+      while(queue.length){
+        const batch=queue.slice(0,60);for(const item of batch){item.status='syncing';await dbPut(SYNC_QUEUE_STORE,item);}
+        let response;
+        try{response=await sheetsApi('batchSync',{operations:batch});}
+        catch(error){
+          for(const item of batch){item.status='failed';item.attempts=(Number(item.attempts)||0)+1;item.last_error=String(error.message||error).slice(0,500);item.next_attempt_at=Date.now()+Math.min(300000,Math.pow(2,item.attempts)*3000);await dbPut(SYNC_QUEUE_STORE,item);}
+          throw error;
+        }
+        const results=new Map((response.results||[]).map(result=>[result.operation_id,result]));
+        for(const item of batch){
+          const result=results.get(item.operation_id);
+          if(result?.status==='conflict'){
+            item.status='conflict';item.last_error='Conflito de versão: as duas cópias foram preservadas.';await dbPut(SYNC_QUEUE_STORE,item);
+            await dbPut(DIAGNOSTIC_STORE,{id:`conflict-${item.operation_id}`,createdAt:Date.now(),type:'sync-conflict',details:{entity:item.entity,entity_id:item.entity_id,server:result.server_record,local:item.payload}});
+          }else if(result?.ok!==false){
+            await dbDelete(SYNC_QUEUE_STORE,item.operation_id);
+            await dbPut(META_STORE,{id:`sheets-fp:${item.entity}:${item.entity_id}`,fingerprint:fingerprint(item.payload),version:Number(item.payload.version)||1,updatedAt:Date.now()});
+          }else{
+            item.status='failed';item.attempts=(Number(item.attempts)||0)+1;item.last_error=String(result?.error||'Falha não identificada').slice(0,500);await dbPut(SYNC_QUEUE_STORE,item);
+          }
+        }
+        queue=queue.slice(batch.length);
+      }
+      const applied=await pullSheetsUpdates();
+      sheetsConfig.lastSuccessAt=new Date().toISOString();saveSheetsConfig();await refreshSheetsStatus({state:'ok',text:'Sincronizado com Google Sheets'});
+      if(!silent)showToast(`Sincronização concluída${applied?` · ${applied} atualização(ões) recebida(s)`:''}`,true);
+      return true;
+    }catch(error){genesisLog('sheets.sync.failed',{error},'error');await refreshSheetsStatus({state:'bad',text:'Falha ao sincronizar · dados preservados'});if(!silent)showToast(error.message||'Falha ao sincronizar.');scheduleSheetsRetry(15000);return false;}
+    finally{sheetsSyncBusy=false;}
+  }
+  async function testSheets(){
+    readSheetsSettings();setSheetsStatus('','Testando conexão…');
+    try{const result=await sheetsApi('healthCheck');setSheetsStatus('ok',`Conectado · ${result.spreadsheet_name||'Genesis 3D'}`);showToast('Google Sheets conectado',true);}catch(error){setSheetsStatus('bad','Não foi possível conectar');showToast(error.message||'Falha na conexão.');}
+  }
+  function readSheetsSettings(){
+    sheetsConfig.url=String(document.getElementById('sheetsApiUrl')?.value||'').trim().replace(/\/$/,'');
+    sheetsConfig.token=String(document.getElementById('sheetsApiToken')?.value||'').trim();
+    sheetsConfig.enabled=!!document.getElementById('sheetsSyncEnabled')?.checked;saveSheetsConfig();
+  }
+  function populateSheetsSettings(){
+    const url=document.getElementById('sheetsApiUrl'),token=document.getElementById('sheetsApiToken'),enabled=document.getElementById('sheetsSyncEnabled');
+    if(url)url.value=sheetsConfig.url||'';if(token)token.value=sheetsConfig.token||'';if(enabled)enabled.checked=!!sheetsConfig.enabled;refreshSheetsStatus();
+  }
+  async function prepareSheetsMigration(){
+    readSheetsSettings();setSheetsStatus('','Criando backup antes da migração…');
+    try{
+      await persistStateSnapshot('before-sheets-migration');
+      if(loadLocalComputerConfig().enabled)await genesisLocalSyncAll().catch(error=>genesisLog('local.backup.before_sheets_failed',{error},'warn'));
+      await persistAllRawCollections();const count=await enqueueSheetsRecords('migration',true);
+      await dbPut(META_STORE,{id:'sheets-migration-v1',status:'prepared',records:count,updatedAt:Date.now()});
+      await refreshSheetsStatus();showToast(`${count} registro(s) preparado(s), sem apagar o histórico`,true);
+      if(sheetsConfigured()&&sheetsConfig.enabled)await syncSheets({silent:false});
+    }catch(error){setSheetsStatus('bad','Falha ao preparar · dados originais mantidos');showToast(error.message||'Falha ao preparar dados.');}
+  }
+
+  function captureGenericDraft(){
+    const roots=[document.querySelector('.screen.active'),...document.querySelectorAll('.sheet.open')].filter(Boolean),values={};
+    roots.forEach(root=>root.querySelectorAll('input,textarea,select').forEach(element=>{
+      if(!element.id||element.type==='file'||element.type==='password'||/token|senha|password/i.test(element.id))return;
+      values[element.id]=element.type==='checkbox'?!!element.checked:element.value;
+    }));
+    return {id:'active-form',updatedAt:Date.now(),screen:typeof currentPrimaryScreen==='function'?currentPrimaryScreen():'',values};
+  }
+  async function persistDraft(reason='autosave'){
+    const raw=store.get(GENESIS_DRAFT_KEY);let appDraft=null;try{appDraft=raw?JSON.parse(raw):null;}catch(error){}
+    return dbPut(DRAFT_STORE,{...captureGenericDraft(),reason,appDraft});
+  }
+  function scheduleGenericDraft(reason='input'){
+    clearTimeout(genericDraftTimer);genericDraftTimer=setTimeout(()=>persistDraft(reason).catch(()=>{}),420);
+  }
+  async function restoreIndexedDraft(){
+    const draft=await dbGet(DRAFT_STORE,'active-form');if(!draft||Date.now()-Number(draft.updatedAt||0)>7*86400000)return false;
+    if(draft.appDraft){
+      let current=null;try{current=JSON.parse(store.get(GENESIS_DRAFT_KEY)||'null');}catch(error){}
+      if(!current||Number(draft.appDraft.updatedAt||0)>Number(current.updatedAt||0))store.set(GENESIS_DRAFT_KEY,JSON.stringify(draft.appDraft));
+    }
+    Object.entries(draft.values||{}).forEach(([id,value])=>{const element=document.getElementById(id);if(element&&element.type!=='password'){if(element.type==='checkbox')element.checked=!!value;else element.value=value==null?'':String(value);}});
+    return true;
+  }
+
+  function installRecoveryPanel(){
+    if(document.getElementById('genesisRecoveryPanel'))return;
+    const style=document.createElement('style');style.textContent='#genesisRecoveryPanel{position:fixed;inset:0;z-index:20000;background:rgba(1,3,10,.94);display:none;align-items:center;justify-content:center;padding:22px}#genesisRecoveryPanel.show{display:flex}#genesisRecoveryPanel .recovery-card{width:min(100%,430px);background:#0d1220;border:1px solid rgba(151,75,255,.55);border-radius:22px;padding:22px;color:#fff;box-shadow:0 24px 80px #000}#genesisRecoveryPanel .recovery-card h2{margin:0 0 8px}#genesisRecoveryPanel .recovery-card p{color:#aeb5c8;line-height:1.45}';document.head.appendChild(style);
+    const panel=document.createElement('div');panel.id='genesisRecoveryPanel';panel.innerHTML='<div class="recovery-card"><h2>O Genesis protegeu seus dados</h2><p id="genesisRecoveryMessage">Ocorreu uma falha, mas seu rascunho e seu histórico continuam salvos.</p><small id="genesisRecoveryId"></small><div class="btn-row" style="margin-top:18px"><button class="btn btn-primary" id="genesisRecoveryRetry">Tentar novamente</button><button class="btn btn-secondary" id="genesisRecoveryDraft">Restaurar rascunho</button></div><div class="btn-row" style="margin-top:8px"><button class="btn btn-secondary" id="genesisRecoveryHome">Voltar ao início</button><button class="btn btn-ghost" id="genesisRecoveryExport">Exportar diagnóstico</button></div></div>';document.body.appendChild(panel);
+    document.getElementById('genesisRecoveryRetry').onclick=()=>{panel.classList.remove('show');genesisRecoverUi('recovery-retry');};
+    document.getElementById('genesisRecoveryDraft').onclick=async()=>{await restoreIndexedDraft();await restoreActiveDraft({reopen:true});panel.classList.remove('show');showToast('Rascunho restaurado',true);};
+    document.getElementById('genesisRecoveryHome').onclick=()=>{panel.classList.remove('show');resetModalState({preserveOpen:false,reason:'recovery-home'});showScreen('calc');};
+    document.getElementById('genesisRecoveryExport').onclick=exportGenesisErrorReport;
+  }
+  function showRecovery(error){
+    const panel=document.getElementById('genesisRecoveryPanel');if(!panel)return;
+    const errorId=`ERR-${Date.now().toString(36).toUpperCase()}`;document.getElementById('genesisRecoveryId').textContent=`Identificador: ${errorId}`;panel.classList.add('show');persistDraft('recovery-error');genesisLog('recovery.panel',{errorId,error},'error');
+  }
+
+  function installFinanceSourceOfTruth(){
+    if(!window.GenesisFinance)return;
+    validSaleOrder=order=>GenesisFinance.isRealized(order);
+    insightOrderRevenue=order=>GenesisFinance.normalizeSale(order)?.revenue||0;
+    orderFinancial=order=>{
+      const sale=GenesisFinance.normalizeSale(order,{includeUnrealized:true});
+      if(!sale)return null;
+      if(!GenesisFinance.isRealized(order))return {...sale,revenue:0,profit:null};
+      return sale;
+    };
+    orderProfit=order=>{const sale=GenesisFinance.normalizeSale(order);return sale?sale.profit:null;};
+    orderCost=order=>{const sale=GenesisFinance.normalizeSale(order,{includeUnrealized:true});return sale?sale.cost:null;};
+    orderFees=order=>{const sale=GenesisFinance.normalizeSale(order);return sale?sale.fees:null;};
+    buildOrderFinancialSnapshot=order=>{
+      const sale=GenesisFinance.normalizeSale(order,{includeUnrealized:true});if(!sale)return null;
+      const realized=GenesisFinance.isRealized(order),internal=order.internalSnapshot||{};
+      return {grossRevenue:sale.gross,revenue:realized?sale.revenue:0,cost:sale.cost,fees:sale.fees,profit:realized?sale.profit:null,margin:realized?sale.margin:0,items:sale.items,createdAt:Date.now(),basis:'genesis_finance_v1',timeHours:Number(internal.timeHours)>0?GenesisFinance.round2(Number(internal.timeHours)*(Number(order.qty)||1)):null,weightGrams:Number(internal.pesoG)>0?GenesisFinance.round2(Number(internal.pesoG)*(Number(order.qty)||1)):null,filamentName:internal.filamentName||'',filamentCost:Number(internal.custoFilamento)>0?GenesisFinance.round2(Number(internal.custoFilamento)*(Number(order.qty)||1)):null,unitCost:Number(internal.custoUnitario)||null};
+    };
+    aggregateInsightOrders=list=>{
+      const aggregate=GenesisFinance.aggregateInsights(list),out={orders:aggregate.orders,gross:aggregate.gross,revenue:aggregate.revenue,profit:aggregate.profit,profitKnown:aggregate.orders,cost:aggregate.cost,costKnown:aggregate.orders,fees:aggregate.fees,feesKnown:aggregate.orders,printHours:0,printHoursKnown:0,weightG:0,weightKnown:0};
+      list.forEach(order=>{const hours=orderPrintHours(order),weight=orderWeight(order);if(hours!=null){out.printHours+=hours;out.printHoursKnown++;}if(weight!=null){out.weightG+=weight;out.weightKnown++;}});
+      out.ticket=out.orders?out.revenue/out.orders:0;out.margin=out.revenue?out.profit/out.revenue*100:0;out.profitHour=out.printHours>0?out.profit/out.printHours:null;return out;
+    };
+    insightProductRows=list=>{
+      const map=new Map();
+      GenesisFinance.deduplicateOrders(list).forEach(order=>{
+        const sale=GenesisFinance.normalizeSale(order);if(!sale)return;
+        sale.items.forEach(item=>{
+          const key=mwNormalizeText(item.productName),row=map.get(key)||{key,name:item.productName,qty:0,orders:new Set(),revenue:0,profit:0,profitKnown:0,cost:0,costKnown:0,hours:0,hoursKnown:0,channels:new Set()};
+          row.qty+=item.qty;row.orders.add(order.id);row.revenue+=item.revenue;row.profit+=item.profit;row.profitKnown++;row.cost+=item.cost;row.costKnown++;row.hours+=Number(item.timeHours)||0;if(item.timeHours)row.hoursKnown++;row.channels.add(sale.channel);map.set(key,row);
+        });
+      });
+      return [...map.values()].map(row=>({...row,orderCount:row.orders.size,profitHour:row.hours>0?row.profit/row.hours:null,margin:row.revenue>0?row.profit/row.revenue*100:0}));
+    };
+    const costSourceForName=name=>{
+      const normalized=mwNormalizeText(name||'');
+      return history.filter(item=>mwNormalizeText(item.productName||'')===normalized&&Number(item.custoUnitario)>=0).sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0]||null;
+    };
+    const ensureOrderSnapshots=order=>{
+      if(!order)return order;
+      const itemList=Array.isArray(order.kitItems)&&order.kitItems.length?order.kitItems:(Array.isArray(order.items)?order.items:[]);
+      itemList.forEach(item=>{
+        if(Number.isFinite(Number(item.costUnit??item.unitCost??item.custoUnitario)))return;
+        const source=costSourceForName(item.productName||item.name||order.productName);if(!source)return;
+        item.costUnit=Number(source.custoUnitario)||0;item.timeHours=Number(source.T)||Number(source.timeHours)||0;item.weightG=Number(source.pesoG)||0;item.filamentName=source.filamentName||'';item.costSnapshotSourceId=source.id;
+      });
+      if(order.financialSnapshot?.cost==null){
+        const itemCost=itemList.reduce((sum,item)=>sum+(Number(item.costUnit??item.unitCost??item.custoUnitario)||0)*Math.max(1,Number(item.qty)||1),0);
+        if(itemCost>0){order.internalSnapshot=Object.assign({},order.internalSnapshot||{},{custoUnitario:itemCost/Math.max(1,Number(order.qty)||1)});}
+      }
+      const snapshot=buildOrderFinancialSnapshot(order);
+      if(!order.financialSnapshot||order.financialSnapshot.cost==null)order.financialSnapshot=snapshot;
+      return order;
+    };
+    window.genesisEnsureOrderSnapshots=ensureOrderSnapshots;
+    if(typeof upsert==='function'){
+      const originalUpsert=upsert;upsert=function(group){return ensureOrderSnapshots(originalUpsert(group));};
+    }
+    if(typeof upsertLegacy==='function'){
+      const originalUpsertLegacy=upsertLegacy;upsertLegacy=function(group){return ensureOrderSnapshots(originalUpsertLegacy(group));};
+    }
+    if(typeof convertKitToOrder==='function'){
+      const originalConvertKit=convertKitToOrder;convertKitToOrder=async function(kit){const result=await originalConvertKit(kit);const order=orders.find(item=>item.id===kit.orderId);if(order){ensureOrderSnapshots(order);saveOrders();}return result;};
+    }
+  }
+
+  function installPersistenceHooks(){
+    const changed=(name,smallKey,value)=>{
+      if(smallKey)store.set(smallKey,JSON.stringify(value));
+      scheduleRawCollection(name);if(typeof scheduleCloudSync==='function')scheduleCloudSync();scheduleStateSnapshot(name);scheduleSheetsQueue(name);
+    };
+    saveConfig=function(){changed('config',KEYS.CONFIG,cfg);};
+    saveFilaments=function(){changed('filaments');};
+    saveHistory=function(){changed('history');};
+    saveQuotes=function(){changed('quotes');};
+    saveOrders=function(){changed('orders');};
+    saveKits=function(){changed('kits');};
+    saveModels=function(){changed('savedModels');};
+    saveMakerWorldCache=function(){changed('makerWorldCache');};
+    saveShopeeCatalog=function(){changed('shopeeCatalog');};
+    saveShopeeAliases=function(){changed('shopeeLearnedAliases');};
+    saveCounters=function(){changed('counters',KEYS.COUNTERS,counters);};
+    saveUI=function(){changed('uiState',KEYS.UI,uiState);};
+    persistGenesisCoreToLocalStorage=function(){
+      store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.COUNTERS,JSON.stringify(counters));store.set(KEYS.UI,JSON.stringify(uiState));
+      Object.keys(COLLECTIONS).forEach(scheduleRawCollection);
+    };
+    scheduleStateSnapshot=function(reason='change'){
+      clearTimeout(stateSnapshotTimer);stateSnapshotTimer=setTimeout(()=>persistStateSnapshot(reason).catch(error=>genesisLog('state.snapshot.error',{error},'error')),5000);
+    };
+    const originalSaveDraft=saveActiveDraft;
+    saveActiveDraft=function(reason='autosave'){originalSaveDraft(reason);persistDraft(reason).catch(()=>{});};
+    const originalRestoreDraft=restoreActiveDraft;
+    restoreActiveDraft=async function(options={}){await restoreIndexedDraft();return originalRestoreDraft(options);};
+    const originalClearDraft=clearActiveDraft;
+    clearActiveDraft=function(){originalClearDraft();dbDelete(DRAFT_STORE,'active-form');};
+    const originalLog=genesisLog;
+    genesisLog=function(event,details={},level='info'){
+      originalLog(event,details,level);
+      dbPut(DIAGNOSTIC_STORE,{id:`diag-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,createdAt:Date.now(),event,level,screen:document.querySelector('.screen.active')?.id||'boot',appVersion:GENESIS_APP_VERSION,details:sanitize(details)}).catch(()=>{});
+    };
+  }
+
+  async function dataLayerRestore(){return restoreRawCollections();}
+  async function dataLayerInit(){
+    await migrateLegacyStorage();
+    let repairedSnapshots=false;
+    if(typeof window.genesisEnsureOrderSnapshots==='function')orders.forEach(order=>{const before=order.financialSnapshot?.cost;window.genesisEnsureOrderSnapshots(order);if(before==null&&order.financialSnapshot?.cost!=null)repairedSnapshots=true;});
+    if(repairedSnapshots)saveOrders();
+    await restoreIndexedDraft();installRecoveryPanel();await refreshSheetsStatus();
+    document.getElementById('btnSheetsTest')?.addEventListener('click',testSheets);
+    document.getElementById('btnSheetsSync')?.addEventListener('click',()=>{readSheetsSettings();syncSheets({silent:false});});
+    document.getElementById('btnSheetsMigrate')?.addEventListener('click',prepareSheetsMigration);
+    ['sheetsApiUrl','sheetsApiToken','sheetsSyncEnabled'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{readSheetsSettings();refreshSheetsStatus();if(sheetsConfig.enabled)scheduleSheetsRetry();}));
+    document.addEventListener('input',event=>{if(event.target.closest('.screen,.sheet'))scheduleGenericDraft('input');},true);
+    document.addEventListener('change',event=>{if(event.target.closest('.screen,.sheet'))scheduleGenericDraft('change');},true);
+    window.addEventListener('online',()=>{refreshSheetsStatus();scheduleSheetsRetry(500);});window.addEventListener('offline',refreshSheetsStatus);
+    window.addEventListener('error',event=>{if(!event.message?.includes('ResizeObserver'))showRecovery(event.error||event.message);});
+    window.addEventListener('unhandledrejection',event=>showRecovery(event.reason));
+    if(sheetsConfig.enabled)scheduleSheetsRetry(1000);
+    runFinancialAcceptanceTests();
+  }
+  function runFinancialAcceptanceTests(){
+    const direct=GenesisFinance.calculateSaleTotals({channel:'direct',gross:100,cost:30});
+    const shopee=GenesisFinance.calculateSaleTotals({channel:'shopee',gross:100,received:78,cost:30});
+    const kitOrder={id:'test-kit',status:'concluido',channel:'direct',productTotal:108,kitId:'kit',productName:'Kit',payment:{status:'paid',paid:108,balance:0},financialSnapshot:{cost:0},kitItems:[{id:'a',name:'A',qty:1,unitPrice:30},{id:'b',name:'B',qty:1,unitPrice:40},{id:'c',name:'C',qty:1,unitPrice:50}]};
+    const kit=GenesisFinance.normalizeSale(kitOrder),kitShopee=GenesisFinance.normalizeSale({...kitOrder,id:'test-kit-shopee',channel:'shopee',shopee:{finance:{grossProductRevenue:108,netRevenueReceived:86.4,financialStatus:'received'}}});
+    const tests=[direct.revenue===100&&direct.profit===70&&direct.margin===70,shopee.fees===22&&shopee.revenue===78&&shopee.profit===48&&shopee.margin===61.54,kit?.items.map(item=>item.gross).join('|')==='27|36|45'&&GenesisFinance.validateSale(kit).ok,kitShopee?.revenue===86.4&&GenesisFinance.validateSale(kitShopee).ok];
+    if(tests.some(value=>!value))genesisLog('finance.acceptance.failed',{tests},'error');else genesisLog('finance.acceptance.ok',{tests:tests.length});
+  }
+
+  installFinanceSourceOfTruth();installPersistenceHooks();
+  window.genesisDataLayerRestore=dataLayerRestore;
+  window.genesisDataLayerInit=dataLayerInit;
+  window.genesisPersistDraftToIndexedDb=persistDraft;
+  window.populateSheetsSettings=populateSheetsSettings;
+  window.genesisSheetsSync=syncSheets;
+})();

@@ -2,6 +2,29 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
+## Concluídas na versão 2026.08.01.1
+
+- [x] Criar fonte financeira única para venda direta, Shopee, kits e Genesis Insights.
+- [x] Excluir de faturamento e lucro os pedidos não realizados, não pagos, cancelados, recusados e expirados.
+- [x] Calcular taxas Shopee como venda bruta menos valor efetivamente recebido, sem descontar duas vezes.
+- [x] Explodir kits nos componentes e fechar desconto, taxas, faturamento, custos e lucro até o último centavo.
+- [x] Preservar custos históricos como snapshot e impedir recálculo por preços atuais.
+- [x] Criar as 15 abas do Google Sheets e a API completa em Google Apps Script.
+- [x] Adicionar configuração, teste, migração, fila offline, sincronização manual e automática no aplicativo.
+- [x] Migrar coleções grandes para IndexedDB com backup e validação anteriores.
+- [x] Persistir rascunhos gerais e criar painel de recuperação amigável.
+- [x] Limitar cache temporário do Service Worker e manter atualização somente após confirmação.
+- [x] Manter o servidor local como backup opcional, sem torná-lo obrigatório.
+- [x] Fixar a barra inferior e preservar sua posição durante a navegação e abertura de modais.
+- [x] Manter a leitura Shopee pelo login exibido e a revisão híbrida Excel + OCR/IA gratuita.
+- [x] Alinhar os chapéus coloridos à esquerda com espaçamento fixo, sem esticar para preencher o card.
+- [x] Corrigir o alinhamento do texto “Este orçamento inclui…” nas artes de item e kit.
+- [x] Documentar implantação, segurança, diagnóstico e testes.
+
+## Etapa externa necessária
+
+- [ ] O proprietário deve implantar `google-apps-script/Code.gs` na própria conta Google e informar a URL `/exec` e o token em **Mais → Configurações**. O código está pronto; essa autorização não pode ser criada publicamente pelo GitHub.
+
 ## Concluídas na versão 2026.07.30.9
 
 - [x] Usar a silhueta exata do chapéu Genesis para representar as cores disponíveis.
@@ -26,7 +49,7 @@ Este arquivo registra as solicitações recebidas e o estado da atualização. O
 
 ## Regra de atualização e dados
 
-- O schema local permanece na versão 22 nesta atualização.
+- O schema local passa de 22 para 23 por migração aditiva e validada.
 - Nenhuma rotina de limpeza ou recriação do histórico é executada durante a atualização.
 - Orçamentos antigos sem o campo de cores continuam compatíveis.
 - O Service Worker mantém a navegação atual e atualiza os arquivos sem trocar o endereço do aplicativo.

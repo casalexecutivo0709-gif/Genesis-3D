@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'corrigido.html'),'utf8');
+const sw=fs.readFileSync(path.join(root,'service-worker.js'),'utf8');
+const data=fs.readFileSync(path.join(root,'genesis-data.js'),'utf8');
+const appsScript=fs.readFileSync(path.join(root,'google-apps-script','Code.gs'),'utf8');
+
+assert.match(html,/genesis-finance\.js/);
+assert.match(html,/genesis-data\.js/);
+assert.match(html,/Google Sheets — banco principal gratuito/);
+assert.match(html,/const MEDIA_DB_VERSION = 3/);
+assert.match(data,/SYNC_QUEUE_STORE/);
+assert.match(data,/Content-Type':'text\/plain;charset=utf-8/);
+assert.match(appsScript,/LockService\.getScriptLock/);
+assert.match(appsScript,/function doGet/);
+assert.match(appsScript,/function doPost/);
+assert.doesNotMatch(sw,/clients\.claim\s*\(/);
+assert.match(sw,/type==='SKIP_WAITING'\)self\.skipWaiting\(\)/);
+assert.doesNotMatch(sw,/addEventListener\('install',[\s\S]{0,400}skipWaiting/);
+console.log('Estrutura PWA, IndexedDB, fila e Apps Script OK');
