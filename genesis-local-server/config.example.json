@@ -2,6 +2,8 @@
   "host": "0.0.0.0",
   "port": 8765,
   "dataDir": "./GenesisData",
+  "maxImageBytes": 26214400,
+  "allowOpenFolder": true,
   "accessToken": "GERADO-AUTOMATICAMENTE-NO-PRIMEIRO-INICIO",
   "allowedOrigins": [
     "https://casalexecutivo0709-gif.github.io"
