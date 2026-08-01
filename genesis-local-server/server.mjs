@@ -154,5 +154,5 @@ server.listen(Number(config.port)||8765,String(config.host||'0.0.0.0'),()=>{
   console.log(`Genesis 3D Local Storage ativo em ${protocol}://${config.host||'0.0.0.0'}:${Number(config.port)||8765}`);
   console.log('Pasta dos dados:',DATA_DIR);
   console.log('Código de pareamento:',config.accessToken);
-  if(!pfxPath)console.warn('ATENÇÃO: o iPhone exige HTTPS. Configure tls.pfxPath no config.json.');
+  if(!pfxPath&&!hasPem)console.warn('ATENÇÃO: o iPhone exige HTTPS. Configure tls.pfxPath ou tls.certPath/tls.keyPath no config.json.');
 });
