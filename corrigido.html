@@ -3026,9 +3026,25 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
     </div>
     <div class="hairline"></div>
 
-    <p class="card-label" id="settingsCloudAnchor" style="margin:16px 4px 10px;">Banco de dados na nuvem</p>
+    <p class="card-label" id="settingsSheetsAnchor" style="margin:16px 4px 10px;">Google Sheets — banco principal gratuito</p>
     <div class="card" style="margin-bottom:14px;">
-      <p class="secondary-note" style="margin-top:0;">Os dados principais do Genesis passam a ter uma cópia persistente no Supabase. O armazenamento local fica apenas como cache/offline; ao entrar em outro aparelho com a mesma conta, os dados podem ser restaurados da nuvem.</p>
+      <p class="secondary-note" style="margin-top:0;">Sincroniza pedidos, vendas, itens, kits, orçamentos, cálculos, clientes e filamentos com uma planilha sua no Google Drive. O aplicativo continua funcionando offline e nunca envia senhas ou imagens em Base64 para as células.</p>
+      <div class="field"><label>URL do Google Apps Script</label><input id="sheetsApiUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <div class="field"><label>Token de acesso</label><input id="sheetsApiToken" type="password" autocomplete="off" placeholder="Token configurado no Apps Script"></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:10px;"><input id="sheetsSyncEnabled" type="checkbox" style="width:auto;"> Sincronizar automaticamente quando houver internet</label>
+      <div class="btn-row" style="margin-bottom:9px;">
+        <button class="btn btn-secondary" id="btnSheetsTest" type="button">Testar conexão</button>
+        <button class="btn btn-primary" id="btnSheetsSync" type="button">Sincronizar agora</button>
+        <button class="btn btn-secondary" id="btnSheetsMigrate" type="button">Preparar dados atuais</button>
+      </div>
+      <div class="integration-line"><span><span class="integration-dot" id="sheetsStatusDot"></span><span id="sheetsStatusText">Google Sheets não configurado</span></span></div>
+      <small id="sheetsSyncDetails" style="color:var(--muted);display:block;margin-top:8px;">0 alterações pendentes.</small>
+    </div>
+    <div class="hairline"></div>
+
+    <p class="card-label" id="settingsCloudAnchor" style="margin:16px 4px 10px;">Nuvem legada (opcional)</p>
+    <div class="card" style="margin-bottom:14px;">
+      <p class="secondary-note" style="margin-top:0;">Compatibilidade mantida para quem já usava Supabase. Não é necessário configurar esta seção quando o Google Sheets estiver ativo.</p>
       <div class="field"><label>Supabase Project URL</label><input id="cloudUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://xxxx.supabase.co"></div>
       <div class="field"><label>Supabase anon/public key</label><input id="cloudAnonKey" type="password" autocomplete="off" placeholder="eyJ..."></div>
       <div class="row2">
@@ -4214,6 +4230,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
   <div class="btn-row" style="margin-top:8px;"><button class="btn btn-secondary" id="btnOpenShopeeSeller">Abrir Central do Vendedor</button><button class="btn btn-ghost" id="btnAdPromptClose">Fechar</button></div>
 </div>
 
+<script src="./genesis-finance.js"></script>
 <script>
 /* =========================================================
    GENESIS 3D — storage layer
@@ -4272,8 +4289,8 @@ const KEYS = {
   SHOPEE_ALIASES:'genesis3d:shopeeAliases',
   KITS:'genesis3d:kits'
 };
-const SCHEMA_VERSION = 22;
-const GENESIS_APP_VERSION = '2026.07.30.9';
+const SCHEMA_VERSION = 23;
+const GENESIS_APP_VERSION = '2026.08.01.1';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -4641,9 +4658,15 @@ function nextSequence(type){
 
 /* ---------- IndexedDB: imagens novas não ficam no localStorage ---------- */
 const MEDIA_DB_NAME = 'genesis3d-media';
-const MEDIA_DB_VERSION = 2;
+const MEDIA_DB_VERSION = 3;
 const MEDIA_STORE = 'images';
 const STATE_STORE = 'stateSnapshots';
+const RECORD_STORE = 'records';
+const SYNC_QUEUE_STORE = 'syncQueue';
+const DRAFT_STORE = 'drafts';
+const DIAGNOSTIC_STORE = 'diagnostics';
+const META_STORE = 'syncMeta';
+const LEGACY_BACKUP_STORE = 'legacyBackups';
 let mediaDbPromise = null;
 const mediaObjectUrlCache = new Map();
 /* Fallback somente de sessão para ambientes que bloqueiam IndexedDB (ex.: algumas prévias/arquivos locais).
@@ -4661,6 +4684,12 @@ function openMediaDb(){
       const db = req.result;
       if(!db.objectStoreNames.contains(MEDIA_STORE)) db.createObjectStore(MEDIA_STORE, {keyPath:'id'});
       if(!db.objectStoreNames.contains(STATE_STORE)) db.createObjectStore(STATE_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(RECORD_STORE)) db.createObjectStore(RECORD_STORE, {keyPath:'key'});
+      if(!db.objectStoreNames.contains(SYNC_QUEUE_STORE)) db.createObjectStore(SYNC_QUEUE_STORE, {keyPath:'operation_id'});
+      if(!db.objectStoreNames.contains(DRAFT_STORE)) db.createObjectStore(DRAFT_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(DIAGNOSTIC_STORE)) db.createObjectStore(DIAGNOSTIC_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(LEGACY_BACKUP_STORE)) db.createObjectStore(LEGACY_BACKUP_STORE, {keyPath:'id'});
     };
     req.onsuccess = ()=> resolve(req.result);
     req.onerror = ()=> resolve(null);
@@ -5015,6 +5044,7 @@ async function genesisLocalRestore(){
   }
   persistGenesisCoreToLocalStorage();await runSchemaMigration();await persistStateSnapshot('computer-restore');
   setLocalComputerStatus('ok',`Restaurado: ${quotes.length} orçamento(s), ${orders.length} pedido(s)`);
+  renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();populateSettingsForm();recalc();
 }
 window.addEventListener('pagehide', ()=>{
   persistStateSnapshot('pagehide').catch(()=>{});
@@ -7501,7 +7531,7 @@ function loadGenesisHatMask(){
 function canvasAvailableColorsHeight(colors,width){
   const count=quoteColorLabels(colors).length;
   if(!count)return 0;
-  const columns=Math.min(count,count<=5?count:9);
+  const columns=Math.min(count,9,Math.max(1,Math.floor((Math.max(120,width)-52)/106)));
   const rows=Math.ceil(count/Math.max(1,columns));
   return 58+rows*76+14;
 }
@@ -7526,12 +7556,12 @@ async function canvasDrawAvailableColorHats(ctx,colors,x,y,width){
   ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 20px -apple-system,Arial';
   ctx.fillText('CORES DISPONÍVEIS',x+26,y+31);
   const mask=await loadGenesisHatMask();
-  const columns=Math.min(labels.length,labels.length<=5?labels.length:9);
-  const cellWidth=width/Math.max(1,columns),rowHeight=76,gridTop=y+45;
+  const columns=Math.min(labels.length,9,Math.max(1,Math.floor((Math.max(120,width)-52)/106)));
+  const cellWidth=106,rowHeight=76,gridTop=y+45,gridLeft=x+26;
   for(let index=0;index<labels.length;index++){
     const label=labels[index],spec=genesisColorSpec(label);
     const col=index%columns,row=Math.floor(index/columns);
-    const cx=x+col*cellWidth+cellWidth/2,iconW=Math.min(78,cellWidth-14),iconH=46;
+    const cx=gridLeft+col*cellWidth+cellWidth/2,iconW=78,iconH=46;
     const icon=genesisTintedHatCanvas(mask,spec.hex,iconW,iconH);
     const iconX=cx-iconW/2,iconY=gridTop+row*rowHeight;
     if(spec.isDark){
@@ -7543,6 +7573,7 @@ async function canvasDrawAvailableColorHats(ctx,colors,x,y,width){
     canvasFitText(ctx,label,cellWidth-8,14,10,650);
     ctx.fillText(label,cx,iconY+iconH+17);
   }
+  ctx.textAlign='left';
   return height;
 }
 async function createIndividualQuoteCanvas(q){
@@ -7626,7 +7657,7 @@ async function createIndividualQuoteCanvas(q){
   const noticeY=nextY;
   ctx.fillStyle='rgba(7,9,18,.98)';ctx.strokeStyle='rgba(146,73,220,.65)';ctx.lineWidth=1.8;
   canvasRoundRect(ctx,32,noticeY,1016,94,18,true,true);
-  ctx.fillStyle='#a34cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText('✓  Este orçamento inclui o item exibido acima.',72,noticeY+36);
+  ctx.textAlign='left';ctx.fillStyle='#a34cff';ctx.font='800 21px -apple-system,Arial';ctx.fillText('✓  Este orçamento inclui o item exibido acima.',72,noticeY+36);
   ctx.fillStyle='#e3e3e8';ctx.font='500 17px -apple-system,Arial';ctx.fillText('Imagem ilustrativa. Tonalidades e detalhes podem variar conforme o lote.',72,noticeY+66);
 
   // Mesmo rodapé da arte de kit: linhas roxas e diamantes laterais.
@@ -10366,7 +10397,7 @@ document.getElementById('btnLocalSync')?.addEventListener('click',async()=>{
 document.getElementById('btnLocalRestore')?.addEventListener('click',()=>{
   saveLocalComputerForm();
   showConfirm('Restaurar do computador','Os dados atuais serão substituídos pela última cópia do computador. Deseja continuar?',async()=>{
-    try{await genesisLocalRestore();location.reload()}catch(error){setLocalComputerStatus('bad',error.message||'Falha na restauração');showToast(error.message||'Não foi possível restaurar.')}
+    try{await genesisLocalRestore();showToast('Dados restaurados sem recarregar o aplicativo.',true)}catch(error){setLocalComputerStatus('bad',error.message||'Falha na restauração');showToast(error.message||'Não foi possível restaurar.')}
   },'Restaurar');
 });
 
@@ -11489,8 +11520,10 @@ async function init(){
   if(!cfg.commercial) cfg.commercial=JSON.parse(JSON.stringify(DEFAULT_CONFIG.commercial));
   if(!cfg.ai) cfg.ai=JSON.parse(JSON.stringify(DEFAULT_CONFIG.ai));
   await restoreStateSnapshotIfNeeded();
+  if(typeof genesisDataLayerRestore==='function')await genesisDataLayerRestore();
   await runSchemaMigration();
   await persistStateSnapshot('app-init');
+  if(typeof genesisDataLayerInit==='function')await genesisDataLayerInit();
 
   renderFilamentSelect();
   setTimeMode(cfg.lastTimeMode||'hhmm',false);
@@ -11512,6 +11545,7 @@ async function init(){
   renderKitComposer();
   updateMakerWorldStatusUI();
   populateCloudSettings();
+  if(typeof populateSheetsSettings==='function')populateSheetsSettings();
   if(cloudLoggedIn()){
     cloudEnsureSession().then(ok=>{if(ok)cloudPull({silent:true,createIfMissing:false});});
   }
@@ -11544,8 +11578,11 @@ if('serviceWorker' in navigator){
       'A atualização está pronta. Salve o que está fazendo e confirme para atualizar agora.',
       ()=>{
         saveActiveDraft('before-app-update');
-        genesisSwReloadAccepted=true;
-        registration.waiting?.postMessage({type:'SKIP_WAITING'});
+        const draftPromise=typeof genesisPersistDraftToIndexedDb==='function'?genesisPersistDraftToIndexedDb('before-app-update'):Promise.resolve();
+        Promise.allSettled([draftPromise,persistStateSnapshot('before-app-update')]).finally(()=>{
+          genesisSwReloadAccepted=true;
+          registration.waiting?.postMessage({type:'SKIP_WAITING'});
+        });
       },
       'Atualizar agora'
     );
@@ -12314,5 +12351,6 @@ async function genesisRepairImagesInBatches(){
   return changed;
 }
 </script>
+<script src="./genesis-data.js"></script>
 </body>
 </html>

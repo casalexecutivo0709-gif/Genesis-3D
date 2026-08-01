@@ -1,0 +1,7 @@
+{
+  "name": "genesis-3d",
+  "private": true,
+  "scripts": {
+    "test": "node tests/finance.test.js && node tests/static.test.js"
+  }
+}
