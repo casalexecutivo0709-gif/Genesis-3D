@@ -8,6 +8,8 @@
   ],
   "tls": {
     "pfxPath": "",
-    "passphrase": ""
+    "passphrase": "",
+    "certPath": "",
+    "keyPath": ""
   }
 }

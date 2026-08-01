@@ -134,14 +134,23 @@ async function handler(req,res){
 
 let server;
 const pfxPath=String(config.tls?.pfxPath||'').trim();
+const certPath=String(config.tls?.certPath||'').trim();
+const keyPath=String(config.tls?.keyPath||'').trim();
+const hasPem=Boolean(certPath&&keyPath);
 if(pfxPath){
   const pfx=await readFile(resolve(ROOT,pfxPath));
   server=https.createServer({pfx,passphrase:String(config.tls?.passphrase||'')},handler);
+}else if(hasPem){
+  const [cert,key]=await Promise.all([
+    readFile(resolve(ROOT,certPath)),
+    readFile(resolve(ROOT,keyPath))
+  ]);
+  server=https.createServer({cert,key},handler);
 }else{
   server=http.createServer(handler);
 }
 server.listen(Number(config.port)||8765,String(config.host||'0.0.0.0'),()=>{
-  const protocol=pfxPath?'https':'http';
+  const protocol=(pfxPath||hasPem)?'https':'http';
   console.log(`Genesis 3D Local Storage ativo em ${protocol}://${config.host||'0.0.0.0'}:${Number(config.port)||8765}`);
   console.log('Pasta dos dados:',DATA_DIR);
   console.log('Código de pareamento:',config.accessToken);
