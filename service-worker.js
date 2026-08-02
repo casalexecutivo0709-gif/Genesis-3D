@@ -1,6 +1,6 @@
-const STATIC_CACHE='genesis3d-static-v31-desktop-images-20260801';
-const RUNTIME_CACHE='genesis3d-runtime-v31-desktop-images-20260801';
-const SW_VERSION='31-desktop-images-local-sync-20260801';
+const STATIC_CACHE='genesis3d-static-v32-ux-quotes-payments-20260801';
+const RUNTIME_CACHE='genesis3d-runtime-v32-ux-quotes-payments-20260801';
+const SW_VERSION='32-ux-quotes-payments-20260801';
 const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-finance.js','./genesis-data.js','./genesis-workspace.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
 const MAX_RUNTIME_ENTRIES=60;
 

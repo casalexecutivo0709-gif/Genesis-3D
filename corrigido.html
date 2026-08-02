@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="genesis-192.png">
 <link rel="icon" type="image/png" href="genesis-192.png">
 <link rel="manifest" href="manifest.json" onerror="this.remove()">
-<link rel="stylesheet" href="genesis-workspace.css">
+<link rel="stylesheet" href="genesis-workspace.css?v=2026.08.01.3">
 <title>Genesis 3D · Calculadora</title>
 <style>
 :root{
@@ -2969,7 +2969,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <div class="field" style="margin-bottom:0;">
         <label>Mensagem padrão dos orçamentos</label>
         <textarea id="cfgQuoteTemplate" style="min-height:250px;" placeholder="Modelo padrão do orçamento"></textarea>
-        <p class="secondary-note" style="margin-top:7px;">Você pode editar o texto livremente. Campos dinâmicos disponíveis: {EMPRESA}, {ITEM}, {VALORES}, {FRETE}, {SHOPEE_LINK}, {SHOPEE_AVISO}, {PRAZO}, {VALIDADE}, {OBSERVACOES} e {MENSAGEM_FINAL}.</p>
+        <p class="secondary-note" style="margin-top:7px;">Você pode editar o texto livremente. Campos dinâmicos disponíveis: {EMPRESA}, {ITEM}, {VALORES}, {FRETE}, {SHOPEE_LINK}, {SHOPEE_AVISO}, {PRAZO}, {VALIDADE}, {CORES}, {OBSERVACOES} e {MENSAGEM_FINAL}.</p>
         <button class="btn btn-secondary btn-sm" id="btnResetQuoteTemplate" type="button" style="margin-top:8px;">Restaurar modelo padrão</button>
       </div>
     </div>
@@ -4125,19 +4125,51 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
   <div class="sheet-handle"></div>
   <h2 id="odTitle">Pedido</h2>
   <p class="sub" id="odMeta"></p>
-  <div class="field">
-    <label>Status</label>
-    <select id="odStatus">
-      <option value="novo">Novo</option>
-      <option value="aguardando-pagamento">Aguardando pagamento</option>
-      <option value="a-produzir">A produzir</option>
-      <option value="em-producao">Em produção</option>
-      <option value="pronto">Pronto</option>
-      <option value="enviado">Enviado</option>
-      <option value="concluido">Concluído</option>
-      <option value="cancelado">Cancelado</option>
-    </select>
-  </div>
+  <section class="order-quick-panel" aria-labelledby="odQuickTitle">
+    <div class="order-quick-heading">
+      <div>
+        <strong id="odQuickTitle">Atualização rápida</strong>
+        <small>Produção e pagamento são independentes.</small>
+      </div>
+      <span id="odQuickSaveState" class="order-quick-save-state" aria-live="polite">Salvo</span>
+    </div>
+    <div class="order-quick-grid">
+      <div class="field">
+        <label for="odStatus">Status de produção</label>
+        <select id="odStatus">
+          <option value="novo">Novo</option>
+          <option value="aguardando-pagamento">Aguardando pagamento</option>
+          <option value="a-produzir">A produzir</option>
+          <option value="em-producao">Em produção</option>
+          <option value="pronto">Pronto</option>
+          <option value="enviado">Enviado</option>
+          <option value="concluido">Concluído</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="odQuickPaymentStatus">Situação do pagamento</label>
+        <select id="odQuickPaymentStatus">
+          <option value="pending">Aguardando pagamento</option>
+          <option value="partial">Pago parcialmente</option>
+          <option value="paid">Pago</option>
+          <option value="not-applicable">Não se aplica</option>
+        </select>
+      </div>
+    </div>
+    <div id="odQuickPaymentFields" class="order-quick-payment-fields">
+      <div class="order-quick-grid">
+        <div class="field"><label for="odQuickPaid">Valor recebido</label><input type="text" id="odQuickPaid" inputmode="decimal" placeholder="0,00"></div>
+        <div class="field"><label for="odQuickReceivedAt">Data de recebimento</label><input type="date" id="odQuickReceivedAt"></div>
+      </div>
+      <div class="order-quick-grid">
+        <div class="field"><label for="odQuickDueDate">Data combinada</label><input type="date" id="odQuickDueDate"></div>
+        <div class="field"><label for="odQuickPaymentNote">Observação</label><input type="text" id="odQuickPaymentNote" placeholder="Opcional"></div>
+      </div>
+      <div id="odQuickBalance" class="order-quick-balance"></div>
+    </div>
+    <button class="btn btn-primary" id="btnOdQuickSave" type="button">Salvar atualização</button>
+  </section>
   <div id="odBody"></div>
   <div class="link-actions">
     <button class="btn btn-secondary" id="btnOdWhatsapp">WhatsApp</button>
@@ -4292,7 +4324,7 @@ const KEYS = {
   IMAGES:'genesis3d:imageMetadata'
 };
 const SCHEMA_VERSION = 24;
-const GENESIS_APP_VERSION = '2026.08.01.2';
+const GENESIS_APP_VERSION = '2026.08.01.3';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -4357,7 +4389,7 @@ window.addEventListener('unhandledrejection',event=>{
   setTimeout(()=>{if(typeof genesisRecoverUi==='function')genesisRecoverUi('promise-rejection');},0);
 });
 
-const DEFAULT_QUOTE_TEMPLATE = `Olá! 😊
+const LEGACY_QUOTE_TEMPLATE = `Olá! 😊
 
 Segue o orçamento da {EMPRESA}:
 
@@ -4382,6 +4414,12 @@ Segue o orçamento da {EMPRESA}:
 {MENSAGEM_FINAL}
 
 {EMPRESA}`;
+
+const DEFAULT_QUOTE_TEMPLATE = `✨ *Seu orçamento está pronto!*
+{VALORES}
+{FRETE} | {PRAZO}
+{VALIDADE}{CORES}
+{MENSAGEM_FINAL}`;
 
 const DEFAULT_AD_PROMPT_TEMPLATE = `Quero que você atue como um especialista em e-commerce, copywriting e otimização de anúncios para Shopee Brasil.
 
@@ -4516,8 +4554,9 @@ const DEFAULT_CONFIG = {
     defaultValidityDays:7,
     defaultProductionDeadline:'',
     lastProductionDeadline:'',
-    closingMessage:'Obrigado pela preferência!',
+    closingMessage:'Para confirmar, é só me chamar 😊',
     quoteTemplate:DEFAULT_QUOTE_TEMPLATE,
+    quoteTemplateVersion:2,
     adPromptTemplate:DEFAULT_AD_PROMPT_TEMPLATE
   },
   makerworld:{ workerUrl:'https://hello.douglasscaramelli.workers.dev', lastStatus:'unknown', lastTestAt:0 },
@@ -6729,11 +6768,20 @@ function captureInternalSnapshot(){
 }
 
 /* ---------- Clientes reutilizáveis, derivados de pedidos/orçamentos ---------- */
+function normalizeCustomerSearch(value){
+  return String(value??'')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ');
+}
 function collectCustomers(){
   const map=new Map();
   const add=(c,orderInc)=>{
     if(!c || !(c.name||'').trim()) return;
-    const key=((c.phone||c.whatsapp||'')+'|'+c.name).toLowerCase().trim();
+    const normalizedName=normalizeCustomerSearch(c.name);
+    const key=normalizedName||String(c.phone||c.whatsapp||'').replace(/\D/g,'');
     const current=map.get(key)||{name:c.name||'',phone:c.phone||'',whatsapp:c.whatsapp||c.phone||'',instagram:c.instagram||'',orderCount:0};
     if(c.name) current.name=c.name;
     if(c.phone) current.phone=c.phone;
@@ -6748,23 +6796,45 @@ function collectCustomers(){
 }
 function renderCustomerSuggestions(input,box,fillFn){
   if(!input || !box) return;
-  const term=(input.value||'').trim().toLowerCase();
+  const typedName=String(input.value||'').trim();
+  const term=normalizeCustomerSearch(typedName);
   if(!term){ box.classList.remove('show'); box.innerHTML=''; return; }
-  const matches=collectCustomers().filter(c=>
-    (c.name||'').toLowerCase().includes(term) ||
-    (c.phone||'').replace(/\D/g,'').includes(term.replace(/\D/g,'')) ||
-    (c.instagram||'').toLowerCase().includes(term)
-  ).slice(0,30);
+  const digits=term.replace(/\D/g,'');
+  const rankCustomer=c=>{
+    const name=normalizeCustomerSearch(c.name);
+    const words=name.split(' ');
+    if(name===term)return 0;
+    if(name.startsWith(term))return 1;
+    if(words.some(word=>word.startsWith(term)))return 2;
+    if(name.includes(term))return 3;
+    const contact=[c.phone,c.whatsapp].filter(Boolean).join(' ').replace(/\D/g,'');
+    if((digits&&contact.includes(digits))||normalizeCustomerSearch(c.instagram).includes(term))return 4;
+    return 99;
+  };
+  const matches=collectCustomers()
+    .map(c=>({c,rank:rankCustomer(c)}))
+    .filter(item=>item.rank<99)
+    .sort((a,b)=>a.rank-b.rank||b.c.orderCount-a.c.orderCount||a.c.name.localeCompare(b.c.name,'pt-BR'))
+    .slice(0,30)
+    .map(item=>item.c);
   box.innerHTML='';
   matches.forEach(c=>{
     const b=document.createElement('button');
     b.type='button'; b.className='customer-suggestion';
     const extra=[c.phone||c.whatsapp, c.orderCount ? (c.orderCount+' '+(c.orderCount===1?'pedido anterior':'pedidos anteriores')):''].filter(Boolean).join(' · ');
     b.innerHTML='<strong>'+escapeHtml(c.name)+'</strong><small>'+escapeHtml(extra||'Cliente já utilizado')+'</small>';
+    b.addEventListener('pointerdown',event=>event.preventDefault());
     b.addEventListener('click',()=>{ fillFn(c); box.classList.remove('show'); });
     box.appendChild(b);
   });
-  box.classList.toggle('show',matches.length>0);
+  if(!matches.length){
+    const empty=document.createElement('div');empty.className='customer-suggestion-empty';empty.textContent='Nenhum cliente encontrado';box.appendChild(empty);
+    const create=document.createElement('button');create.type='button';create.className='customer-suggestion customer-suggestion-create';create.innerHTML='<strong>Cadastrar “'+escapeHtml(typedName)+'” como novo cliente</strong><small>Continue preenchendo e salve o orçamento ou pedido.</small>';
+    create.addEventListener('pointerdown',event=>event.preventDefault());
+    create.addEventListener('click',()=>{box.classList.remove('show');input.focus({preventScroll:true});showToast('Novo cliente pronto para cadastrar. Complete os dados e salve.',true);});
+    box.appendChild(create);
+  }
+  box.classList.add('show');
 }
 function attachCustomerSuggestions(inputId,boxId,fillFn){
   const input=document.getElementById(inputId), box=document.getElementById(boxId);
@@ -6793,7 +6863,7 @@ document.getElementById('photoPreview').addEventListener('click',()=>{ if(curren
 /* ---------- Entrada monetária estilo aplicativo bancário ---------- */
 const GENESIS_MONEY_IDS=new Set([
   'manualDirectPrice','manualShopeePrice','qFreightValue',
-  'oUnitPrice','oFreight','oAmountPaid','oShopeeGross','oShopeeNet',
+  'oUnitPrice','oFreight','oAmountPaid','odQuickPaid','oShopeeGross','oShopeeNet',
   'ocrProductValue','ocrDiscount','ocrFreight','ocrTotal','ocrPaid'
 ]);
 function genesisIsMoneyInput(el){
@@ -7213,42 +7283,64 @@ function findRememberedSourceLink(productName){
 function currentQuoteUnit(){
   return quoteState.saleType==='shopee' ? (activeQuotePricing.shopeeUnit||0) : (activeQuotePricing.directUnit||0);
 }
+function activeQuoteTemplate(){
+  const configured=String(cfg.commercial?.quoteTemplate||'').replace(/\r\n/g,'\n').trim();
+  return !configured||configured===LEGACY_QUOTE_TEMPLATE.replace(/\r\n/g,'\n').trim()?DEFAULT_QUOTE_TEMPLATE:configured;
+}
+function activeQuoteClosing(){
+  const configured=String(cfg.commercial?.closingMessage||'').trim();
+  const legacy=['Obrigado pela preferência!','Qualquer dúvida, estou à disposição!','Qualquer ajuste é só me chamar. 😊'];
+  return !configured||legacy.includes(configured)?'Para confirmar, é só me chamar 😊':configured;
+}
+function buildQuoteShareMessage(q){
+  const qty=Math.max(1,quoteInt(q?.qty,1));
+  const hasUnit=q?.unitPrice!==null&&q?.unitPrice!==undefined&&q?.unitPrice!=='';
+  const unitRaw=Number(q?.unitPrice);
+  const subtotalRaw=Number(q?.subtotal??q?.productTotal);
+  const unit=round2(hasUnit&&Number.isFinite(unitRaw)?unitRaw:(Number.isFinite(subtotalRaw)?subtotalRaw/qty:0));
+  const freight=round2(Math.max(0,Number(q?.freight)||0));
+  const hasSavedTotal=q?.total!==null&&q?.total!==undefined&&q?.total!=='';
+  const totalRaw=Number(q?.total);
+  const total=round2(hasSavedTotal&&Number.isFinite(totalRaw)?totalRaw:(unit*qty+freight));
+  const deadline=Math.max(1,quoteDays(q?.deadlineDays??q?.productionDeadline,7)||7);
+  const validity=Math.max(1,quoteInt(q?.validityDays,Number(cfg.commercial?.defaultValidityDays)||7));
+  const colors=quoteColorLabels(q?.availableColors);
+  const values=qty>1
+    ? `📦 ${qty} un. x ${fmtBRL(unit)}\n💰 *Total a pagar: ${fmtBRL(total)}*`
+    : `💰 *Total a pagar: ${fmtBRL(total)}*`;
+  const fields={
+    EMPRESA:cfg.commercial?.companyName||'Genesis Prototipagem',
+    ITEM:q?.productName?`📦 ${q.productName}`:'',
+    VALORES:values,
+    FRETE:freight>0?`🚚 Frete: ${fmtBRL(freight)}`:'🚚 Frete grátis',
+    SHOPEE_LINK:q?.shopeeLink||'',
+    SHOPEE_AVISO:q?.shopeeLink?'Preço e disponibilidade sujeitos à plataforma.':'',
+    PRAZO:`⏱ Produção: ${deadline} ${deadline===1?'dia útil':'dias úteis'}`,
+    VALIDADE:`📅 Válido por ${validity} ${validity===1?'dia':'dias'}`,
+    CORES:colors.length?` | 🎨 Cores: ${colors.join(', ')}`:'',
+    OBSERVACOES:String(q?.notes||'').trim(),
+    MENSAGEM_FINAL:activeQuoteClosing()
+  };
+  let message=activeQuoteTemplate();
+  Object.entries(fields).forEach(([key,value])=>{message=message.replace(new RegExp(`\\{${key}\\}`,'g'),value);});
+  return cleanQuoteText(message.replace(/^\s+|\s+$/g,'').replace(/\n[ \t]*\n(?=[ \t]*\n)/g,'\n'));
+}
 function buildCommercialQuote(){
   const qty=quoteInt(document.getElementById('qQty').value,1);
   const freightRaw=quoteState.saleType==='direct'&&quoteState.freightType==='calculated'
     ? quoteMoneyInput(document.getElementById('qFreightValue').value)
     : 0;
   const unit=currentQuoteUnit();
-  const total=round2(unit*qty+(Number(freightRaw)||0));
-  const deadline=Math.max(1,quoteDays(document.getElementById('qProductionDeadline').value,7)||7);
-  const validity=Math.max(1,quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7));
-  const freight=Number(freightRaw)>0?fmtBRL(freightRaw):'Grátis';
-  const colors=quoteColorLabels();
-  const colorsLine=colors.length?`\n🎨 *Cores disponíveis:* ${colors.join(', ')}\n`:'';
-  return cleanQuoteText(
-`✨ *SEU ORÇAMENTO ESTÁ PRONTO*
-
-Olá! 😊
-
-📸 Todos os detalhes da proposta estão na imagem acima.
-
-━━━━━━━━━━━━━━━━
-
-💰 *Valor:* ${fmtBRL(total)}
-
-🚚 Frete: ${freight}
-
-⏱️ Produção: ${deadline} dias úteis
-
-📅 Validade: ${validity} dias
-${colorsLine}
-
-━━━━━━━━━━━━━━━━
-
-Qualquer ajuste é só me chamar. 😊
-
-*Genesis Prototipagem*`
-  );
+  return buildQuoteShareMessage({
+    productName:document.getElementById('qProduct').value.trim(),
+    qty,unitPrice:unit,subtotal:round2(unit*qty),
+    freight:Number(freightRaw)||0,total:round2(unit*qty+(Number(freightRaw)||0)),
+    deadlineDays:document.getElementById('qProductionDeadline').value,
+    validityDays:document.getElementById('qValidity').value,
+    availableColors:activeQuoteColors,
+    shopeeLink:document.getElementById('qShopeeLink').value.trim(),
+    notes:document.getElementById('qNotes').value.trim()
+  });
 }
 let quoteMessageDirty=false;
 function getQuoteMessage(){
@@ -7577,12 +7669,14 @@ function quoteSnapshotFromComposer(){
   const imageUrl=existing?.imageUrl||readSelectedModelSnapshot()?.imageUrl||'';
   return {
     id:existing?.id||'draft',seq:existing?.seq||0,productName:document.getElementById('qProduct').value.trim()||'Produto',
-    qty,unitPrice,total:round2(qty*unitPrice+freight),freight,
+    qty,unitPrice,subtotal:round2(qty*unitPrice),total:round2(qty*unitPrice+freight),freight,
     deadlineDays:quoteDays(document.getElementById('qProductionDeadline').value,'')||7,
     validityDays:quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7),
     imageId:activeQuoteImageId||existing?.imageId||null,
     imageUrl,
     imageDataUrl:activeQuoteDraftPhotoDataUrl||existing?.imageDataUrl||'',
+    shopeeLink:document.getElementById('qShopeeLink').value.trim(),
+    notes:document.getElementById('qNotes').value.trim(),
     availableColors:normalizedQuoteColors(activeQuoteColors)
   };
 }
@@ -7668,9 +7762,13 @@ async function createIndividualQuoteCanvas(q){
   // Usa exatamente o mesmo resolvedor de imagem do orçamento de kit.
   if(!q.imageId)q.imageId=await GenesisImageManager.attach(q);
   const qty=Math.max(1,Number(q.qty)||1);
-  const unit=Number(q.unitPrice)||0;
+  const hasUnit=q.unitPrice!==null&&q.unitPrice!==undefined&&q.unitPrice!=='';
+  const unitRaw=Number(q.unitPrice),subtotalRaw=Number(q.subtotal??q.productTotal);
+  const unit=round2(hasUnit&&Number.isFinite(unitRaw)?unitRaw:(Number.isFinite(subtotalRaw)?subtotalRaw/qty:0));
   const freight=Number(q.freight)||0;
-  const final=Number(q.total??(qty*unit+freight))||0;
+  const hasSavedTotal=q.total!==null&&q.total!==undefined&&q.total!=='';
+  const savedTotal=Number(q.total);
+  const final=round2(hasSavedTotal&&Number.isFinite(savedTotal)?savedTotal:(qty*unit+freight));
   const colors=quoteColorLabels(q.availableColors);
   const colorsHeight=canvasAvailableColorsHeight(colors,1016);
   const width=1080,height=1214+(colorsHeight?colorsHeight+18:0);
@@ -7722,14 +7820,19 @@ async function createIndividualQuoteCanvas(q){
   const nameBottom=ry+Math.max(1,nameLines.length)*48+18;
   ctx.strokeStyle='#8c2cff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(rx,nameBottom);ctx.lineTo(rx+66,nameBottom);ctx.stroke();
 
-  ctx.fillStyle='#9b43ff';ctx.font='700 27px -apple-system,Arial';ctx.fillText('◇',rx,nameBottom+85);
-  ctx.fillStyle='#fff';ctx.font='800 25px -apple-system,Arial';ctx.fillText('Quantidade',rx+54,nameBottom+83);
-  ctx.fillStyle='#b85aff';ctx.font='500 25px -apple-system,Arial';ctx.fillText(`${qty} ${qty===1?'unidade':'unidades'}`,rx+54,nameBottom+127);
-  ctx.strokeStyle='rgba(160,78,255,.38)';ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(rx,nameBottom+174);ctx.lineTo(rx+rw,nameBottom+174);ctx.stroke();ctx.setLineDash([]);
-
-  ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+250);
-  ctx.fillStyle='#fff';ctx.font='800 25px -apple-system,Arial';ctx.fillText('Valor',rx+54,nameBottom+246);
-  ctx.fillStyle='#8f24ff';ctx.font='900 64px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+334);
+  if(qty>1){
+    ctx.fillStyle='#9b43ff';ctx.font='700 27px -apple-system,Arial';ctx.fillText('◇',rx,nameBottom+72);
+    ctx.fillStyle='#fff';ctx.font='800 17px -apple-system,Arial';ctx.fillText('QUANTIDADE E VALOR UNITÁRIO',rx+45,nameBottom+69);
+    ctx.fillStyle='#c56cff';ctx.font='700 28px -apple-system,Arial';ctx.fillText(`${qty} un. x ${fmtBRL(unit)}`,rx+45,nameBottom+111);
+    ctx.strokeStyle='rgba(160,78,255,.38)';ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(rx,nameBottom+148);ctx.lineTo(rx+rw,nameBottom+148);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+213);
+    ctx.fillStyle='#fff';ctx.font='800 19px -apple-system,Arial';ctx.fillText('TOTAL A PAGAR',rx+45,nameBottom+209);
+    ctx.fillStyle='#8f24ff';ctx.font='900 61px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+290);
+  }else{
+    ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+112);
+    ctx.fillStyle='#fff';ctx.font='800 21px -apple-system,Arial';ctx.fillText('TOTAL A PAGAR',rx+45,nameBottom+108);
+    ctx.fillStyle='#8f24ff';ctx.font='900 64px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+202);
+  }
 
   // Cartões comerciais inferiores.
   const cardY=844,cardGap=16,cardW=(1016-cardGap*2)/3,cardH=142;
@@ -7759,35 +7862,7 @@ async function individualQuoteVisualFile(q){
   return new File([blob],`orcamento-${quoteNumber(q).replace('#','')}.jpg`,{type:'image/jpeg'});
 }
 function buildIndividualShareMessage(q){
-  const freight=Number(q.freight)>0?fmtBRL(Number(q.freight)):'Grátis';
-  const colors=quoteColorLabels(q.availableColors);
-  const lines=[
-    '✨ *SEU ORÇAMENTO ESTÁ PRONTO*',
-    '',
-    'Olá! 😊',
-    '',
-    '📸 Todos os detalhes da proposta estão na imagem acima.',
-    '',
-    '━━━━━━━━━━━━━━━━',
-    '',
-    `💰 *Valor:* ${fmtBRL(Number(q.total)||0)}`,
-    '',
-    `🚚 Frete: ${freight}`,
-    '',
-    `⏱️ Produção: ${Math.max(1,Number(q.deadlineDays)||7)} dias úteis`,
-    '',
-    `📅 Validade: ${Math.max(1,Number(q.validityDays)||7)} dias`,
-  ];
-  if(colors.length)lines.push('',`🎨 *Cores disponíveis:* ${colors.join(', ')}`);
-  lines.push(
-    '',
-    '━━━━━━━━━━━━━━━━',
-    '',
-    'Qualquer ajuste é só me chamar. 😊',
-    '',
-    '*Genesis Prototipagem*'
-  );
-  return lines.join('\n');
+  return buildQuoteShareMessage(q);
 }
 
 async function activeQuoteShareFile(){
@@ -9142,6 +9217,89 @@ function downloadPaymentReminder(o){
   const blob=new Blob([ics],{type:'text/calendar;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='cobranca-'+orderNumber(o).replace('#','')+'.ics';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Abra o arquivo .ics para adicionar a cobrança ao Calendário.',true);
 }
 /* ---------- Detalhe do pedido ---------- */
+function genesisLocalDate(){
+  const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+function orderQuickTotal(o){
+  const saved=Number(o?.total??o?.payment?.total);
+  return round2(Number.isFinite(saved)?saved:orderGrandTotal(o));
+}
+function setOrderQuickSaveState(text,state=''){
+  const el=document.getElementById('odQuickSaveState');if(!el)return;
+  el.textContent=text;el.dataset.state=state;
+}
+function updateOrderQuickPaymentUI({fromStatusChange=false,focusAmount=false}={}){
+  const o=orders.find(x=>x.id===openOrderId);if(!o)return;
+  const statusEl=document.getElementById('odQuickPaymentStatus');
+  const paidEl=document.getElementById('odQuickPaid');
+  const receivedEl=document.getElementById('odQuickReceivedAt');
+  const fields=document.getElementById('odQuickPaymentFields');
+  const balanceEl=document.getElementById('odQuickBalance');
+  const status=statusEl.value||'pending',total=orderQuickTotal(o);
+  if(fromStatusChange&&status==='paid'){
+    paidEl.value=moneyInputValue(total);receivedEl.value=genesisLocalDate();
+  }else if(fromStatusChange&&status==='partial'){
+    if(!quoteMoneyInput(paidEl.value))paidEl.value='';
+    if(!receivedEl.value)receivedEl.value=genesisLocalDate();
+  }else if(fromStatusChange&&status==='pending'){
+    paidEl.value='';receivedEl.value='';
+  }
+  fields.hidden=status==='not-applicable';fields.dataset.status=status;
+  const paid=status==='pending'||status==='not-applicable'?0:quoteMoneyInput(paidEl.value);
+  const balance=round2(Math.max(0,total-paid));
+  balanceEl.innerHTML='<span>Total do pedido</span><strong>'+fmtBRL(total)+'</strong><span>Saldo restante</span><strong>'+fmtBRL(balance)+'</strong>';
+  if(focusAmount&&status==='partial')setTimeout(()=>paidEl.focus({preventScroll:true}),50);
+}
+function populateOrderQuickPayment(o){
+  const payment=o.payment||{};
+  document.getElementById('odQuickPaymentStatus').value=payment.status||'pending';
+  document.getElementById('odQuickPaid').value=Number(payment.paid)>0?moneyInputValue(payment.paid):'';
+  document.getElementById('odQuickReceivedAt').value=payment.receivedAt||'';
+  document.getElementById('odQuickDueDate').value=payment.dueDate||'';
+  document.getElementById('odQuickPaymentNote').value=payment.note||'';
+  setOrderQuickSaveState('Salvo','saved');updateOrderQuickPaymentUI();
+}
+async function saveOrderQuickUpdate(){
+  const o=orders.find(x=>x.id===openOrderId);if(!o)return;
+  const button=document.getElementById('btnOdQuickSave');
+  const statusEl=document.getElementById('odQuickPaymentStatus');
+  const paidEl=document.getElementById('odQuickPaid');
+  const total=orderQuickTotal(o),previousStatus=o.payment?.status||'pending';
+  let status=statusEl.value||'pending',paid=quoteMoneyInput(paidEl.value);
+  if(status==='paid'&&paid<total){
+    if(paid>0){status='partial';statusEl.value=status;showToast('Como existe saldo restante, o pagamento foi salvo como parcial.');}
+    else{paid=total;paidEl.value=moneyInputValue(total);}
+  }
+  if(status==='partial'&&paid<=0){showToast('Informe o valor recebido para salvar o pagamento parcial.');paidEl.focus();return;}
+  if(status==='partial'&&paid>=total){status='paid';statusEl.value=status;paid=total;paidEl.value=moneyInputValue(total);}
+  if(status==='pending'||status==='not-applicable')paid=0;
+  const receivedAt=['paid','partial'].includes(status)?(document.getElementById('odQuickReceivedAt').value||genesisLocalDate()):'';
+  const nowIso=new Date().toISOString();
+  button.disabled=true;setOrderQuickSaveState('Salvando...','saving');
+  try{
+    o.status=document.getElementById('odStatus').value||o.status||'novo';
+    o.payment={
+      ...(o.payment||{}),status,total,paid:round2(paid),balance:round2(Math.max(0,total-paid)),
+      dueDate:document.getElementById('odQuickDueDate').value||'',receivedAt,
+      note:document.getElementById('odQuickPaymentNote').value.trim(),
+      confirmedAt:status==='paid'?(previousStatus==='paid'&&o.payment?.confirmedAt?o.payment.confirmedAt:nowIso):''
+    };
+    o.updatedAt=Date.now();window.genesisEnsureOrderSnapshots?.(o);saveOrders();saveActiveDraft('order-quick-save');
+    renderOrders();renderPendingPayments();refreshMoreCounts();
+    if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();
+    await openOrderDetail(o.id);
+    if(window.genesisSheetsConfigured?.()){
+      if(!navigator.onLine)setOrderQuickSaveState('Aguardando sincronização','pending');
+      else{
+        const synced=await window.genesisSheetsSync({silent:true});
+        setOrderQuickSaveState(synced?'Salvo':'Aguardando sincronização',synced?'saved':'pending');
+      }
+    }else setOrderQuickSaveState('Salvo','saved');
+    showToast('Pedido atualizado',true);
+  }catch(error){
+    genesisLog('order.quick-payment.failed',{orderId:o.id,error},'error');setOrderQuickSaveState('Erro ao sincronizar','error');showToast('Os dados continuam preservados neste aparelho.');
+  }finally{button.disabled=false;}
+}
 async function openOrderDetail(id){
   const o=orders.find(x=>x.id===id);if(!o)return;
   if(!o.imageId){
@@ -9154,6 +9312,7 @@ async function openOrderDetail(id){
   const saleLabel=saleDate?('Venda '+saleDate.split('-').reverse().join('/')+(o.shopee?.orderTime?' às '+o.shopee.orderTime:'')+' · '):'';
   document.getElementById('odMeta').textContent=(o.originQuoteSeq?'Originado do orçamento #'+padNumber(o.originQuoteSeq)+' · ':'')+(o.source==='shopee_screenshot'?'Importado de prints Shopee · ':'')+saleLabel+'Cadastro '+new Date(o.createdAt).toLocaleDateString('pt-BR');
   document.getElementById('odStatus').value=o.status||'novo';
+  populateOrderQuickPayment(o);
   let photo='';
   if(o.imageId){
     const src=await mediaGetObjectUrl(o.imageId);
@@ -9198,10 +9357,13 @@ async function openOrderDetail(id){
   bWa.onclick=()=>openExternalUrl(wa);bIg.onclick=()=>openExternalUrl(ig);bSh.onclick=()=>openExternalUrl(sh);bSrc.onclick=()=>isMakerWorldUrl(src)?openMakerWorldSmart(src):openExternalUrl(src);bRem.onclick=()=>downloadPaymentReminder(o);
   openSheet('ovOrderDetail','sheetOrderDetail');
 }
-document.getElementById('odStatus').addEventListener('change',()=>{
-  const o=orders.find(x=>x.id===openOrderId); if(!o)return;
-  o.status=document.getElementById('odStatus').value;o.updatedAt=Date.now();saveOrders();renderOrders();if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();showToast('Status atualizado',true);
+['odStatus','odQuickPaid','odQuickReceivedAt','odQuickDueDate','odQuickPaymentNote'].forEach(id=>document.getElementById(id).addEventListener(id==='odStatus'?'change':'input',()=>{
+  setOrderQuickSaveState('Alterações não salvas','dirty');updateOrderQuickPaymentUI();scheduleActiveDraft('order-quick-change');
+}));
+document.getElementById('odQuickPaymentStatus').addEventListener('change',()=>{
+  setOrderQuickSaveState('Alterações não salvas','dirty');updateOrderQuickPaymentUI({fromStatusChange:true,focusAmount:true});scheduleActiveDraft('order-quick-status');
 });
+document.getElementById('btnOdQuickSave').addEventListener('click',saveOrderQuickUpdate);
 document.getElementById('btnOdClose').addEventListener('click',()=>closeSheet('ovOrderDetail','sheetOrderDetail'));
 document.getElementById('btnOdEdit').addEventListener('click',async()=>{
   const o=orders.find(x=>x.id===openOrderId);if(!o)return;
@@ -10386,8 +10548,8 @@ function populateSettingsForm(){
   document.getElementById('cfgQuoteCompany').value = cfg.commercial.companyName || 'Genesis Prototipagem';
   document.getElementById('cfgQuoteValidity').value = cfg.commercial.defaultValidityDays || 7;
   document.getElementById('cfgQuoteDeadline').value = quoteDays(cfg.commercial.defaultProductionDeadline,'') || '';
-  document.getElementById('cfgQuoteClosing').value = cfg.commercial.closingMessage || 'Qualquer dúvida, estou à disposição!';
-  document.getElementById('cfgQuoteTemplate').value = cfg.commercial.quoteTemplate || DEFAULT_QUOTE_TEMPLATE;
+  document.getElementById('cfgQuoteClosing').value = activeQuoteClosing();
+  document.getElementById('cfgQuoteTemplate').value = activeQuoteTemplate();
   document.getElementById('cfgAdPromptTemplate').value = cfg.commercial.adPromptTemplate || DEFAULT_AD_PROMPT_TEMPLATE;
   const mw=document.getElementById('cfgMakerWorldWorker'); if(mw) mw.value=cfg.makerworld?.workerUrl||'';
   const aiEnabled=document.getElementById('cfgAiEnabled');if(aiEnabled)aiEnabled.checked=cfg.ai?.enabled!==false;
@@ -10451,8 +10613,9 @@ document.getElementById('btnSaveSettings').addEventListener('click', ()=>{
   cfg.commercial.defaultValidityDays = Math.max(1, parseInt(document.getElementById('cfgQuoteValidity').value,10)||7);
   const defaultProductionDays=quoteDays(document.getElementById('cfgQuoteDeadline').value,'');
   cfg.commercial.defaultProductionDeadline = defaultProductionDays ? String(defaultProductionDays) : '';
-  cfg.commercial.closingMessage = document.getElementById('cfgQuoteClosing').value.trim() || 'Qualquer dúvida, estou à disposição!';
+  cfg.commercial.closingMessage = document.getElementById('cfgQuoteClosing').value.trim() || 'Para confirmar, é só me chamar 😊';
   cfg.commercial.quoteTemplate = document.getElementById('cfgQuoteTemplate').value.trim() || DEFAULT_QUOTE_TEMPLATE;
+  cfg.commercial.quoteTemplateVersion = 2;
   cfg.commercial.adPromptTemplate = document.getElementById('cfgAdPromptTemplate').value.trim() || DEFAULT_AD_PROMPT_TEMPLATE;
   cfg.makerworld=cfg.makerworld||{};
   cfg.makerworld.workerUrl=(document.getElementById('cfgMakerWorldWorker')?.value||'').trim().replace(/\/$/,'');
@@ -11494,6 +11657,7 @@ function runManagementSelfTests(){
 
 const GENESIS_QUOTE_DRAFT_FIELDS=['qClientName','qClientPhone','qClientInstagram','qProduct','qQty','qStatus','qFreightValue','qShopeeLink','qSourceLink','qProductionDeadline','qValidity','qNotes','qMessage'];
 const GENESIS_ORDER_DRAFT_FIELDS=['oClientName','oClientPhone','oClientWhatsapp','oClientInstagram','oClientNotes','oProduct','oQty','oUnitPrice','oChannel','oFreight','oDeadline','oStatus','oNotes','oSourceLink','oOrderDate','oShopeeNumber','oShopeeGross','oShopeeNet','oShopeeOrderLink','oShopeeListingLink','oPaymentStatus','oAmountPaid','oPaymentDueDate','oPaymentReceivedAt','oPaymentNote'];
+const GENESIS_ORDER_QUICK_DRAFT_FIELDS=['odStatus','odQuickPaymentStatus','odQuickPaid','odQuickReceivedAt','odQuickDueDate','odQuickPaymentNote'];
 let genesisDraftTimer=0;
 
 function genesisReadFields(ids){
@@ -11533,6 +11697,11 @@ function saveActiveDraft(reason='autosave'){
         editId:orderEditId||null,
         values:genesisReadFields(GENESIS_ORDER_DRAFT_FIELDS),
         imageId:activeOrderImageId||null
+      },
+      orderQuick:{
+        active:openSheetId==='sheetOrderDetail',
+        orderId:openOrderId||null,
+        values:genesisReadFields(GENESIS_ORDER_QUICK_DRAFT_FIELDS)
       }
     };
     store.set(GENESIS_DRAFT_KEY,JSON.stringify(draft));
@@ -11551,7 +11720,14 @@ async function restoreActiveDraft({reopen=true}={}){
       const url=await mediaGetObjectUrl(draft.calc.imageId);
       if(url)setPhoto(url,draft.calc.imageId);
     }
-    if(draft.quote?.active){
+    if(draft.orderQuick?.active&&draft.orderQuick.orderId&&orders.some(item=>item.id===draft.orderQuick.orderId)){
+      if(reopen||document.getElementById('sheetOrderDetail').classList.contains('open')){
+        await openOrderDetail(draft.orderQuick.orderId);
+        genesisWriteFields(draft.orderQuick.values);
+        updateOrderQuickPaymentUI();setOrderQuickSaveState('Rascunho recuperado','dirty');
+        if(reopen)showToast('Rascunho do pedido recuperado.',true);
+      }
+    }else if(draft.quote?.active){
       genesisWriteFields(draft.quote.values);
       quoteEditId=draft.quote.editId||null;
       activeQuoteImageId=draft.quote.imageId||null;
@@ -11585,10 +11761,10 @@ function genesisRecoverUi(reason){
 }
 
 document.addEventListener('input',event=>{
-  if(event.target.closest('#sheetCopy,#sheetOrderForm,#screen-calc'))scheduleActiveDraft('input');
+  if(event.target.closest('#sheetCopy,#sheetOrderForm,#sheetOrderDetail,#screen-calc'))scheduleActiveDraft('input');
 },true);
 document.addEventListener('change',event=>{
-  if(event.target.closest('#sheetCopy,#sheetOrderForm,#screen-calc'))scheduleActiveDraft('change');
+  if(event.target.closest('#sheetCopy,#sheetOrderForm,#sheetOrderDetail,#screen-calc'))scheduleActiveDraft('change');
 },true);
 document.querySelectorAll('input[type="file"]').forEach(input=>{
   input.addEventListener('click',()=>saveActiveDraft('before-file-picker'),true);
@@ -12470,6 +12646,6 @@ async function genesisRepairImagesInBatches(){
 }
 </script>
 <script src="./genesis-data.js"></script>
-<script src="./genesis-workspace.js"></script>
+<script src="./genesis-workspace.js?v=2026.08.01.3"></script>
 </body>
 </html>

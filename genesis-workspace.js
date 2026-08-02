@@ -369,7 +369,7 @@
   function injectImageTools(){
     addImageTools('calc',document.getElementById('photoPreviewWrap')?.parentElement);addImageTools('quote',document.getElementById('qPhotoManager'));addImageTools('order',document.getElementById('oPhotoManager'));
     document.querySelectorAll('[data-genesis-library]').forEach(button=>button.addEventListener('click',()=>openImageLibrary(button.dataset.genesisLibrary)));document.querySelectorAll('[data-genesis-edit-current]').forEach(button=>button.addEventListener('click',async()=>openImageActionMenu(button.dataset.genesisEditCurrent,await contextImageId(button.dataset.genesisEditCurrent))));
-    [['photoPreview','calc'],['qPhotoEditorPreview','quote'],['oPhotoPreview','order']].forEach(([id,context])=>{const image=document.getElementById(id);if(!image)return;let hold=0,moved=false;const openCurrent=async()=>openImageActionMenu(context,await contextImageId(context));image.tabIndex=0;image.addEventListener('pointerdown',()=>{moved=false;hold=setTimeout(()=>{hold=0;openCurrent();},550)});image.addEventListener('pointermove',()=>{moved=true;if(hold){clearTimeout(hold);hold=0;}});image.addEventListener('pointerup',()=>{if(hold){clearTimeout(hold);hold=0;if(!moved)openCurrent();}});image.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openCurrent();}});image.addEventListener('contextmenu',event=>{event.preventDefault();openCurrent();});});
+    [['photoPreview','calc'],['qPhotoEditorPreview','quote'],['oPhotoPreview','order']].forEach(([id,context])=>{const image=document.getElementById(id);if(!image)return;let hold=0,moved=false;const openCurrent=async()=>openImageActionMenu(context,await contextImageId(context));image.tabIndex=0;image.addEventListener('pointerdown',()=>{moved=false;hold=setTimeout(()=>{hold=0;image.dataset.genesisSuppressClickUntil=String(Date.now()+800);openCurrent();},550)});image.addEventListener('pointermove',()=>{moved=true;if(hold){clearTimeout(hold);hold=0;}});image.addEventListener('pointerup',()=>{if(hold){clearTimeout(hold);hold=0;}});image.addEventListener('pointercancel',()=>{if(hold)clearTimeout(hold);hold=0;moved=false;});image.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openCurrent();}});image.addEventListener('contextmenu',event=>{event.preventDefault();if(Date.now()<Number(image.dataset.genesisSuppressClickUntil||0))return;image.dataset.genesisSuppressClickUntil=String(Date.now()+800);openCurrent();});});
   }
   let pendingPaste=null,pendingPasteUrl='';function cancelPaste(){if(pendingPasteUrl)URL.revokeObjectURL(pendingPasteUrl);pendingPaste=null;pendingPasteUrl='';closeGenesisModal('genesisPasteModal');}
   function installPasteHandler(){
@@ -400,17 +400,27 @@
     input.addEventListener('focus',()=>{initialKey=mwNormalizeText(input.value);initialImageId=currentPhotoImageId;});
     input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(async()=>{const next=mwNormalizeText(input.value);if(genesisCalculatorEditContext||!initialImageId||initialImageId!==currentPhotoImageId||!initialKey||!next||next===initialKey)return;await setContextImage('calc',null,{toast:false});showToast('A foto anterior foi retirada. Adicione ou busque a imagem do novo item.');initialKey=next;initialImageId=null;},420);});
   }
+  function hidePullIndicator(indicator=document.getElementById('genesisPullIndicator')){
+    if(!indicator)return;indicator.classList.remove('show','refreshing');indicator.style.removeProperty('transform');indicator.textContent='';indicator.hidden=true;indicator.setAttribute('aria-hidden','true');
+  }
+  function showPullIndicator(indicator,text,{refreshing=false,offset=0}={}){
+    if(!indicator)return;indicator.hidden=false;indicator.setAttribute('aria-hidden','false');indicator.textContent=text;indicator.classList.toggle('refreshing',refreshing);indicator.classList.add('show');
+    if(offset)indicator.style.transform=`translate(-50%,${offset}px)`;else indicator.style.removeProperty('transform');
+  }
   function installPullToRefresh(){
-    if(document.getElementById('genesisPullIndicator'))return;const indicator=document.createElement('div');indicator.id='genesisPullIndicator';indicator.className='genesis-pull-indicator';indicator.textContent='Puxe para atualizar';document.body.appendChild(indicator);let startY=0,distance=0,tracking=false;
-    document.addEventListener('touchstart',event=>{if(window.scrollY>2||document.querySelector('.genesis-modal-layer.open,.sheet.open'))return;startY=event.touches[0].clientY;distance=0;tracking=true;},{passive:true});
-    document.addEventListener('touchmove',event=>{if(!tracking)return;distance=Math.max(0,Math.min(120,event.touches[0].clientY-startY));if(distance>18){indicator.classList.add('show');indicator.style.transform=`translate(-50%,${Math.min(0,distance-72)}px)`;indicator.textContent=distance>=72?'Solte para atualizar':'Puxe para atualizar';}},{passive:true});
-    document.addEventListener('touchend',()=>{if(!tracking)return;tracking=false;indicator.style.removeProperty('transform');if(distance>=72)refreshGenesisData();else indicator.classList.remove('show');distance=0;},{passive:true});
+    if(document.getElementById('genesisPullIndicator'))return;
+    const indicator=document.createElement('div');indicator.id='genesisPullIndicator';indicator.className='genesis-pull-indicator';indicator.hidden=true;indicator.setAttribute('aria-hidden','true');indicator.setAttribute('role','status');document.body.appendChild(indicator);
+    let startY=0,distance=0,tracking=false;
+    document.addEventListener('touchstart',event=>{if(state.pullBusy||window.scrollY>2||document.querySelector('.genesis-modal-layer.open,.sheet.open'))return;startY=event.touches[0].clientY;distance=0;tracking=true;},{passive:true});
+    document.addEventListener('touchmove',event=>{if(!tracking)return;distance=Math.max(0,Math.min(120,event.touches[0].clientY-startY));if(distance>18)showPullIndicator(indicator,distance>=72?'Solte para atualizar':'Puxe para atualizar',{offset:Math.min(0,distance-72)});else hidePullIndicator(indicator);},{passive:true});
+    const finish=()=>{if(!tracking)return;tracking=false;indicator.style.removeProperty('transform');const shouldRefresh=distance>=72;distance=0;if(shouldRefresh)refreshGenesisData();else hidePullIndicator(indicator);};
+    document.addEventListener('touchend',finish,{passive:true});document.addEventListener('touchcancel',()=>{tracking=false;distance=0;hidePullIndicator(indicator);},{passive:true});
   }
   async function refreshGenesisData(){
-    if(state.pullBusy)return;state.pullBusy=true;const indicator=document.getElementById('genesisPullIndicator');indicator.classList.add('show','refreshing');indicator.textContent='Atualizando…';const scrollY=window.scrollY;
-    try{saveActiveDraft('pull-to-refresh');await persistStateSnapshot('pull-to-refresh');const tasks=[flushImageQueue({silent:true}),updateLocalServerPanel()];if(window.genesisSheetsConfigured?.())tasks.push(window.genesisSheetsSync({silent:true}));await Promise.allSettled(tasks);renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();await updateDesktopSummary();await updateImageStatusBadges();indicator.textContent='Atualizado';showToast('Dados e imagens atualizados',true);}
-    catch(error){indicator.textContent='Não foi possível atualizar agora';genesisLog('pull-refresh.failed',{error},'warn');}
-    finally{window.scrollTo({top:scrollY,behavior:'instant'});setTimeout(()=>indicator.classList.remove('show','refreshing'),850);state.pullBusy=false;}
+    if(state.pullBusy)return;state.pullBusy=true;const indicator=document.getElementById('genesisPullIndicator');showPullIndicator(indicator,'Atualizando...',{refreshing:true});const scrollY=window.scrollY;
+    try{saveActiveDraft('pull-to-refresh');await persistStateSnapshot('pull-to-refresh');const tasks=[flushImageQueue({silent:true}),updateLocalServerPanel()];if(window.genesisSheetsConfigured?.())tasks.push(window.genesisSheetsSync({silent:true}));await Promise.allSettled(tasks);renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();await updateDesktopSummary();await updateImageStatusBadges();showToast('Dados e imagens atualizados',true);}
+    catch(error){genesisLog('pull-refresh.failed',{error},'warn');showToast('Não foi possível atualizar agora. Os dados continuam salvos.');}
+    finally{window.scrollTo({top:scrollY,behavior:'instant'});hidePullIndicator(indicator);state.pullBusy=false;}
   }
   function installSettingsAndSyncHooks(){
     document.getElementById('btnLocalTest')?.addEventListener('click',()=>setTimeout(updateLocalServerPanel,250));window.addEventListener('online',()=>{flushImageQueue({silent:true});updateLocalServerPanel();});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){flushImageQueue({silent:true});updateLocalServerPanel();}});setInterval(()=>{if(document.visibilityState==='visible'){flushImageQueue({silent:true});updateLocalServerPanel();}},60000);
@@ -422,7 +432,7 @@
     const coreRefreshOrder=refreshOrderPhotoEditor;refreshOrderPhotoEditor=async function(...args){const result=await coreRefreshOrder(...args);await updateImageStatusBadges();return result;};
   }
   function fixAsyncImageMenuHooks(){
-    [['photoPreview','calc'],['qPhotoEditorPreview','quote'],['oPhotoPreview','order']].forEach(([id,context])=>{const image=document.getElementById(id);if(!image||image.dataset.genesisAsyncMenu==='1')return;image.dataset.genesisAsyncMenu='1';image.addEventListener('click',async event=>{event.preventDefault();event.stopImmediatePropagation();await openImageActionMenu(context,await contextImageId(context));},true);});
+    [['photoPreview','calc'],['qPhotoEditorPreview','quote'],['oPhotoPreview','order']].forEach(([id,context])=>{const image=document.getElementById(id);if(!image||image.dataset.genesisAsyncMenu==='1')return;image.dataset.genesisAsyncMenu='1';image.addEventListener('click',async event=>{event.preventDefault();event.stopImmediatePropagation();if(Date.now()<Number(image.dataset.genesisSuppressClickUntil||0))return;await openImageActionMenu(context,await contextImageId(context));},true);});
   }
   async function initWorkspace(){
     try{

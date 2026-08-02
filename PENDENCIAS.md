@@ -2,6 +2,75 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
+## Pendências abertas — conectividade do Worker e servidor local
+
+### URGENTE — busca de modelos online não conecta ao Worker
+
+- [ ] Investigar por que o teste feito dentro do Genesis informa **“Não foi possível conectar ao Worker”**, mesmo com a URL `https://hello.douglasscaramelli.workers.dev` correta.
+- [ ] Registrar no relatório interno o status HTTP, endpoint consultado, origem da página, tempo da requisição e mensagem devolvida pelo Worker, sem registrar tokens ou dados sensíveis.
+- [ ] Diferenciar na interface: Worker fora do ar, falha de internet/DNS, bloqueio do navegador, CORS, timeout, versão antiga em cache e resposta inválida.
+- [ ] Invalidar com segurança uma configuração antiga armazenada em cache e repetir o teste após atualização do Service Worker, sem apagar orçamentos, pedidos, imagens ou rascunhos.
+- [ ] Manter a calculadora funcionando normalmente quando a ponte estiver indisponível e apresentar uma orientação específica para o erro detectado.
+- [ ] Revalidar busca, detalhes e importação de imagem do MakerWorld e Thingiverse no PWA instalado, Safari/iPhone e navegador do computador.
+
+**Diagnóstico de 01/08/2026:** o endereço público respondeu `HTTP 200`, identificou o serviço **Genesis 3D Model Bridge v10** e devolveu `Access-Control-Allow-Origin: https://casalexecutivo0709-gif.github.io`. Portanto, o Worker está ativo; a próxima investigação deve se concentrar na requisição feita pelo aplicativo, cache/Service Worker, rede ou bloqueio específico do navegador.
+
+### URGENTE — servidor local mostra “Origem não permitida”
+
+- [ ] Registrar de forma segura qual cabeçalho `Origin` foi realmente recebido pelo servidor quando uma requisição for recusada.
+- [ ] Comparar e normalizar a origem recebida com `allowedOrigins`, removendo apenas barra final e mantendo uma lista explícita; não liberar CORS com curinga.
+- [ ] Autorizar somente a origem oficial `https://casalexecutivo0709-gif.github.io` e endereços locais necessários para desenvolvimento, preservando autenticação por token.
+- [ ] Distinguir claramente na interface: servidor desligado, endereço incorreto, certificado HTTPS não confiável, código de pareamento inválido e origem não autorizada.
+- [ ] Não conservar como estado atual uma mensagem antiga de “Origem não permitida” quando o servidor estiver desligado ou não responder.
+- [ ] Adicionar ao relatório de erros: origem recebida, URL configurada, versão do servidor, último contato e categoria da falha, sem incluir o código de pareamento.
+- [ ] Verificar inicialização automática e mostrar instrução para iniciar o servidor quando a porta `8765` não estiver ativa.
+- [ ] Testar a conexão no computador e no celular, dentro e fora da rede local, confirmando que a indisponibilidade nunca interrompe o orçamento nem perde imagens.
+
+**Diagnóstico de 01/08/2026:** o `config.json` já contém a origem oficial correta e TLS configurado. Durante a verificação, não havia nenhum processo escutando a porta `8765`; isso deve aparecer como **“Servidor desligado”**, e não como erro de origem.
+
+## Concluídas na versão 2026.08.01.3
+
+### Experiência e atualização
+
+- [x] Manter o gesto de puxar para atualizar sem deixar o indicador ocupando espaço no estado normal.
+- [x] Criar o indicador inicialmente vazio e oculto, exibindo progresso somente durante o gesto.
+- [x] Mostrar somente spinner e **“Atualizando...”** durante a atualização e remover texto, altura e classes ao terminar.
+- [x] Preservar tela, posição, formulário, rascunho, imagem e filas sem recarregar a página.
+
+### Orçamento e compartilhamento
+
+- [x] Exibir quantidade, valor unitário e total na arte quando houver mais de uma unidade.
+- [x] Utilizar exatamente o preço unitário e o total já salvos no snapshot do orçamento, com duas casas decimais.
+- [x] Gerar o texto compacto em no máximo seis linhas, sem linhas vazias ou repetição do total.
+- [x] Aplicar frete grátis ou valor do frete, prazo e validade com singular/plural correto.
+- [x] Preservar o modelo editável das Configurações e acrescentar o campo dinâmico `{CORES}`.
+- [x] Manter foto, logotipo, cores, aviso e rodapé dentro das margens da arte compacta.
+
+### Pagamento rápido e clientes
+
+- [x] Adicionar no topo do detalhe do pedido uma área de atualização rápida para produção e pagamento independentes.
+- [x] Ao marcar **Pago**, preencher o total salvo, a data local e a data/hora da confirmação, mantendo campos editáveis.
+- [x] Ao marcar **Pago parcialmente**, abrir o valor recebido, sugerir a data atual e mostrar o saldo restante sem permitir saldo negativo.
+- [x] Salvar no mesmo pedido e refletir em Kanban, detalhes, fila offline, Google Sheets e Insights sem duplicar a venda.
+- [x] Preservar a atualização rápida como rascunho no IndexedDB para recuperação depois de fechamento inesperado.
+- [x] Filtrar clientes em tempo real ignorando acentos, caixa e espaços extras, com ordenação por relevância.
+- [x] Mostrar **“Nenhum cliente encontrado”** e a ação para cadastrar o nome digitado sem criar duplicidade normalizada.
+
+### Imagens e servidor existentes — revalidação
+
+- [x] Revalidar menu customizado por clique, toque, toque prolongado e teclado sem abertura duplicada.
+- [x] Manter editor não destrutivo, original, versões, miniatura, rascunho e restauração depois de falha.
+- [x] Manter seleção, arrastar e soltar, Ctrl + V, biblioteca, MakerWorld e reutilização de imagem anterior.
+- [x] Manter IndexedDB como primeira gravação, servidor local opcional, fila posterior e Drive opcional.
+- [x] Confirmar que imagem e metadados continuam ligados ao orçamento e ao pedido real, sem Base64 no Google Sheets.
+
+### Validação
+
+- [x] Validar no navegador o cenário `3 un. x R$ 11,48` com total `R$ 34,44` na mensagem e na arte.
+- [x] Validar pagamento integral com preenchimento automático e pagamento parcial com saldo persistente.
+- [x] Executar verificação de sintaxe, testes financeiros, testes estruturais e inspeção visual do layout desktop.
+- [x] Manter os recursos responsivos do layout celular e o Service Worker sem `skipWaiting()` agressivo.
+
 ## Concluídas na versão 2026.08.01.2
 
 ### URGENTE — impedir que a imagem do item anterior apareça no novo orçamento

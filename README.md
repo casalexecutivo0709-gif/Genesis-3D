@@ -9,6 +9,10 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Importação automática de nome, imagem, link, tempo e peso quando a fonte fornece esses dados.
 - Foto persistida no orçamento, no pedido convertido e nos kits.
 - Mensagem automática e arte pronta para compartilhar com o cliente.
+- Arte e mensagem compactas com quantidade, valor unitário e total idênticos ao snapshot financeiro do orçamento.
+- Atualização rápida de produção e pagamento no próprio detalhe do pedido, com total/data automáticos e saldo parcial.
+- Busca inteligente de clientes, ignorando acentos, maiúsculas e espaços extras.
+- Gesto de puxar para atualizar com indicador totalmente oculto fora do gesto.
 - Kits com várias peças, quantidades, desconto, prazo, frete, layout visual e conversão em pedido.
 - Uso no celular como PWA e funcionamento offline do conteúdo já salvo.
 - Modo de visualização Automático, Celular ou Desktop, usando a mesma aplicação e os mesmos dados sem recarregar a página.
@@ -100,6 +104,8 @@ No desktop também é possível usar **Sincronizar imagens**, **Abrir pasta de i
 
 Atualizar o aplicativo no mesmo endereço não apaga `localStorage` nem IndexedDB. O Service Worker também só instala a nova versão depois da confirmação do usuário. A cópia no computador oferece recuperação adicional caso os dados do site sejam apagados manualmente ou pelo sistema.
 
+O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.3.md`](RELEASE-2026.08.01.3.md).
+
 ## Ativar sincronização com Google Sheets
 
 1. Siga [`GOOGLE-SHEETS.md`](GOOGLE-SHEETS.md) para criar a planilha e implantar o Apps Script.
@@ -146,4 +152,3 @@ Use apenas a chave pública no aplicativo. A chave `service_role` nunca deve ser
 - `genesis-local-server/`: cópia opcional no próprio computador.
 - `google-apps-script/`: API e criação automática da planilha Google.
 - `supabase-schema.sql`: tabela e políticas de segurança da sincronização.
-
