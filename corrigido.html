@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="genesis-192.png">
 <link rel="icon" type="image/png" href="genesis-192.png">
 <link rel="manifest" href="manifest.json" onerror="this.remove()">
-<link rel="stylesheet" href="genesis-workspace.css?v=2026.08.01.4">
+<link rel="stylesheet" href="genesis-workspace.css?v=2026.08.01.5-final">
 <title>Genesis 3D · Calculadora</title>
 <style>
 :root{
@@ -3290,17 +3290,17 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <button class="insight-kpi" type="button" data-insight-drill="pending"><div class="klabel">A receber</div><div class="kvalue" id="insPending">R$ 0,00</div><div class="kdelta">Saldo dos pedidos do período</div></button>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-chart-card">
       <div class="insights-title-row"><h3>Evolução</h3><small id="insChartGranularity"></small></div>
       <div class="insight-seg">
         <button class="btn btn-primary btn-sm" type="button" data-ins-chart="revenue">Faturamento</button>
         <button class="btn btn-secondary btn-sm" type="button" data-ins-chart="profit">Lucro</button>
         <button class="btn btn-secondary btn-sm" type="button" data-ins-chart="orders">Pedidos</button>
       </div>
-      <div class="insights-chart-wrap"><svg id="insightsChart" viewBox="0 0 340 190" preserveAspectRatio="none" aria-label="Gráfico de evolução"></svg></div>
+      <div class="insights-chart-wrap"><svg id="insightsChart" viewBox="0 0 340 190" preserveAspectRatio="xMidYMid meet" aria-label="Gráfico de evolução"></svg></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-products-card">
       <div class="insights-title-row"><h3>Produtos</h3><small>Toque para ver detalhes</small></div>
       <div class="insight-seg">
         <button class="btn btn-primary btn-sm" type="button" data-ins-rank="qty">Mais vendidos</button>
@@ -3311,17 +3311,17 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <div class="ranking-list" id="insProductRanking"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-channel-card">
       <div class="insights-title-row"><h3>Vendas por canal</h3><small>Faturamento por canal</small></div>
       <div id="insChannelBars"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-compare-card">
       <div class="insights-title-row"><h3>Shopee x Venda direta</h3><small>Resultado comparativo</small></div>
       <div class="compare-grid" id="insChannelCompare"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-shopee-card">
       <div class="insights-title-row"><h3>Shopee</h3><small id="insShopeeLabel"></small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Faturamento bruto</span><b id="insShopeeRevenue">R$ 0,00</b></div>
@@ -3334,7 +3334,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
     </div>
 
 
-    <div class="insights-card" id="insShopeeHybridCard">
+    <div class="insights-card insights-hybrid-card" id="insShopeeHybridCard">
       <div class="insights-title-row"><h3>Conciliação Shopee</h3><small>Excel confirma o dinheiro</small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Vendas brutas</span><b id="insHybridGross">R$ 0,00</b></div>
@@ -3344,7 +3344,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       </div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-production-card">
       <div class="insights-title-row"><h3>Produção associada às vendas</h3><small>Somente pedidos com snapshot disponível</small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Horas impressão</span><b id="insPrintHours">—</b></div>
@@ -3355,7 +3355,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <div id="insFilamentComposition" class="secondary-note" style="margin-top:10px;"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-customers-card">
       <div class="insights-title-row"><h3>Clientes</h3><small>Quando há identificação confiável</small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Clientes atendidos</span><b id="insCustomers">0</b></div>
@@ -4324,7 +4324,7 @@ const KEYS = {
   IMAGES:'genesis3d:imageMetadata'
 };
 const SCHEMA_VERSION = 25;
-const GENESIS_APP_VERSION = '2026.08.01.4';
+const GENESIS_APP_VERSION = '2026.08.01.5';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -5888,6 +5888,7 @@ function genesisPrepareScreenContent(name){
   if(name==='settings'){populateSettingsForm();renderDefaultFilamentSelect();}
   if(name==='quotes'&&typeof renderQuoteList==='function')renderQuoteList();
   if(name==='orders'&&typeof renderOrders==='function')renderOrders();
+  if(name==='insights'&&typeof renderInsights==='function')renderInsights();
   if(name==='models'&&typeof renderSavedModels==='function'){updateMakerWorldStatusUI();renderSavedModels();}
   if(name==='more'&&typeof refreshMoreCounts==='function')refreshMoreCounts();
   if(name==='kits'&&typeof renderKitComposer==='function')renderKitComposer();
@@ -8430,7 +8431,18 @@ const ORDER_STATUS_LABELS={
 };
 const ORDER_STATUS_FLOW=['novo','aguardando-pagamento','a-produzir','em-producao','pronto','enviado','concluido','cancelado'];
 const CHANNEL_LABELS={direct:'Venda direta',whatsapp:'WhatsApp',instagram:'Instagram',shopee:'Shopee',other:'Outro'};
+const ORDER_PAYMENT_LABELS={pending:'Aguardando',partial:'Parcial',paid:'Pago','not-applicable':'Não se aplica'};
 function orderStatusClass(status){ return 'status-'+(status||'novo'); }
+function orderPaymentLabel(status){return ORDER_PAYMENT_LABELS[status]||'Aguardando'}
+function orderPaymentClass(status){return 'payment-'+(status||'pending')}
+function orderTotalQuantity(o){
+  if(Array.isArray(o?.items)&&o.items.length)return o.items.reduce((sum,item)=>sum+Math.max(1,parseInt(item?.qty,10)||1),0);
+  return Math.max(1,parseInt(o?.qty,10)||1);
+}
+function orderDeadlineLabel(o){
+  if(o?.payment?.dueDate&&['pending','partial'].includes(o.payment.status))return 'Pagamento '+String(o.payment.dueDate).split('-').reverse().join('/');
+  return o?.deadline?'Prazo '+String(o.deadline):'Sem prazo informado';
+}
 function normalizePhoneForWhatsApp(value){
   let d=String(value||'').replace(/\D/g,'');
   if(!d) return '';
@@ -8489,6 +8501,34 @@ function orderFinancial(o){
 
 function orderProductTotal(o){ return (Number(o.unitPrice)||0)*(parseInt(o.qty,10)||1); }
 function orderGrandTotal(o){ return orderProductTotal(o)+(Number(o.freight)||0); }
+
+async function persistKanbanOrderChange(o,message){
+  if(!o)return false;
+  o.updatedAt=Date.now();window.genesisEnsureOrderSnapshots?.(o);saveOrders();renderOrders();renderPendingPayments();refreshMoreCounts();
+  if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();
+  let synced=true;
+  try{if(window.genesisSheetsConfigured?.())synced=navigator.onLine?await window.genesisSheetsSync({silent:true}):false}catch(error){synced=false;genesisLog('order.kanban-sync.failed',{orderId:o.id,error},'warn')}
+  showToast(synced?message:message+' · aguardando sincronização',synced);
+  return true;
+}
+async function updateOrderStatusFromKanban(o,status){
+  if(!o||!ORDER_STATUS_FLOW.includes(status)||o.status===status)return false;
+  o.status=status;
+  return persistKanbanOrderChange(o,'Etapa atualizada');
+}
+async function advanceOrderFromKanban(o){
+  if(!o)return false;
+  const productionFlow=ORDER_STATUS_FLOW.filter(status=>status!=='cancelado'),index=productionFlow.indexOf(o.status);
+  const next=productionFlow[Math.min(productionFlow.length-1,Math.max(0,index)+1)];
+  if(!next||next===o.status){showToast('Este pedido já está na última etapa.');return false}
+  return updateOrderStatusFromKanban(o,next);
+}
+async function markOrderPaidFromKanban(o){
+  if(!o)return false;
+  const total=orderQuickTotal(o),nowIso=new Date().toISOString();
+  o.payment={...(o.payment||{}),total,paid:total,balance:0,status:'paid',receivedAt:genesisLocalDate(),confirmedAt:o.payment?.status==='paid'&&o.payment?.confirmedAt?o.payment.confirmedAt:nowIso};
+  return persistKanbanOrderChange(o,'Pagamento confirmado');
+}
 
 let orderEditId=null;
 let activeOrderPricing={directUnit:0,shopeeUnit:0};
@@ -9021,16 +9061,22 @@ function renderOrderCard(o,kanban){
   const card=document.createElement('div');
   card.className=kanban?'order-card':'list-item management-card';
   if(kanban){
-    card.innerHTML='<div class="top"><div><div class="product">'+escapeHtml(o.productName||'Produto')+'</div><div class="number">PEDIDO '+orderNumber(o)+'</div></div><span class="status-pill '+orderStatusClass(o.status)+'">'+escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)+'</span></div>'+
-      '<div class="client">'+escapeHtml(o.client?.name||'Cliente não informado')+' · '+escapeHtml(CHANNEL_LABELS[o.channel]||o.channel)+'</div>'+
-      '<div class="total">'+fmtBRL(o.total??orderGrandTotal(o))+'</div>';
-    if(o.imageId){
-      const img=document.createElement('img');
-      img.className='order-kanban-thumb';
-      img.alt='';
-      card.prepend(img);
-      setLibraryThumb(img,o.imageId);
-    }
+    const qty=orderTotalQuantity(o),paymentStatus=o.payment?.status||'pending',initials=escapeHtml((o.productName||'P').slice(0,2).toUpperCase());
+    card.innerHTML=
+      '<div class="kanban-card-head"><div class="kanban-card-thumb">'+(o.imageId?'<img loading="lazy" decoding="async" class="order-kanban-thumb" alt="">':'<div class="kanban-card-placeholder">'+initials+'</div>')+'</div>'+ 
+        '<div class="kanban-card-copy"><div class="kanban-card-number">PEDIDO '+escapeHtml(orderNumber(o))+' · '+qty+' un.</div><div class="product">'+escapeHtml(o.productName||'Produto')+'</div><div class="client">'+escapeHtml(o.client?.name||'Cliente não informado')+'</div></div></div>'+ 
+      '<div class="kanban-card-finance"><span>'+escapeHtml(CHANNEL_LABELS[o.channel]||o.channel||'Outro')+'</span><strong>'+fmtBRL(o.total??orderGrandTotal(o))+'</strong></div>'+ 
+      '<div class="kanban-card-statuses"><span class="status-pill '+orderStatusClass(o.status)+'">'+escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)+'</span><span class="payment-pill '+orderPaymentClass(paymentStatus)+'">'+escapeHtml(orderPaymentLabel(paymentStatus))+'</span></div>'+ 
+      '<div class="kanban-card-deadline">'+escapeHtml(orderDeadlineLabel(o))+'</div>'+ 
+      '<div class="kanban-card-actions"><button type="button" data-order-action="open">Abrir</button><button type="button" data-order-action="edit">Editar</button><button type="button" data-order-action="paid" '+(paymentStatus==='paid'?'disabled':'')+'>'+(paymentStatus==='paid'?'Pago':'Marcar pago')+'</button><button type="button" data-order-action="advance" '+(['concluido','cancelado'].includes(o.status)?'disabled':'')+'>Avançar</button></div>'+ 
+      '<label class="kanban-card-status-picker"><span>Alterar etapa</span><select aria-label="Alterar etapa do pedido">'+ORDER_STATUS_FLOW.map(status=>'<option value="'+status+'" '+(status===o.status?'selected':'')+'>'+escapeHtml(ORDER_STATUS_LABELS[status])+'</option>').join('')+'</select></label>';
+    const thumb=card.querySelector('.order-kanban-thumb');if(thumb)setLibraryThumb(thumb,o.imageId);
+    card.querySelectorAll('button,select').forEach(control=>control.addEventListener('click',event=>event.stopPropagation()));
+    card.querySelector('[data-order-action="open"]').addEventListener('click',()=>openOrderDetail(o.id));
+    card.querySelector('[data-order-action="edit"]').addEventListener('click',async()=>{if(!o.imageId){const recovered=await GenesisImageManager.attach(o);if(recovered)saveOrders()}openGenesisRecordInCalculator(o,'order')});
+    card.querySelector('[data-order-action="paid"]').addEventListener('click',()=>markOrderPaidFromKanban(o));
+    card.querySelector('[data-order-action="advance"]').addEventListener('click',()=>advanceOrderFromKanban(o));
+    card.querySelector('.kanban-card-status-picker select').addEventListener('change',event=>updateOrderStatusFromKanban(o,event.target.value));
   }else{
     const initials=escapeHtml((o.productName||'P').slice(0,2).toUpperCase());
     const thumb=o.imageId
@@ -9153,13 +9199,44 @@ function renderMobileKanban(root,list){
     rail.querySelector('.active')?.scrollIntoView({inline:'center',block:'nearest'});
   });
 }
+function renderDesktopKanbanSummary(root,list){
+  const active=list.filter(o=>o.status!=='cancelado'),revenue=active.reduce((sum,o)=>sum+Number((o.total??orderGrandTotal(o))||0),0);
+  const pending=active.reduce((sum,o)=>sum+(['pending','partial'].includes(o.payment?.status)?paymentBalance(o):0),0);
+  const deadlines=active.map(o=>quoteDays(o.deadline,0)).filter(value=>value>0),averageDays=deadlines.length?deadlines.reduce((sum,value)=>sum+value,0)/deadlines.length:0;
+  const summary=document.createElement('section');summary.className='kanban-desktop-summary';summary.setAttribute('aria-label','Resumo dos pedidos filtrados');
+  summary.innerHTML=[
+    ['Total de pedidos',String(list.length),list.length===1?'1 pedido filtrado':list.length+' pedidos filtrados'],
+    ['Faturamento',fmtBRL(revenue),'Pedidos não cancelados'],
+    ['Produção média',averageDays?averageDays.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias':'—','Prazos informados'],
+    ['A receber',fmtBRL(pending),active.filter(o=>['pending','partial'].includes(o.payment?.status)).length+' pedido(s)'],
+    ['Concluídos',String(list.filter(o=>o.status==='concluido').length),'No filtro atual']
+  ].map(([label,value,note])=>'<div class="kanban-summary-card"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value)+'</strong><small>'+escapeHtml(note)+'</small></div>').join('');
+  root.appendChild(summary);
+}
+function renderDesktopRecentOrders(root,list){
+  const section=document.createElement('section');section.className='kanban-recent-section';
+  const rows=list.slice(0,8);
+  section.innerHTML='<div class="kanban-recent-heading"><div><strong>Pedidos recentes</strong><small>Mesmos filtros do Kanban</small></div><button type="button" data-kanban-show-list>Ver em lista</button></div>'+ 
+    '<div class="kanban-recent-scroll"><table class="kanban-recent-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Produto</th><th>Produção</th><th>Pagamento</th><th>Valor</th><th>Prazo</th><th>Ações</th></tr></thead><tbody>'+ 
+    (rows.length?rows.map(o=>{const paymentStatus=o.payment?.status||'pending';return '<tr><td>'+escapeHtml(orderNumber(o))+'</td><td>'+escapeHtml(o.client?.name||'—')+'</td><td>'+escapeHtml(o.productName||'Produto')+'</td><td><span class="status-pill '+orderStatusClass(o.status)+'">'+escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)+'</span></td><td><span class="payment-pill '+orderPaymentClass(paymentStatus)+'">'+escapeHtml(orderPaymentLabel(paymentStatus))+'</span></td><td><strong>'+fmtBRL(o.total??orderGrandTotal(o))+'</strong></td><td>'+escapeHtml(orderDeadlineLabel(o))+'</td><td><div class="kanban-recent-actions"><button type="button" data-recent-open="'+escapeAttr(o.id)+'">Abrir</button><button type="button" data-recent-edit="'+escapeAttr(o.id)+'">Editar</button></div></td></tr>'}).join(''):'<tr><td colspan="8" class="kanban-recent-empty">Nenhum pedido neste filtro.</td></tr>')+ 
+    '</tbody></table></div>';
+  section.querySelector('[data-kanban-show-list]').addEventListener('click',()=>{uiState.orderView='list';saveUI();renderOrders()});
+  section.querySelectorAll('[data-recent-open]').forEach(button=>button.addEventListener('click',()=>openOrderDetail(button.dataset.recentOpen)));
+  section.querySelectorAll('[data-recent-edit]').forEach(button=>button.addEventListener('click',()=>{const o=orders.find(item=>item.id===button.dataset.recentEdit);if(o)openGenesisRecordInCalculator(o,'order')}));
+  root.appendChild(section);
+}
+let desktopKanbanScrollTimer=0;
 function renderDesktopKanban(root,list){
-  const wrap=document.createElement('div');wrap.className='kanban-wrap';
+  renderDesktopKanbanSummary(root,list);
+  const wrap=document.createElement('div');wrap.className='kanban-wrap';wrap.dataset.horizontalScroll='true';
   ORDER_STATUS_FLOW.forEach(status=>{
     const col=document.createElement('div');col.className='kanban-col';col.dataset.status=status;
     const items=list.filter(o=>o.status===status);
     col.innerHTML='<div class="kanban-title"><span>'+escapeHtml(ORDER_STATUS_LABELS[status])+'</span><span class="kanban-count">'+items.length+'</span></div>';
-    items.forEach(o=>col.appendChild(renderOrderCard(o,true)));
+    const cards=document.createElement('div');cards.className='kanban-col-cards';items.forEach(o=>cards.appendChild(renderOrderCard(o,true)));
+    if(!items.length)cards.innerHTML='<div class="kanban-column-empty">Nenhum pedido</div>';
+    const add=document.createElement('button');add.type='button';add.className='kanban-column-new';add.textContent='+ Novo pedido';add.addEventListener('click',event=>{event.stopPropagation();openOrderFormFromCalc()});
+    col.append(cards,add);
     if(window.matchMedia&&window.matchMedia('(pointer:fine)').matches){
       col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag-over')});
       col.addEventListener('dragleave',()=>col.classList.remove('drag-over'));
@@ -9171,7 +9248,10 @@ function renderDesktopKanban(root,list){
     }
     wrap.appendChild(col);
   });
+  wrap.addEventListener('scroll',()=>{uiState.orderKanbanScrollLeft=wrap.scrollLeft;clearTimeout(desktopKanbanScrollTimer);desktopKanbanScrollTimer=setTimeout(saveUI,350)},{passive:true});
   root.appendChild(wrap);
+  requestAnimationFrame(()=>{wrap.scrollLeft=Math.max(0,Number(uiState.orderKanbanScrollLeft)||0)});
+  renderDesktopRecentOrders(root,list);
 }
 function renderOrders(){
   setTimeout(renderPendingPayments,0);
@@ -9188,7 +9268,8 @@ function renderOrders(){
   empty.style.display=list.length?'none':'block';
   kanban.innerHTML='';listEl.innerHTML='';
   if(isKanban){
-    const mobile=window.matchMedia('(max-width:700px), (pointer:coarse)').matches;
+    const viewMode=document.documentElement.dataset.genesisView||'auto';
+    const mobile=viewMode==='mobile'||(viewMode!=='desktop'&&window.matchMedia('(max-width:700px), (pointer:coarse)').matches);
     if(mobile)renderMobileKanban(kanban,list);
     else renderDesktopKanban(kanban,list);
   }else{
@@ -10255,12 +10336,14 @@ function insightTimeSeries(list,r,g,metric){
 function renderInsightsChart(points,metric){
   const svg=document.getElementById('insightsChart');if(!svg)return;
   if(!points.length){svg.innerHTML='';return}
-  const W=340,H=190,pad={l:10,r:10,t:14,b:24},max=Math.max(1,...points.map(p=>p.value)),min=0,iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  const viewMode=document.documentElement.dataset.genesisView||'auto',desktop=viewMode==='desktop'||(viewMode!=='mobile'&&window.matchMedia('(min-width:1000px) and (pointer:fine)').matches);
+  const W=desktop?720:340,H=desktop?250:190,pad=desktop?{l:22,r:22,t:18,b:32}:{l:10,r:10,t:14,b:24},max=Math.max(1,...points.map(p=>p.value)),min=0,iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
   const x=i=>pad.l+(points.length===1?iw/2:i*iw/(points.length-1)),y=v=>pad.t+ih-(v-min)/(max-min||1)*ih;
   let grid='';for(let i=0;i<4;i++){const yy=pad.t+i*ih/3;grid+='<line class="chart-grid" x1="'+pad.l+'" y1="'+yy+'" x2="'+(W-pad.r)+'" y2="'+yy+'"/>'}
   const coords=points.map((p,i)=>x(i)+','+y(p.value)).join(' ');
   const area=points.length>1?'<polygon class="chart-area" points="'+pad.l+','+(pad.t+ih)+' '+coords+' '+(W-pad.r)+','+(pad.t+ih)+'"/>':'';
-  const step=Math.max(1,Math.ceil(points.length/6));
+  const maxLabels=desktop?Math.max(7,Math.min(12,Math.floor((svg.clientWidth||720)/78))):6,step=Math.max(1,Math.ceil(points.length/maxLabels));
   const labels=points.map((p,i)=>i%step===0||i===points.length-1?'<text class="chart-label" x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle">'+escapeHtml(p.label)+'</text>':'').join('');
   const dots=points.map((p,i)=>'<circle class="chart-dot" cx="'+x(i)+'" cy="'+y(p.value)+'" r="2.4"><title>'+escapeHtml(p.label+': '+(metric==='orders'?p.value:fmtBRL(p.value)))+'</title></circle>').join('');
   svg.innerHTML=grid+area+'<polyline class="chart-line" points="'+coords+'"/>'+dots+labels;
@@ -12725,6 +12808,6 @@ async function genesisRepairImagesInBatches(){
 }
 </script>
 <script src="./genesis-data.js"></script>
-<script src="./genesis-workspace.js?v=2026.08.01.4"></script>
+<script src="./genesis-workspace.js?v=2026.08.01.5-final"></script>
 </body>
 </html>

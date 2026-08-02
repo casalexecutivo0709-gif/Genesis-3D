@@ -17,6 +17,8 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Uso no celular como PWA e funcionamento offline do conteúdo já salvo.
 - Modo de visualização Automático, Celular ou Desktop, usando a mesma aplicação e os mesmos dados sem recarregar a página.
 - Área de trabalho desktop com menu lateral, calculadora ampla, painel de foto e prévia do orçamento em tempo real.
+- Kanban desktop com as oito etapas, rolagem horizontal visível, rolagem vertical por coluna, filtros persistentes e ações rápidas de produção e pagamento.
+- Genesis Insights reorganizado em grade desktop, com indicadores de alto contraste, gráfico proporcional e tabelas mais legíveis, sem alterar as fórmulas financeiras.
 - Biblioteca e editor não destrutivo de imagens com recorte, proporção, rotação, espelhamento, zoom, desfazer, refazer e restauração do original.
 - Inserção de imagens por seleção, arrastar e soltar, Ctrl + V, MakerWorld, biblioteca, orçamento ou pedido anterior.
 - Fila resiliente de imagens no IndexedDB, miniaturas, deduplicação por hash e sincronização posterior com o computador e, opcionalmente, Google Drive.
@@ -104,7 +106,7 @@ No desktop também é possível usar **Sincronizar imagens**, **Abrir pasta de i
 
 Atualizar o aplicativo no mesmo endereço não apaga `localStorage` nem IndexedDB. O Service Worker também só instala a nova versão depois da confirmação do usuário. A cópia no computador oferece recuperação adicional caso os dados do site sejam apagados manualmente ou pelo sistema.
 
-O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.4.md`](RELEASE-2026.08.01.4.md).
+O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.5.md`](RELEASE-2026.08.01.5.md).
 
 ## Ativar sincronização com Google Sheets
 

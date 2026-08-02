@@ -2,6 +2,37 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
+## Concluídas na versão 2026.08.01.5 — Kanban e Insights no desktop
+
+### Kanban desktop
+
+- [x] Manter o mesmo Kanban e os mesmos pedidos, sem criar uma segunda aplicação ou base de dados.
+- [x] Exibir as oito etapas: Novo, Aguardando pagamento, A produzir, Em produção, Pronto, Enviado, Concluído e Cancelado.
+- [x] Adicionar rolagem horizontal real e sempre acessível, sem comprimir ou cortar colunas.
+- [x] Adicionar rolagem vertical independente dentro de cada coluna e manter os cabeçalhos visíveis.
+- [x] Padronizar largura das colunas, altura e contraste dos cards e espaçamentos do quadro.
+- [x] Mostrar no card imagem, pedido, produto, cliente, quantidade, canal, total, produção, pagamento e prazo.
+- [x] Adicionar ações rápidas para abrir, editar, marcar como pago, avançar e selecionar qualquer etapa.
+- [x] Persistir as mudanças no mesmo pedido, na fila offline, no Google Sheets e nos Insights, sem duplicar vendas.
+- [x] Preservar busca e filtros ao alternar entre Kanban e Lista.
+- [x] Adicionar resumo do filtro e tabela de pedidos recentes no desktop.
+
+### Genesis Insights desktop
+
+- [x] Reorganizar os seis indicadores principais em uma grade desktop de alto contraste.
+- [x] Dar mais espaço ao gráfico e manter a proporção sem distorcer linhas, pontos ou textos.
+- [x] Distribuir produtos, canais, comparações, Shopee, produção e clientes em duas colunas legíveis.
+- [x] Limitar os rótulos do eixo conforme a largura disponível e manter as datas legíveis.
+- [x] Atualizar os dados imediatamente ao entrar em Insights pelo menu lateral.
+- [x] Preservar integralmente a fonte financeira e todas as fórmulas já aprovadas.
+
+### Regressão e compatibilidade
+
+- [x] Manter o indicador de puxar para atualizar completamente oculto no estado normal.
+- [x] Preservar o Kanban celular, a barra inferior fixa, os formulários, imagens, rascunhos e o histórico.
+- [x] Manter pagamento rápido, busca de clientes, editor de imagens e sincronização existentes.
+- [x] Atualizar o cache do PWA sem apagar `localStorage`, IndexedDB ou registros anteriores.
+
 ## Concluídas na versão 2026.08.01.4 — conectividade do Worker e servidor local
 
 ### URGENTE — busca de modelos online não conecta ao Worker
