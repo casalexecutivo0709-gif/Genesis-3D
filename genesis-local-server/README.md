@@ -40,7 +40,7 @@ A versão 2 amplia este mesmo servidor, sem criar outro serviço. As imagens fic
 
 Os nomes enviados pelo navegador nunca controlam o caminho no disco. O servidor valida token, origem, tipo MIME, assinatura do arquivo, limite de tamanho e identificadores para bloquear path traversal. O padrão é 25 MB por arquivo e pode ser ajustado com `maxImageBytes` no `config.json`.
 
-## Endpoints da versão 2
+## Endpoints da versão 3
 
 - `GET /health`: conexão e versão do servidor;
 - `GET /v1/status`: imagens, espaço utilizado, fila e último backup;
@@ -52,6 +52,17 @@ Os nomes enviados pelo navegador nunca controlam o caminho no disco. O servidor 
 - `POST /v1/snapshots` e `GET /v1/snapshots/latest`: backup e restauração dos dados.
 
 Todos os endpoints exigem o código de pareamento. O servidor deve permanecer restrito a `localhost` ou à rede local; não encaminhe a porta 8765 no roteador e não publique essa porta na internet.
+
+## Diagnóstico de conexão
+
+A versão 3 normaliza as origens configuradas, registra de forma segura a origem recusada e devolve códigos distintos sem expor o pareamento:
+
+- **Servidor desligado/inacessível**: confirme que `start-server.cmd` está aberto, que a porta 8765 foi liberada na rede privada e que celular e computador estão na mesma rede;
+- **Certificado HTTPS não confiável**: abra o endereço do servidor no Safari e confirme que o certificado instalado aparece como confiável;
+- **Código de pareamento inválido**: copie novamente o código do `config.json` local;
+- **Origem não autorizada**: mantenha `https://casalexecutivo0709-gif.github.io` em `allowedOrigins`.
+
+Uma falha de rede não é mais conservada como “Origem não permitida”. O aplicativo mantém orçamento, imagem e fila no IndexedDB enquanto o servidor estiver indisponível.
 
 ## Atualizar o servidor
 

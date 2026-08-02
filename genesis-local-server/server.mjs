@@ -10,7 +10,7 @@ import {spawn} from 'node:child_process';
 const ROOT=dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH=join(ROOT,'config.json');
 const DEFAULT_ORIGIN='https://casalexecutivo0709-gif.github.io';
-const SERVER_VERSION=2;
+const SERVER_VERSION=3;
 const VARIANTS=new Set(['original','edited','optimized','thumbnail']);
 const ALLOWED_MIME=new Set(['image/jpeg','image/png','image/webp','image/heic','image/heif']);
 
@@ -48,14 +48,22 @@ function cleanFileName(value){
   const name=basename(String(value||'imagem')).normalize('NFKD').replace(/[^a-zA-Z0-9._ -]/g,'').trim().replace(/\s+/g,'-').slice(0,100);
   return name||'imagem';
 }
+function normalizeOrigin(value){
+  const raw=String(value||'').trim().replace(/\/$/,'');
+  if(!raw)return '';
+  try{return new URL(raw).origin.toLowerCase()}catch{return raw.toLowerCase()}
+}
+function configuredOrigins(){
+  return new Set((config.allowedOrigins||[DEFAULT_ORIGIN]).map(normalizeOrigin).filter(Boolean));
+}
 function allowedOrigin(req){
-  const origin=String(req.headers.origin||'');
+  const origin=normalizeOrigin(req.headers.origin||'');
   if(!origin)return true;
-  if((config.allowedOrigins||[DEFAULT_ORIGIN]).includes(origin))return true;
+  if(configuredOrigins().has(origin))return true;
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 }
 function cors(req){
-  const origin=String(req.headers.origin||DEFAULT_ORIGIN);
+  const origin=normalizeOrigin(req.headers.origin||DEFAULT_ORIGIN);
   return {'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,X-Genesis-Token,X-Genesis-Source-Type,X-Genesis-Variant,X-Genesis-File-Name,X-Genesis-Width,X-Genesis-Height,X-Genesis-Entity,X-Genesis-Entity-Id,X-Genesis-Hash','Access-Control-Max-Age':'86400','Vary':'Origin'};
 }
 function sendJson(req,res,status,payload){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...cors(req)});res.end(JSON.stringify(payload));}
@@ -134,11 +142,15 @@ async function openDataFolder(){
 
 async function handler(req,res){
   try{
+    const originOk=allowedOrigin(req);
+    if(!originOk){
+      console.warn('[Genesis CORS] origem recusada',{origin:normalizeOrigin(req.headers.origin||''),method:req.method,path:String(req.url||'').split('?')[0]});
+      sendJson(req,res,403,{ok:false,code:'origin_not_allowed',error:'Origem não permitida.'});return;
+    }
     if(req.method==='OPTIONS'){res.writeHead(204,cors(req));res.end();return;}
-    if(!allowedOrigin(req)){sendJson(req,res,403,{ok:false,error:'Origem não permitida.'});return;}
-    if(!authorized(req)){sendJson(req,res,401,{ok:false,error:'Código de pareamento inválido.'});return;}
+    if(!authorized(req)){sendJson(req,res,401,{ok:false,code:'invalid_pairing_code',error:'Código de pareamento inválido.'});return;}
     const url=new URL(req.url,'https://genesis.local');
-    if(req.method==='GET'&&url.pathname==='/health'){sendJson(req,res,200,{ok:true,service:'Genesis 3D Local Storage',version:SERVER_VERSION,capabilities:{snapshots:true,images:true,variants:true,library:true,openFolder:config.allowOpenFolder!==false},time:new Date().toISOString()});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){sendJson(req,res,200,{ok:true,service:'Genesis 3D Local Storage',version:SERVER_VERSION,requestOrigin:normalizeOrigin(req.headers.origin||''),capabilities:{snapshots:true,images:true,variants:true,library:true,openFolder:config.allowOpenFolder!==false},time:new Date().toISOString()});return;}
     if(req.method==='GET'&&url.pathname==='/v1/status'){
       const index=await loadImageIndex(),images=Object.values(index.images||{}).filter(item=>!item.deleted),snapshots=(await readdir(SNAPSHOT_DIR).catch(()=>[])).filter(name=>name.endsWith('.json'));
       sendJson(req,res,200,{ok:true,connected:true,url:requestBase(req),imageCount:images.length,bytesUsed:await folderSize(DATA_DIR),lastBackup:(await readJson(join(SNAPSHOT_DIR,'latest.json'),{})).savedAt||'',backupCount:snapshots.length,dataDir:DATA_DIR,time:new Date().toISOString()});return;
