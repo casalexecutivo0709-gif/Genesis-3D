@@ -45,5 +45,5 @@ ALTERAÇÕES
 - Prints podem continuar anexados como referência.
 
 8. Compatibilidade
-- Mantidas integrações MakerWorld, Bambu Handy, Thingiverse, Cloud/Supabase,
+- Mantidas integrações MakerWorld, Bambu Handy, Thingiverse,
   custo progressivo, Liquid Glass, scroll por layers e PWA.

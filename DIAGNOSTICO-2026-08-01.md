@@ -6,7 +6,6 @@
 - Dados de negócio eram carregados e regravados como grandes coleções JSON no `localStorage`.
 - Imagens já utilizavam `Blob` no IndexedDB, com referências `imageId`, lazy loading e revogação de Object URLs.
 - Existia snapshot integral resiliente no IndexedDB e backup opcional no computador.
-- Supabase estava presente como cópia integral opcional.
 - Service Worker já esperava confirmação do usuário para `skipWaiting`, mas guardava qualquer GET local em um cache sem limite.
 - Os Insights liam diretamente os pedidos e possuíam complementos posteriores para Shopee, criando mais de um caminho financeiro.
 

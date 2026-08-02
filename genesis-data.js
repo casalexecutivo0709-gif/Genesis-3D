@@ -469,7 +469,7 @@
   function installPersistenceHooks(){
     const changed=(name,smallKey,value)=>{
       if(smallKey)store.set(smallKey,JSON.stringify(value));
-      scheduleRawCollection(name);if(typeof scheduleCloudSync==='function')scheduleCloudSync();scheduleStateSnapshot(name);scheduleSheetsQueue(name);
+      scheduleRawCollection(name);scheduleStateSnapshot(name);scheduleSheetsQueue(name);
     };
     saveConfig=function(){changed('config',KEYS.CONFIG,cfg);};
     saveFilaments=function(){changed('filaments');};
