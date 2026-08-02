@@ -2584,6 +2584,22 @@ button:active,.btn:active,.more-item:active,.kit-item-card:active,.kit-picker-it
 .kit-saved-main{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:0;background:transparent;color:inherit;text-align:left;padding:14px;min-width:0}
 .kit-saved-delete{border:0;border-left:1px solid rgba(255,255,255,.07);background:rgba(130,22,52,.12);color:#ff8798;padding:0 14px;font-weight:800}
 img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
+
+/* Decorative prism layers must stay visible without ever becoming an input layer. */
+.screen-heading{isolation:isolate;z-index:2}
+.screen-heading::after,
+.quick-calc-banner::before,
+.detail-total::before,
+.sheet::before,
+.bottomnav::before{
+  pointer-events:none!important;
+  z-index:1;
+}
+.screen-heading>*{position:relative;z-index:2}
+.mobile-kanban-prism{position:relative;z-index:2;pointer-events:none}
+
+/* Keep the entry background uniform: the fixed atmospheric layer must not extend below the app. */
+body::before{inset:0!important}
 </style>
 
 </head>
