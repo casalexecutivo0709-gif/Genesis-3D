@@ -2,6 +2,23 @@
 .dev.vars*
 .env*
 node_modules/
+coverage/
+.cache/
+.tmp/
+tmp/
+temp/
+backups/
+.codex/
+.agents/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.local.json
+*.local.yaml
+*.local.yml
+*.pem
+*.crt
 
 genesis-local-server/config.json
 genesis-local-server/GenesisData/

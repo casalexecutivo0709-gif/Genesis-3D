@@ -2,6 +2,151 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
+## Concluídas na versão 2026.08.01.5 — Kanban e Insights no desktop
+
+### Kanban desktop
+
+- [x] Manter o mesmo Kanban e os mesmos pedidos, sem criar uma segunda aplicação ou base de dados.
+- [x] Exibir as oito etapas: Novo, Aguardando pagamento, A produzir, Em produção, Pronto, Enviado, Concluído e Cancelado.
+- [x] Adicionar rolagem horizontal real e sempre acessível, sem comprimir ou cortar colunas.
+- [x] Adicionar rolagem vertical independente dentro de cada coluna e manter os cabeçalhos visíveis.
+- [x] Padronizar largura das colunas, altura e contraste dos cards e espaçamentos do quadro.
+- [x] Mostrar no card imagem, pedido, produto, cliente, quantidade, canal, total, produção, pagamento e prazo.
+- [x] Adicionar ações rápidas para abrir, editar, marcar como pago, avançar e selecionar qualquer etapa.
+- [x] Persistir as mudanças no mesmo pedido, na fila offline, no Google Sheets e nos Insights, sem duplicar vendas.
+- [x] Preservar busca e filtros ao alternar entre Kanban e Lista.
+- [x] Adicionar resumo do filtro e tabela de pedidos recentes no desktop.
+
+### Genesis Insights desktop
+
+- [x] Reorganizar os seis indicadores principais em uma grade desktop de alto contraste.
+- [x] Dar mais espaço ao gráfico e manter a proporção sem distorcer linhas, pontos ou textos.
+- [x] Distribuir produtos, canais, comparações, Shopee, produção e clientes em duas colunas legíveis.
+- [x] Limitar os rótulos do eixo conforme a largura disponível e manter as datas legíveis.
+- [x] Atualizar os dados imediatamente ao entrar em Insights pelo menu lateral.
+- [x] Preservar integralmente a fonte financeira e todas as fórmulas já aprovadas.
+
+### Regressão e compatibilidade
+
+- [x] Manter o indicador de puxar para atualizar completamente oculto no estado normal.
+- [x] Preservar o Kanban celular, a barra inferior fixa, os formulários, imagens, rascunhos e o histórico.
+- [x] Manter pagamento rápido, busca de clientes, editor de imagens e sincronização existentes.
+- [x] Atualizar o cache do PWA sem apagar `localStorage`, IndexedDB ou registros anteriores.
+
+## Concluídas na versão 2026.08.01.4 — conectividade do Worker e servidor local
+
+### URGENTE — busca de modelos online não conecta ao Worker
+
+- [x] Investigar por que o teste feito dentro do Genesis informa **“Não foi possível conectar ao Worker”**, mesmo com a URL `https://hello.douglasscaramelli.workers.dev` correta.
+- [x] Registrar no relatório interno o status HTTP, endpoint consultado, origem da página, tempo da requisição e mensagem devolvida pelo Worker, sem registrar tokens ou dados sensíveis.
+- [x] Diferenciar na interface: Worker fora do ar/falha de rede, CORS, origem bloqueada, timeout, versão antiga e resposta inválida.
+- [x] Invalidar com segurança a configuração/cache antigo e repetir o teste com cache-busting e `cache: no-store`, sem apagar orçamentos, pedidos, imagens ou rascunhos.
+- [x] Manter a calculadora funcionando normalmente quando a ponte estiver indisponível e apresentar uma orientação específica para o erro detectado.
+- [x] Revalidar a resposta pública do Worker, a origem oficial e o contrato usado por busca, detalhes e importação de imagem.
+
+**Correção de 01/08/2026:** o Worker público respondeu `HTTP 200` como **Genesis 3D Model Bridge v10** e autorizou a origem oficial. O teste do aplicativo agora ignora respostas antigas, registra diagnóstico seguro e usa uma sondagem separada para distinguir bloqueio CORS de indisponibilidade de rede.
+
+### URGENTE — servidor local mostra “Origem não permitida”
+
+- [x] Registrar de forma segura qual cabeçalho `Origin` foi realmente recebido pelo servidor quando uma requisição for recusada.
+- [x] Comparar e normalizar a origem recebida com `allowedOrigins`, removendo barra final e mantendo uma lista explícita; não liberar CORS com curinga.
+- [x] Autorizar somente a origem oficial `https://casalexecutivo0709-gif.github.io` e endereços locais necessários para desenvolvimento, preservando autenticação por token.
+- [x] Distinguir claramente na interface: servidor desligado/endereço incorreto/certificado HTTPS, código de pareamento inválido e origem não autorizada.
+- [x] Não conservar como estado atual uma mensagem antiga de “Origem não permitida” quando o servidor estiver desligado ou não responder.
+- [x] Adicionar ao relatório de erros: origem recebida, URL configurada, versão do servidor, último contato e categoria da falha, sem incluir o código de pareamento.
+- [x] Mostrar orientação para iniciar o servidor quando a porta `8765` não estiver ativa.
+- [x] Confirmar que a indisponibilidade mantém imagens, orçamento e fila no IndexedDB até o servidor voltar.
+
+**Correção de 01/08/2026:** o `config.json` já continha a origem oficial e TLS. O servidor v3 agora devolve códigos explícitos e o app classifica ausência na porta `8765` como servidor desligado/inacessível, sem reaproveitar o erro antigo de origem. Todos os dados continuam preservados localmente.
+
+## Concluídas na versão 2026.08.01.3
+
+### Experiência e atualização
+
+- [x] Manter o gesto de puxar para atualizar sem deixar o indicador ocupando espaço no estado normal.
+- [x] Criar o indicador inicialmente vazio e oculto, exibindo progresso somente durante o gesto.
+- [x] Mostrar somente spinner e **“Atualizando...”** durante a atualização e remover texto, altura e classes ao terminar.
+- [x] Preservar tela, posição, formulário, rascunho, imagem e filas sem recarregar a página.
+
+### Orçamento e compartilhamento
+
+- [x] Exibir quantidade, valor unitário e total na arte quando houver mais de uma unidade.
+- [x] Utilizar exatamente o preço unitário e o total já salvos no snapshot do orçamento, com duas casas decimais.
+- [x] Gerar o texto compacto em no máximo seis linhas, sem linhas vazias ou repetição do total.
+- [x] Aplicar frete grátis ou valor do frete, prazo e validade com singular/plural correto.
+- [x] Preservar o modelo editável das Configurações e acrescentar o campo dinâmico `{CORES}`.
+- [x] Manter foto, logotipo, cores, aviso e rodapé dentro das margens da arte compacta.
+
+### Pagamento rápido e clientes
+
+- [x] Adicionar no topo do detalhe do pedido uma área de atualização rápida para produção e pagamento independentes.
+- [x] Ao marcar **Pago**, preencher o total salvo, a data local e a data/hora da confirmação, mantendo campos editáveis.
+- [x] Ao marcar **Pago parcialmente**, abrir o valor recebido, sugerir a data atual e mostrar o saldo restante sem permitir saldo negativo.
+- [x] Salvar no mesmo pedido e refletir em Kanban, detalhes, fila offline, Google Sheets e Insights sem duplicar a venda.
+- [x] Preservar a atualização rápida como rascunho no IndexedDB para recuperação depois de fechamento inesperado.
+- [x] Filtrar clientes em tempo real ignorando acentos, caixa e espaços extras, com ordenação por relevância.
+- [x] Mostrar **“Nenhum cliente encontrado”** e a ação para cadastrar o nome digitado sem criar duplicidade normalizada.
+
+### Imagens e servidor existentes — revalidação
+
+- [x] Revalidar menu customizado por clique, toque, toque prolongado e teclado sem abertura duplicada.
+- [x] Manter editor não destrutivo, original, versões, miniatura, rascunho e restauração depois de falha.
+- [x] Manter seleção, arrastar e soltar, Ctrl + V, biblioteca, MakerWorld e reutilização de imagem anterior.
+- [x] Manter IndexedDB como primeira gravação, servidor local opcional, fila posterior e Drive opcional.
+- [x] Confirmar que imagem e metadados continuam ligados ao orçamento e ao pedido real, sem Base64 no Google Sheets.
+
+### Validação
+
+- [x] Validar no navegador o cenário `3 un. x R$ 11,48` com total `R$ 34,44` na mensagem e na arte.
+- [x] Validar pagamento integral com preenchimento automático e pagamento parcial com saldo persistente.
+- [x] Executar verificação de sintaxe, testes financeiros, testes estruturais e inspeção visual do layout desktop.
+- [x] Manter os recursos responsivos do layout celular e o Service Worker sem `skipWaiting()` agressivo.
+
+## Concluídas na versão 2026.08.01.2
+
+### URGENTE — impedir que a imagem do item anterior apareça no novo orçamento
+
+- [x] Ao iniciar um novo item ou orçamento, desvincular e retirar imediatamente da tela a imagem do item anterior.
+- [x] Exibir um estado neutro ou a mensagem **“Carregando nova imagem…”** enquanto a imagem correta estiver sendo buscada, processada e salva.
+- [x] Vincular a imagem somente se ela pertencer ao item/orçamento atualmente aberto, validando o ID do registro antes de atualizar a tela.
+- [x] Cancelar ou ignorar respostas atrasadas de buscas e importações anteriores para impedir que uma imagem antiga substitua a imagem atual.
+- [x] Invalidar corretamente o cache de imagem e atualizar o preview assim que a nova imagem estiver pronta.
+- [x] Não exigir que o usuário feche, reabra ou atualize manualmente o aplicativo para visualizar a imagem correta.
+- [x] Preservar a imagem certa durante todo o fluxo: cálculo, orçamento, edição, kit, pedido, compartilhamento e histórico.
+- [x] O gesto de puxar para atualizar deve funcionar como recurso adicional, e não como solução obrigatória para corrigir a imagem.
+
+### Atualização ao puxar a tela para baixo
+
+- [x] Implementar o gesto **puxar para atualizar** (pull-to-refresh), semelhante ao Instagram, quando o usuário estiver no topo da tela.
+- [x] Exibir um indicador visual enquanto a atualização estiver acontecendo e uma confirmação discreta ao terminar.
+- [x] Atualizar os dados da tela atual, incluindo alterações sincronizadas, sem trocar de página.
+- [x] Preservar formulários em edição, imagens, rascunhos, filtros, posição da tela e todo o histórico durante a atualização.
+- [x] Impedir atualizações duplicadas caso o usuário puxe a tela várias vezes seguidas.
+- [x] Se existir uma nova versão do aplicativo, avisar o usuário e pedir confirmação antes de aplicá-la, sem forçar o recarregamento durante uma edição.
+
+### Edição completa de orçamentos e pedidos
+
+- [x] Ao tocar em **Editar** em um orçamento, voltar à tela inicial completa de criação/cálculo, com todos os dados originais preenchidos.
+- [x] Ao tocar em **Editar** em um pedido, voltar ao mesmo fluxo completo de criação/cálculo usado para gerar o orçamento ou pedido.
+- [x] Restaurar para edição: produto, tempo de impressão, peso, filamento, quantidade, margem, lucro, custos, preços direto/Shopee, frete, prazo, validade, cliente, foto, cores, observações e links.
+- [x] Manter disponíveis todas as funções da calculadora, inclusive recálculo automático de custo, preço e lucro durante a edição.
+- [x] Ao salvar, atualizar o orçamento ou pedido original em vez de criar uma duplicata.
+- [x] Preservar o mesmo ID, número, imagem, vínculo entre orçamento/pedido/kit, status e histórico da operação.
+- [x] Antes de abrir a edição, salvar um rascunho e permitir restauração caso o aplicativo seja fechado ou colocado em segundo plano.
+- [x] Para registros históricos com dados incompletos, carregar tudo o que estiver disponível e indicar claramente quais campos precisam ser preenchidos, sem inventar valores.
+
+### Desktop, servidor local e imagens
+
+- [x] Criar modos Automático, Celular e Desktop sem nova aplicação, nova rota ou nova base de dados.
+- [x] Adicionar menu lateral, formulário amplo, painel de imagem e prévia do orçamento em tempo real no computador.
+- [x] Ampliar o servidor local existente para originais, editadas, otimizadas, miniaturas, biblioteca, versões, status e backup.
+- [x] Criar a entidade `Imagens` no IndexedDB e no Google Sheets, salvando apenas metadados e referências na planilha.
+- [x] Adicionar fila offline, deduplicação por hash e fallback para IndexedDB quando computador ou Drive estiverem indisponíveis.
+- [x] Adicionar seleção, arrastar e soltar, Ctrl + V, biblioteca, imagens recentes, MakerWorld e reutilização de registros anteriores.
+- [x] Adicionar menu customizado e editor não destrutivo com recorte, giro, espelhamento, zoom, proporções, desfazer, refazer e restauração do original.
+- [x] Preservar rascunho, imagem, enquadramento e fila depois de fechamento inesperado.
+- [x] Manter o uso 100% gratuito: servidor próprio, IndexedDB, Google Sheets/Drive opcionais e nenhuma cobrança automática.
+
 ## Concluídas na versão 2026.08.01.1
 
 - [x] Criar fonte financeira única para venda direta, Shopee, kits e Genesis Insights.

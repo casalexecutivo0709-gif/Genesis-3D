@@ -3,7 +3,7 @@
  * Execute setupGenesisDatabase() uma vez e depois implante como Aplicativo da Web.
  * Nenhum segredo deve ser escrito neste arquivo: use Script Properties.
  */
-const GENESIS_API_VERSION = '2026.08.01.1';
+const GENESIS_API_VERSION = '2026.08.01.2';
 const PROP_SPREADSHEET_ID = 'GENESIS_SPREADSHEET_ID';
 const PROP_ACCESS_TOKEN = 'GENESIS_ACCESS_TOKEN';
 const PROP_DRIVE_FOLDER_ID = 'GENESIS_DRIVE_FOLDER_ID';
@@ -22,6 +22,7 @@ const GENESIS_SCHEMAS = {
   Vendas:['id','venda_id','pedido_id','data','canal','cliente_id','status','valor_bruto_total','taxas_canal_total','valor_recebido_total','faturamento_total','custo_producao_total','lucro_total','margem_total','desconto_total','created_at','updated_at','version','origem','sync_status','deleted','dados_json'],
   Venda_Itens:['id','venda_item_id','venda_id','pedido_id','produto_id','produto_nome_snapshot','quantidade','origem_item','kit_id','kit_nome_snapshot','preco_normal_unitario','percentual_desconto','valor_bruto_alocado','taxas_alocadas','faturamento_alocado','custo_unitario_snapshot','custo_total','lucro','margem','created_at','updated_at','version','origem','sync_status','deleted','dados_json'],
   Custos:['id','calculo_id','produto_nome','energia','maquina','filamento','custo_total','created_at','updated_at','version','origem','sync_status','deleted','dados_json'],
+  Imagens:['id','entidade','entidade_id','produto_id','orcamento_id','pedido_id','nome_original','nome_arquivo','tipo_mime','tamanho_bytes','largura','altura','hash','imagem_original_id','imagem_editada_id','thumbnail_id','local_file_id','local_url','drive_file_id','drive_url','versao','principal','origem','created_at','updated_at','sync_status','deleted','dados_json'],
   Sincronizacao:['id','operation_id','entity','entity_id','action','status','attempts','message','created_at','updated_at','version','origem','sync_status','deleted','dados_json'],
   Diagnosticos:['id','nivel','evento','tela','versao_app','created_at','updated_at','version','origem','sync_status','deleted','dados_json']
 };
@@ -83,6 +84,8 @@ function doPost(event) {
         result=batchSync_({operations:[{operation_id:body.operation_id||Utilities.getUuid(),entity:body.entity,entity_id:body.entity_id||body.payload&&body.payload.id,action:body.operation,payload:body.payload||{}}]});break;
       case 'batchSync':result=batchSync_(body);break;
       case 'uploadImage':result=uploadImage_(body);break;
+      case 'downloadImage':result=downloadImage_(body);break;
+      case 'imageMetadata':result=imageMetadata_(body);break;
       default:throw new Error('Operação inválida.');
     }
     return json_(result);
@@ -168,8 +171,23 @@ function uploadImage_(body) {
   if(!body.file_name||!body.mime_type||!body.base64)throw new Error('Imagem incompleta.');
   if(String(body.base64).length>6500000)throw new Error('Imagem grande demais para o Apps Script. Comprima antes do envio.');
   const bytes=Utilities.base64Decode(String(body.base64).replace(/^data:[^,]+,/,'')),blob=Utilities.newBlob(bytes,String(body.mime_type),String(body.file_name));
-  const file=ensureDriveFolder_().createFile(blob);file.setDescription(`Genesis 3D · ${body.reference_id||''}`);
-  return {ok:true,file_id:file.getId(),url:file.getUrl(),name:file.getName(),mime_type:file.getMimeType(),size:file.getSize(),server_time:new Date().toISOString()};
+  const file=ensureDriveFolder_().createFile(blob);file.setDescription(`Genesis 3D · ${body.reference_id||''} · image_id=${body.image_id||body.reference_id||''}`);
+  if(body.share_mode==='link')file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);
+  const directUrl=body.share_mode==='link'?`https://drive.google.com/uc?export=view&id=${file.getId()}`:'';
+  return {ok:true,file_id:file.getId(),url:file.getUrl(),direct_url:directUrl,name:file.getName(),mime_type:file.getMimeType(),size:file.getSize(),server_time:new Date().toISOString()};
+}
+
+function downloadImage_(body) {
+  const id=String(body.file_id||'').trim();if(!id)throw new Error('file_id obrigatório.');
+  const file=DriveApp.getFileById(id),blob=file.getBlob();
+  if(blob.getBytes().length>5000000)throw new Error('Use a versão otimizada da imagem, limitada a 5 MB.');
+  return {ok:true,file_id:id,file_name:file.getName(),mime_type:blob.getContentType(),base64:Utilities.base64Encode(blob.getBytes()),server_time:new Date().toISOString()};
+}
+
+function imageMetadata_(body) {
+  const id=String(body.file_id||'').trim();if(!id)throw new Error('file_id obrigatório.');
+  const file=DriveApp.getFileById(id);
+  return {ok:true,file_id:id,name:file.getName(),mime_type:file.getMimeType(),size:file.getSize(),url:file.getUrl(),updated_at:file.getLastUpdated().toISOString(),server_time:new Date().toISOString()};
 }
 
 function healthCheck_() {

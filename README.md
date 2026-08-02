@@ -9,8 +9,19 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Importação automática de nome, imagem, link, tempo e peso quando a fonte fornece esses dados.
 - Foto persistida no orçamento, no pedido convertido e nos kits.
 - Mensagem automática e arte pronta para compartilhar com o cliente.
+- Arte e mensagem compactas com quantidade, valor unitário e total idênticos ao snapshot financeiro do orçamento.
+- Atualização rápida de produção e pagamento no próprio detalhe do pedido, com total/data automáticos e saldo parcial.
+- Busca inteligente de clientes, ignorando acentos, maiúsculas e espaços extras.
+- Gesto de puxar para atualizar com indicador totalmente oculto fora do gesto.
 - Kits com várias peças, quantidades, desconto, prazo, frete, layout visual e conversão em pedido.
 - Uso no celular como PWA e funcionamento offline do conteúdo já salvo.
+- Modo de visualização Automático, Celular ou Desktop, usando a mesma aplicação e os mesmos dados sem recarregar a página.
+- Área de trabalho desktop com menu lateral, calculadora ampla, painel de foto e prévia do orçamento em tempo real.
+- Kanban desktop com as oito etapas, rolagem horizontal visível, rolagem vertical por coluna, filtros persistentes e ações rápidas de produção e pagamento.
+- Genesis Insights reorganizado em grade desktop, com indicadores de alto contraste, gráfico proporcional e tabelas mais legíveis, sem alterar as fórmulas financeiras.
+- Biblioteca e editor não destrutivo de imagens com recorte, proporção, rotação, espelhamento, zoom, desfazer, refazer e restauração do original.
+- Inserção de imagens por seleção, arrastar e soltar, Ctrl + V, MakerWorld, biblioteca, orçamento ou pedido anterior.
+- Fila resiliente de imagens no IndexedDB, miniaturas, deduplicação por hash e sincronização posterior com o computador e, opcionalmente, Google Drive.
 - Leitura de prints da Shopee com a franquia gratuita do Cloudflare Workers AI e OCR local de reserva, sempre com revisão antes de importar.
 - Cópia automática de segurança no IndexedDB para preservar o histórico entre atualizações.
 - Espelhamento opcional dos dados e imagens no próprio computador.
@@ -83,7 +94,7 @@ A resposta deve informar `version: 10`, `zeroCostMode: true`, `makerworld: true`
 
 ## Guardar cópia no próprio computador
 
-O diretório [`genesis-local-server`](genesis-local-server/) contém um servidor sem dependências externas que guarda snapshots e imagens dentro do computador.
+O diretório [`genesis-local-server`](genesis-local-server/) contém o servidor sem dependências externas que guarda snapshots, originais, versões editadas, miniaturas e a biblioteca de imagens dentro do computador.
 
 1. Abra o README dessa pasta e configure HTTPS para a rede local.
 2. Execute `start-server.cmd`.
@@ -91,7 +102,11 @@ O diretório [`genesis-local-server`](genesis-local-server/) contém um servidor
 4. Informe o endereço HTTPS e o código de pareamento.
 5. Teste e ative a cópia automática.
 
+No desktop também é possível usar **Sincronizar imagens**, **Abrir pasta de imagens**, **Fazer backup agora** e **Biblioteca de imagens**. Se o computador estiver desligado, a foto permanece no IndexedDB e entra na fila; o orçamento pode ser salvo normalmente e a sincronização acontece quando o servidor voltar.
+
 Atualizar o aplicativo no mesmo endereço não apaga `localStorage` nem IndexedDB. O Service Worker também só instala a nova versão depois da confirmação do usuário. A cópia no computador oferece recuperação adicional caso os dados do site sejam apagados manualmente ou pelo sistema.
+
+O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.5.md`](RELEASE-2026.08.01.5.md).
 
 ## Ativar sincronização com Google Sheets
 
@@ -131,10 +146,11 @@ Use apenas a chave pública no aplicativo. A chave `service_role` nunca deve ser
 - `corrigido.html`: aplicativo.
 - `genesis-finance.js`: fonte única dos cálculos de vendas, taxas, kits e Insights.
 - `genesis-data.js`: IndexedDB, rascunhos, fila offline, migração e Google Sheets.
+- `genesis-workspace.js`: modo desktop, biblioteca, editor, versões e sincronização resiliente de imagens.
+- `genesis-workspace.css`: organização responsiva para celular e desktop.
 - `service-worker.js`: instalação e cache offline.
 - `manifest.json`: nome, ícones e aparência da PWA.
 - `makerworld-worker.js`: ponte para MakerWorld, Thingiverse e imagens.
 - `genesis-local-server/`: cópia opcional no próprio computador.
 - `google-apps-script/`: API e criação automática da planilha Google.
 - `supabase-schema.sql`: tabela e políticas de segurança da sincronização.
-

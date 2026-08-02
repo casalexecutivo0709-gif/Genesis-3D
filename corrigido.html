@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="genesis-192.png">
 <link rel="icon" type="image/png" href="genesis-192.png">
 <link rel="manifest" href="manifest.json" onerror="this.remove()">
+<link rel="stylesheet" href="genesis-workspace.css?v=2026.08.01.5-final">
 <title>Genesis 3D · Calculadora</title>
 <style>
 :root{
@@ -2968,7 +2969,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <div class="field" style="margin-bottom:0;">
         <label>Mensagem padrão dos orçamentos</label>
         <textarea id="cfgQuoteTemplate" style="min-height:250px;" placeholder="Modelo padrão do orçamento"></textarea>
-        <p class="secondary-note" style="margin-top:7px;">Você pode editar o texto livremente. Campos dinâmicos disponíveis: {EMPRESA}, {ITEM}, {VALORES}, {FRETE}, {SHOPEE_LINK}, {SHOPEE_AVISO}, {PRAZO}, {VALIDADE}, {OBSERVACOES} e {MENSAGEM_FINAL}.</p>
+        <p class="secondary-note" style="margin-top:7px;">Você pode editar o texto livremente. Campos dinâmicos disponíveis: {EMPRESA}, {ITEM}, {VALORES}, {FRETE}, {SHOPEE_LINK}, {SHOPEE_AVISO}, {PRAZO}, {VALIDADE}, {CORES}, {OBSERVACOES} e {MENSAGEM_FINAL}.</p>
         <button class="btn btn-secondary btn-sm" id="btnResetQuoteTemplate" type="button" style="margin-top:8px;">Restaurar modelo padrão</button>
       </div>
     </div>
@@ -3289,17 +3290,17 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <button class="insight-kpi" type="button" data-insight-drill="pending"><div class="klabel">A receber</div><div class="kvalue" id="insPending">R$ 0,00</div><div class="kdelta">Saldo dos pedidos do período</div></button>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-chart-card">
       <div class="insights-title-row"><h3>Evolução</h3><small id="insChartGranularity"></small></div>
       <div class="insight-seg">
         <button class="btn btn-primary btn-sm" type="button" data-ins-chart="revenue">Faturamento</button>
         <button class="btn btn-secondary btn-sm" type="button" data-ins-chart="profit">Lucro</button>
         <button class="btn btn-secondary btn-sm" type="button" data-ins-chart="orders">Pedidos</button>
       </div>
-      <div class="insights-chart-wrap"><svg id="insightsChart" viewBox="0 0 340 190" preserveAspectRatio="none" aria-label="Gráfico de evolução"></svg></div>
+      <div class="insights-chart-wrap"><svg id="insightsChart" viewBox="0 0 340 190" preserveAspectRatio="xMidYMid meet" aria-label="Gráfico de evolução"></svg></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-products-card">
       <div class="insights-title-row"><h3>Produtos</h3><small>Toque para ver detalhes</small></div>
       <div class="insight-seg">
         <button class="btn btn-primary btn-sm" type="button" data-ins-rank="qty">Mais vendidos</button>
@@ -3310,17 +3311,17 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <div class="ranking-list" id="insProductRanking"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-channel-card">
       <div class="insights-title-row"><h3>Vendas por canal</h3><small>Faturamento por canal</small></div>
       <div id="insChannelBars"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-compare-card">
       <div class="insights-title-row"><h3>Shopee x Venda direta</h3><small>Resultado comparativo</small></div>
       <div class="compare-grid" id="insChannelCompare"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-shopee-card">
       <div class="insights-title-row"><h3>Shopee</h3><small id="insShopeeLabel"></small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Faturamento bruto</span><b id="insShopeeRevenue">R$ 0,00</b></div>
@@ -3333,7 +3334,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
     </div>
 
 
-    <div class="insights-card" id="insShopeeHybridCard">
+    <div class="insights-card insights-hybrid-card" id="insShopeeHybridCard">
       <div class="insights-title-row"><h3>Conciliação Shopee</h3><small>Excel confirma o dinheiro</small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Vendas brutas</span><b id="insHybridGross">R$ 0,00</b></div>
@@ -3343,7 +3344,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       </div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-production-card">
       <div class="insights-title-row"><h3>Produção associada às vendas</h3><small>Somente pedidos com snapshot disponível</small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Horas impressão</span><b id="insPrintHours">—</b></div>
@@ -3354,7 +3355,7 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
       <div id="insFilamentComposition" class="secondary-note" style="margin-top:10px;"></div>
     </div>
 
-    <div class="insights-card">
+    <div class="insights-card insights-customers-card">
       <div class="insights-title-row"><h3>Clientes</h3><small>Quando há identificação confiável</small></div>
       <div class="production-grid">
         <div class="production-stat"><span>Clientes atendidos</span><b id="insCustomers">0</b></div>
@@ -4124,19 +4125,51 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
   <div class="sheet-handle"></div>
   <h2 id="odTitle">Pedido</h2>
   <p class="sub" id="odMeta"></p>
-  <div class="field">
-    <label>Status</label>
-    <select id="odStatus">
-      <option value="novo">Novo</option>
-      <option value="aguardando-pagamento">Aguardando pagamento</option>
-      <option value="a-produzir">A produzir</option>
-      <option value="em-producao">Em produção</option>
-      <option value="pronto">Pronto</option>
-      <option value="enviado">Enviado</option>
-      <option value="concluido">Concluído</option>
-      <option value="cancelado">Cancelado</option>
-    </select>
-  </div>
+  <section class="order-quick-panel" aria-labelledby="odQuickTitle">
+    <div class="order-quick-heading">
+      <div>
+        <strong id="odQuickTitle">Atualização rápida</strong>
+        <small>Produção e pagamento são independentes.</small>
+      </div>
+      <span id="odQuickSaveState" class="order-quick-save-state" aria-live="polite">Salvo</span>
+    </div>
+    <div class="order-quick-grid">
+      <div class="field">
+        <label for="odStatus">Status de produção</label>
+        <select id="odStatus">
+          <option value="novo">Novo</option>
+          <option value="aguardando-pagamento">Aguardando pagamento</option>
+          <option value="a-produzir">A produzir</option>
+          <option value="em-producao">Em produção</option>
+          <option value="pronto">Pronto</option>
+          <option value="enviado">Enviado</option>
+          <option value="concluido">Concluído</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="odQuickPaymentStatus">Situação do pagamento</label>
+        <select id="odQuickPaymentStatus">
+          <option value="pending">Aguardando pagamento</option>
+          <option value="partial">Pago parcialmente</option>
+          <option value="paid">Pago</option>
+          <option value="not-applicable">Não se aplica</option>
+        </select>
+      </div>
+    </div>
+    <div id="odQuickPaymentFields" class="order-quick-payment-fields">
+      <div class="order-quick-grid">
+        <div class="field"><label for="odQuickPaid">Valor recebido</label><input type="text" id="odQuickPaid" inputmode="decimal" placeholder="0,00"></div>
+        <div class="field"><label for="odQuickReceivedAt">Data de recebimento</label><input type="date" id="odQuickReceivedAt"></div>
+      </div>
+      <div class="order-quick-grid">
+        <div class="field"><label for="odQuickDueDate">Data combinada</label><input type="date" id="odQuickDueDate"></div>
+        <div class="field"><label for="odQuickPaymentNote">Observação</label><input type="text" id="odQuickPaymentNote" placeholder="Opcional"></div>
+      </div>
+      <div id="odQuickBalance" class="order-quick-balance"></div>
+    </div>
+    <button class="btn btn-primary" id="btnOdQuickSave" type="button">Salvar atualização</button>
+  </section>
   <div id="odBody"></div>
   <div class="link-actions">
     <button class="btn btn-secondary" id="btnOdWhatsapp">WhatsApp</button>
@@ -4287,10 +4320,11 @@ const KEYS = {
   MW_CACHE:'genesis3d:makerworldCache',
   SHOPEE_CATALOG:'genesis3d:shopeeCatalog',
   SHOPEE_ALIASES:'genesis3d:shopeeAliases',
-  KITS:'genesis3d:kits'
+  KITS:'genesis3d:kits',
+  IMAGES:'genesis3d:imageMetadata'
 };
-const SCHEMA_VERSION = 23;
-const GENESIS_APP_VERSION = '2026.08.01.1';
+const SCHEMA_VERSION = 25;
+const GENESIS_APP_VERSION = '2026.08.01.5';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -4355,7 +4389,7 @@ window.addEventListener('unhandledrejection',event=>{
   setTimeout(()=>{if(typeof genesisRecoverUi==='function')genesisRecoverUi('promise-rejection');},0);
 });
 
-const DEFAULT_QUOTE_TEMPLATE = `Olá! 😊
+const LEGACY_QUOTE_TEMPLATE = `Olá! 😊
 
 Segue o orçamento da {EMPRESA}:
 
@@ -4380,6 +4414,12 @@ Segue o orçamento da {EMPRESA}:
 {MENSAGEM_FINAL}
 
 {EMPRESA}`;
+
+const DEFAULT_QUOTE_TEMPLATE = `✨ *Seu orçamento está pronto!*
+{VALORES}
+{FRETE} | {PRAZO}
+{VALIDADE}{CORES}
+{MENSAGEM_FINAL}`;
 
 const DEFAULT_AD_PROMPT_TEMPLATE = `Quero que você atue como um especialista em e-commerce, copywriting e otimização de anúncios para Shopee Brasil.
 
@@ -4514,8 +4554,9 @@ const DEFAULT_CONFIG = {
     defaultValidityDays:7,
     defaultProductionDeadline:'',
     lastProductionDeadline:'',
-    closingMessage:'Obrigado pela preferência!',
+    closingMessage:'Para confirmar, é só me chamar 😊',
     quoteTemplate:DEFAULT_QUOTE_TEMPLATE,
+    quoteTemplateVersion:2,
     adPromptTemplate:DEFAULT_AD_PROMPT_TEMPLATE
   },
   makerworld:{ workerUrl:'https://hello.douglasscaramelli.workers.dev', lastStatus:'unknown', lastTestAt:0 },
@@ -4595,6 +4636,7 @@ let savedModels = loadJSON(KEYS.MODELS, []);
 let makerWorldCache = loadJSON(KEYS.MW_CACHE, {});
 let shopeeCatalog=loadJSON(KEYS.SHOPEE_CATALOG,DEFAULT_SHOPEE_CATALOG);
 let shopeeLearnedAliases=loadJSON(KEYS.SHOPEE_ALIASES,{});
+let imageEntities=loadJSON(KEYS.IMAGES,[]);
 DEFAULT_SHOPEE_CATALOG.forEach(def=>{if(!shopeeCatalog.some(x=>x.id===def.id||String(x.name||'').toLowerCase()===def.name.toLowerCase()))shopeeCatalog.push(JSON.parse(JSON.stringify(def)))});
 kits=Array.isArray(kits)?kits:[];
 orders.forEach(o=>{
@@ -4642,6 +4684,7 @@ function saveModels(){ store.set(KEYS.MODELS, JSON.stringify(savedModels)); sche
 function saveMakerWorldCache(){ try{ store.set(KEYS.MW_CACHE, JSON.stringify(makerWorldCache)); }catch(e){} }
 function saveShopeeCatalog(){store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));scheduleCloudSync();scheduleStateSnapshot('catalog')}
 function saveShopeeAliases(){store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));scheduleCloudSync();scheduleStateSnapshot('aliases')}
+function saveImages(){store.set(KEYS.IMAGES,JSON.stringify(imageEntities));scheduleCloudSync();scheduleStateSnapshot('images')}
 function saveCounters(){ store.set(KEYS.COUNTERS, JSON.stringify(counters)); scheduleCloudSync(); scheduleStateSnapshot('counters'); }
 function saveUI(){ store.set(KEYS.UI, JSON.stringify(uiState)); scheduleCloudSync(); scheduleStateSnapshot('ui'); }
 
@@ -4658,7 +4701,7 @@ function nextSequence(type){
 
 /* ---------- IndexedDB: imagens novas não ficam no localStorage ---------- */
 const MEDIA_DB_NAME = 'genesis3d-media';
-const MEDIA_DB_VERSION = 3;
+const MEDIA_DB_VERSION = 4;
 const MEDIA_STORE = 'images';
 const STATE_STORE = 'stateSnapshots';
 const RECORD_STORE = 'records';
@@ -4667,6 +4710,8 @@ const DRAFT_STORE = 'drafts';
 const DIAGNOSTIC_STORE = 'diagnostics';
 const META_STORE = 'syncMeta';
 const LEGACY_BACKUP_STORE = 'legacyBackups';
+const IMAGE_QUEUE_STORE = 'imageQueue';
+const IMAGE_VERSION_STORE = 'imageVersions';
 let mediaDbPromise = null;
 const mediaObjectUrlCache = new Map();
 /* Fallback somente de sessão para ambientes que bloqueiam IndexedDB (ex.: algumas prévias/arquivos locais).
@@ -4690,6 +4735,8 @@ function openMediaDb(){
       if(!db.objectStoreNames.contains(DIAGNOSTIC_STORE)) db.createObjectStore(DIAGNOSTIC_STORE, {keyPath:'id'});
       if(!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, {keyPath:'id'});
       if(!db.objectStoreNames.contains(LEGACY_BACKUP_STORE)) db.createObjectStore(LEGACY_BACKUP_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(IMAGE_QUEUE_STORE)) db.createObjectStore(IMAGE_QUEUE_STORE, {keyPath:'id'});
+      if(!db.objectStoreNames.contains(IMAGE_VERSION_STORE)) db.createObjectStore(IMAGE_VERSION_STORE, {keyPath:'id'});
     };
     req.onsuccess = ()=> resolve(req.result);
     req.onerror = ()=> resolve(null);
@@ -4879,7 +4926,7 @@ function genesisCoreSnapshot(){
   return {
     version:7,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),
     config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,
-    shopeeCatalog,shopeeLearnedAliases
+    shopeeCatalog,shopeeLearnedAliases,imageEntities
   };
 }
 function scheduleStateSnapshot(reason='change'){
@@ -4941,6 +4988,7 @@ function applyGenesisCoreSnapshot(data){
   uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{}},data.uiState||{});
   shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
   shopeeLearnedAliases=data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object'?data.shopeeLearnedAliases:{};
+  imageEntities=Array.isArray(data.imageEntities)?data.imageEntities:[];
 }
 function persistGenesisCoreToLocalStorage(){
   store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));
@@ -4949,6 +4997,7 @@ function persistGenesisCoreToLocalStorage(){
   store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.COUNTERS,JSON.stringify(counters));
   store.set(KEYS.UI,JSON.stringify(uiState));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));
   store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));
+  store.set(KEYS.IMAGES,JSON.stringify(imageEntities));
 }
 async function restoreStateSnapshotIfNeeded(){
   if(genesisHasBusinessData({history,quotes,orders,kits}))return false;
@@ -4971,18 +5020,40 @@ function localComputerHeaders(contentType){
   if(contentType)headers['Content-Type']=contentType;
   return headers;
 }
+function genesisConnectionError(code,message,details={}){
+  const error=new Error(message);
+  error.name='GenesisConnectionError';error.code=code;
+  Object.assign(error,details);
+  return error;
+}
+function localComputerErrorText(error){
+  const code=String(error?.code||'');
+  if(code==='origin_not_allowed')return `Origem não autorizada. Inclua ${location.origin} em allowedOrigins.`;
+  if(code==='invalid_pairing_code')return 'Código de pareamento inválido.';
+  if(code==='server_timeout')return 'Servidor local não respondeu a tempo.';
+  if(code==='server_unreachable')return 'Servidor local desligado, endereço incorreto ou certificado HTTPS não confiável.';
+  if(code==='invalid_server_response')return 'Resposta inválida do servidor local.';
+  return error?.message||'Não foi possível conectar ao servidor local.';
+}
 async function localComputerFetch(path,options={}){
   const local=loadLocalComputerConfig();
   if(!local.serverUrl)throw new Error('Informe o endereço do computador.');
   if(!/^https:\/\//i.test(local.serverUrl))throw new Error('O endereço precisa começar com https:// para funcionar no iPhone.');
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+  const endpoint=local.serverUrl+path,started=Date.now(),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
   try{
-    const response=await fetch(local.serverUrl+path,{...options,headers:{...localComputerHeaders(options.contentType),...(options.headers||{})},signal:controller.signal});
+    const response=await fetch(endpoint,{...options,cache:'no-store',credentials:'omit',headers:{...localComputerHeaders(options.contentType),...(options.headers||{})},signal:controller.signal});
     if(!response.ok){
       const payload=await response.json().catch(()=>({}));
-      throw new Error(payload.error||`Servidor respondeu ${response.status}`);
+      const code=response.status===403||payload.code==='origin_not_allowed'?'origin_not_allowed':response.status===401||payload.code==='invalid_pairing_code'?'invalid_pairing_code':'server_http_error';
+      throw genesisConnectionError(code,payload.error||`Servidor respondeu ${response.status}`,{status:response.status,endpoint,elapsedMs:Date.now()-started,serverVersion:payload.version||''});
     }
     return response;
+  }catch(error){
+    let resolved=error;
+    if(error?.name==='AbortError')resolved=genesisConnectionError('server_timeout','Servidor local não respondeu a tempo.',{endpoint,elapsedMs:Date.now()-started});
+    else if(!error?.code&&(error instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(error?.message||''))))resolved=genesisConnectionError('server_unreachable','Servidor local desligado, inacessível ou com certificado HTTPS não confiável.',{endpoint,elapsedMs:Date.now()-started});
+    genesisLog('connection.local.failure',{code:resolved.code||'unknown',status:resolved.status||0,endpoint:local.serverUrl,origin:location.origin,elapsedMs:resolved.elapsedMs||Date.now()-started,serverVersion:resolved.serverVersion||''},'warn');
+    throw resolved;
   }finally{clearTimeout(timer)}
 }
 function setLocalComputerStatus(state,text){
@@ -5176,9 +5247,17 @@ async function runSchemaMigration(){
     });
     saveKits();
   }
+  if(oldVersion<25){
+    const configured=String(cfg.makerworld?.workerUrl||'').trim();
+    if(!configured||/^http:\/\/hello\.douglasscaramelli\.workers\.dev\/?$/i.test(configured)){
+      cfg.makerworld=Object.assign({},cfg.makerworld||{},{workerUrl:DEFAULT_CONFIG.makerworld.workerUrl});
+    }else cfg.makerworld.workerUrl=configured.replace(/\/$/,'');
+    cfg.makerworld.lastStatus='unknown';
+    makerWorldCache={};saveMakerWorldCache();saveConfig();
+  }
   if(changedFilaments) saveFilaments();
   if(changedHistory) saveHistory();
-  saveQuotes(); saveOrders(); saveKits(); saveModels(); saveCounters();
+  saveQuotes(); saveOrders(); saveKits(); saveModels(); saveImages(); saveCounters();
   store.set(KEYS.SCHEMA, String(SCHEMA_VERSION));
   return oldVersion;
 }
@@ -5809,6 +5888,7 @@ function genesisPrepareScreenContent(name){
   if(name==='settings'){populateSettingsForm();renderDefaultFilamentSelect();}
   if(name==='quotes'&&typeof renderQuoteList==='function')renderQuoteList();
   if(name==='orders'&&typeof renderOrders==='function')renderOrders();
+  if(name==='insights'&&typeof renderInsights==='function')renderInsights();
   if(name==='models'&&typeof renderSavedModels==='function'){updateMakerWorldStatusUI();renderSavedModels();}
   if(name==='more'&&typeof refreshMoreCounts==='function')refreshMoreCounts();
   if(name==='kits'&&typeof renderKitComposer==='function')renderKitComposer();
@@ -6471,6 +6551,15 @@ function restoreLastCalc(){
 /* ---- Foto da peça ---- */
 let currentPhotoDataUrl = null;
 let currentPhotoImageId = null;
+const genesisImageRequestTokens={calc:0,quote:0,order:0};
+function setGenesisImageLoading(kind,loading){
+  const target=kind==='quote'?document.getElementById('qPhotoManager'):kind==='order'?document.getElementById('oPhotoManager'):document.getElementById('photoPreviewWrap')?.parentElement;
+  if(!target)return;
+  target.classList.toggle('genesis-image-loading',!!loading);
+  let status=target.querySelector('.genesis-image-loading-status');
+  if(loading&&!status){status=document.createElement('div');status.className='genesis-image-loading-status';status.textContent='Carregando nova imagem…';target.prepend(status);}
+  if(status)status.hidden=!loading;
+}
 function resizeImageBlob(file, maxDim=1200, quality=.8){
   return new Promise((resolve, reject)=>{
     if(!file){reject(new Error('Arquivo de imagem ausente.'));return;}
@@ -6521,8 +6610,11 @@ function setPhoto(dataUrl,imageId){
   const wrap = document.getElementById('photoPreviewWrap');
   if(dataUrl){
     document.getElementById('photoPreview').src = dataUrl;
+    document.getElementById('photoPreview').dataset.imageId=currentPhotoImageId||'';
     wrap.style.display = 'block';
   } else {
+    document.getElementById('photoPreview').removeAttribute('src');
+    document.getElementById('photoPreview').dataset.imageId='';
     wrap.style.display = 'none';
   }
 }
@@ -6707,11 +6799,20 @@ function captureInternalSnapshot(){
 }
 
 /* ---------- Clientes reutilizáveis, derivados de pedidos/orçamentos ---------- */
+function normalizeCustomerSearch(value){
+  return String(value??'')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ');
+}
 function collectCustomers(){
   const map=new Map();
   const add=(c,orderInc)=>{
     if(!c || !(c.name||'').trim()) return;
-    const key=((c.phone||c.whatsapp||'')+'|'+c.name).toLowerCase().trim();
+    const normalizedName=normalizeCustomerSearch(c.name);
+    const key=normalizedName||String(c.phone||c.whatsapp||'').replace(/\D/g,'');
     const current=map.get(key)||{name:c.name||'',phone:c.phone||'',whatsapp:c.whatsapp||c.phone||'',instagram:c.instagram||'',orderCount:0};
     if(c.name) current.name=c.name;
     if(c.phone) current.phone=c.phone;
@@ -6726,23 +6827,45 @@ function collectCustomers(){
 }
 function renderCustomerSuggestions(input,box,fillFn){
   if(!input || !box) return;
-  const term=(input.value||'').trim().toLowerCase();
+  const typedName=String(input.value||'').trim();
+  const term=normalizeCustomerSearch(typedName);
   if(!term){ box.classList.remove('show'); box.innerHTML=''; return; }
-  const matches=collectCustomers().filter(c=>
-    (c.name||'').toLowerCase().includes(term) ||
-    (c.phone||'').replace(/\D/g,'').includes(term.replace(/\D/g,'')) ||
-    (c.instagram||'').toLowerCase().includes(term)
-  ).slice(0,30);
+  const digits=term.replace(/\D/g,'');
+  const rankCustomer=c=>{
+    const name=normalizeCustomerSearch(c.name);
+    const words=name.split(' ');
+    if(name===term)return 0;
+    if(name.startsWith(term))return 1;
+    if(words.some(word=>word.startsWith(term)))return 2;
+    if(name.includes(term))return 3;
+    const contact=[c.phone,c.whatsapp].filter(Boolean).join(' ').replace(/\D/g,'');
+    if((digits&&contact.includes(digits))||normalizeCustomerSearch(c.instagram).includes(term))return 4;
+    return 99;
+  };
+  const matches=collectCustomers()
+    .map(c=>({c,rank:rankCustomer(c)}))
+    .filter(item=>item.rank<99)
+    .sort((a,b)=>a.rank-b.rank||b.c.orderCount-a.c.orderCount||a.c.name.localeCompare(b.c.name,'pt-BR'))
+    .slice(0,30)
+    .map(item=>item.c);
   box.innerHTML='';
   matches.forEach(c=>{
     const b=document.createElement('button');
     b.type='button'; b.className='customer-suggestion';
     const extra=[c.phone||c.whatsapp, c.orderCount ? (c.orderCount+' '+(c.orderCount===1?'pedido anterior':'pedidos anteriores')):''].filter(Boolean).join(' · ');
     b.innerHTML='<strong>'+escapeHtml(c.name)+'</strong><small>'+escapeHtml(extra||'Cliente já utilizado')+'</small>';
+    b.addEventListener('pointerdown',event=>event.preventDefault());
     b.addEventListener('click',()=>{ fillFn(c); box.classList.remove('show'); });
     box.appendChild(b);
   });
-  box.classList.toggle('show',matches.length>0);
+  if(!matches.length){
+    const empty=document.createElement('div');empty.className='customer-suggestion-empty';empty.textContent='Nenhum cliente encontrado';box.appendChild(empty);
+    const create=document.createElement('button');create.type='button';create.className='customer-suggestion customer-suggestion-create';create.innerHTML='<strong>Cadastrar “'+escapeHtml(typedName)+'” como novo cliente</strong><small>Continue preenchendo e salve o orçamento ou pedido.</small>';
+    create.addEventListener('pointerdown',event=>event.preventDefault());
+    create.addEventListener('click',()=>{box.classList.remove('show');input.focus({preventScroll:true});showToast('Novo cliente pronto para cadastrar. Complete os dados e salve.',true);});
+    box.appendChild(create);
+  }
+  box.classList.add('show');
 }
 function attachCustomerSuggestions(inputId,boxId,fillFn){
   const input=document.getElementById(inputId), box=document.getElementById(boxId);
@@ -6771,7 +6894,7 @@ document.getElementById('photoPreview').addEventListener('click',()=>{ if(curren
 /* ---------- Entrada monetária estilo aplicativo bancário ---------- */
 const GENESIS_MONEY_IDS=new Set([
   'manualDirectPrice','manualShopeePrice','qFreightValue',
-  'oUnitPrice','oFreight','oAmountPaid','oShopeeGross','oShopeeNet',
+  'oUnitPrice','oFreight','oAmountPaid','odQuickPaid','oShopeeGross','oShopeeNet',
   'ocrProductValue','ocrDiscount','ocrFreight','ocrTotal','ocrPaid'
 ]);
 function genesisIsMoneyInput(el){
@@ -7191,42 +7314,64 @@ function findRememberedSourceLink(productName){
 function currentQuoteUnit(){
   return quoteState.saleType==='shopee' ? (activeQuotePricing.shopeeUnit||0) : (activeQuotePricing.directUnit||0);
 }
+function activeQuoteTemplate(){
+  const configured=String(cfg.commercial?.quoteTemplate||'').replace(/\r\n/g,'\n').trim();
+  return !configured||configured===LEGACY_QUOTE_TEMPLATE.replace(/\r\n/g,'\n').trim()?DEFAULT_QUOTE_TEMPLATE:configured;
+}
+function activeQuoteClosing(){
+  const configured=String(cfg.commercial?.closingMessage||'').trim();
+  const legacy=['Obrigado pela preferência!','Qualquer dúvida, estou à disposição!','Qualquer ajuste é só me chamar. 😊'];
+  return !configured||legacy.includes(configured)?'Para confirmar, é só me chamar 😊':configured;
+}
+function buildQuoteShareMessage(q){
+  const qty=Math.max(1,quoteInt(q?.qty,1));
+  const hasUnit=q?.unitPrice!==null&&q?.unitPrice!==undefined&&q?.unitPrice!=='';
+  const unitRaw=Number(q?.unitPrice);
+  const subtotalRaw=Number(q?.subtotal??q?.productTotal);
+  const unit=round2(hasUnit&&Number.isFinite(unitRaw)?unitRaw:(Number.isFinite(subtotalRaw)?subtotalRaw/qty:0));
+  const freight=round2(Math.max(0,Number(q?.freight)||0));
+  const hasSavedTotal=q?.total!==null&&q?.total!==undefined&&q?.total!=='';
+  const totalRaw=Number(q?.total);
+  const total=round2(hasSavedTotal&&Number.isFinite(totalRaw)?totalRaw:(unit*qty+freight));
+  const deadline=Math.max(1,quoteDays(q?.deadlineDays??q?.productionDeadline,7)||7);
+  const validity=Math.max(1,quoteInt(q?.validityDays,Number(cfg.commercial?.defaultValidityDays)||7));
+  const colors=quoteColorLabels(q?.availableColors);
+  const values=qty>1
+    ? `📦 ${qty} un. x ${fmtBRL(unit)}\n💰 *Total a pagar: ${fmtBRL(total)}*`
+    : `💰 *Total a pagar: ${fmtBRL(total)}*`;
+  const fields={
+    EMPRESA:cfg.commercial?.companyName||'Genesis Prototipagem',
+    ITEM:q?.productName?`📦 ${q.productName}`:'',
+    VALORES:values,
+    FRETE:freight>0?`🚚 Frete: ${fmtBRL(freight)}`:'🚚 Frete grátis',
+    SHOPEE_LINK:q?.shopeeLink||'',
+    SHOPEE_AVISO:q?.shopeeLink?'Preço e disponibilidade sujeitos à plataforma.':'',
+    PRAZO:`⏱ Produção: ${deadline} ${deadline===1?'dia útil':'dias úteis'}`,
+    VALIDADE:`📅 Válido por ${validity} ${validity===1?'dia':'dias'}`,
+    CORES:colors.length?` | 🎨 Cores: ${colors.join(', ')}`:'',
+    OBSERVACOES:String(q?.notes||'').trim(),
+    MENSAGEM_FINAL:activeQuoteClosing()
+  };
+  let message=activeQuoteTemplate();
+  Object.entries(fields).forEach(([key,value])=>{message=message.replace(new RegExp(`\\{${key}\\}`,'g'),value);});
+  return cleanQuoteText(message.replace(/^\s+|\s+$/g,'').replace(/\n[ \t]*\n(?=[ \t]*\n)/g,'\n'));
+}
 function buildCommercialQuote(){
   const qty=quoteInt(document.getElementById('qQty').value,1);
   const freightRaw=quoteState.saleType==='direct'&&quoteState.freightType==='calculated'
     ? quoteMoneyInput(document.getElementById('qFreightValue').value)
     : 0;
   const unit=currentQuoteUnit();
-  const total=round2(unit*qty+(Number(freightRaw)||0));
-  const deadline=Math.max(1,quoteDays(document.getElementById('qProductionDeadline').value,7)||7);
-  const validity=Math.max(1,quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7));
-  const freight=Number(freightRaw)>0?fmtBRL(freightRaw):'Grátis';
-  const colors=quoteColorLabels();
-  const colorsLine=colors.length?`\n🎨 *Cores disponíveis:* ${colors.join(', ')}\n`:'';
-  return cleanQuoteText(
-`✨ *SEU ORÇAMENTO ESTÁ PRONTO*
-
-Olá! 😊
-
-📸 Todos os detalhes da proposta estão na imagem acima.
-
-━━━━━━━━━━━━━━━━
-
-💰 *Valor:* ${fmtBRL(total)}
-
-🚚 Frete: ${freight}
-
-⏱️ Produção: ${deadline} dias úteis
-
-📅 Validade: ${validity} dias
-${colorsLine}
-
-━━━━━━━━━━━━━━━━
-
-Qualquer ajuste é só me chamar. 😊
-
-*Genesis Prototipagem*`
-  );
+  return buildQuoteShareMessage({
+    productName:document.getElementById('qProduct').value.trim(),
+    qty,unitPrice:unit,subtotal:round2(unit*qty),
+    freight:Number(freightRaw)||0,total:round2(unit*qty+(Number(freightRaw)||0)),
+    deadlineDays:document.getElementById('qProductionDeadline').value,
+    validityDays:document.getElementById('qValidity').value,
+    availableColors:activeQuoteColors,
+    shopeeLink:document.getElementById('qShopeeLink').value.trim(),
+    notes:document.getElementById('qNotes').value.trim()
+  });
 }
 let quoteMessageDirty=false;
 function getQuoteMessage(){
@@ -7307,7 +7452,67 @@ function setQuoteClient(c){
 }
 attachCustomerSuggestions('qClientName','qClientSuggestions',setQuoteClient);
 
-async function openQuoteComposer(record){
+let genesisCalculatorEditContext=null;
+function genesisEditRecordLabel(){
+  const context=genesisCalculatorEditContext;if(!context)return '';
+  const record=context.type==='quote'?quotes.find(item=>item.id===context.id):orders.find(item=>item.id===context.id);
+  if(!record)return '';
+  return context.type==='quote'?`Editando ${quoteNumber(record)}`:`Editando ${orderNumber(record)}`;
+}
+function refreshGenesisCalculatorEditBanner(){
+  let banner=document.getElementById('genesisCalculatorEditBanner');
+  if(!banner){
+    banner=document.createElement('div');banner.id='genesisCalculatorEditBanner';banner.className='card genesis-edit-banner';banner.hidden=true;
+    banner.innerHTML='<div><strong id="genesisCalculatorEditTitle"></strong><small>Altere tempo, peso, filamento, margem, lucro, preço, foto e demais dados. Depois continue para salvar no mesmo registro.</small></div><button type="button" class="btn btn-ghost btn-sm" id="btnCancelFullEdit">Cancelar edição</button>';
+    document.getElementById('screen-calc')?.prepend(banner);
+    banner.querySelector('#btnCancelFullEdit').addEventListener('click',()=>{genesisCalculatorEditContext=null;resetCalculatorForNewQuote();refreshGenesisCalculatorEditBanner();showToast('Edição cancelada. O registro original não foi alterado.');});
+  }
+  const label=genesisEditRecordLabel();banner.hidden=!label;
+  if(label)banner.querySelector('#genesisCalculatorEditTitle').textContent=label;
+  const quoteButton=document.getElementById('btnCopiarOrc'),orderButton=document.getElementById('btnCreateOrder');
+  if(quoteButton)quoteButton.textContent=genesisCalculatorEditContext?.type==='quote'?'Continuar edição do orçamento':'Criar orçamento';
+  if(orderButton)orderButton.textContent=genesisCalculatorEditContext?.type==='order'?'Continuar edição do pedido':'Criar pedido';
+}
+async function openGenesisRecordInCalculator(record,type){
+  if(!record)return;
+  saveActiveDraft('before-full-record-edit');
+  genesisCalculatorEditContext={type,id:record.id,startedAt:Date.now()};
+  const snapshot=record.internalSnapshot||{};
+  setTimeMode(snapshot.timeMode||'hhmm',false);
+  const totalHours=Number(snapshot.timeHours)||0;
+  inHoras.value=snapshot.horas!==undefined?String(snapshot.horas):(totalHours?String(Math.floor(totalHours)):'');
+  inMinutos.value=snapshot.minutos!==undefined?String(snapshot.minutos):(totalHours?String(Math.round((totalHours-Math.floor(totalHours))*60)):'');
+  inDecimal.value=snapshot.decimal!==undefined?String(snapshot.decimal):(totalHours?String(round2(totalHours)):'');
+  inPeso.value=snapshot.pesoG!=null?String(snapshot.pesoG):'';
+  inQtd.value=String(record.qty||snapshot.qty||1);
+  inProduto.value=record.productName||'';
+  document.getElementById('inObservacoes').value=record.notes||record.observacoes||'';
+  document.getElementById('inLinkImpressao').value=record.sourceLink||record.linkImpressao||'';
+  if(snapshot.filamentId&&filaments.some(item=>item.id===snapshot.filamentId)){document.getElementById('selFilament').value=snapshot.filamentId;cfg.lastFilamentId=snapshot.filamentId;}
+  if(Number(snapshot.configSnapshot?.margin)>=0&&Number(snapshot.configSnapshot?.margin)<100)cfg.margin=Number(snapshot.configSnapshot.margin);
+  syncQuickMarginFromConfig();
+  const pricing=record.pricingSnapshot||{};
+  const suggestedDirect=Number(pricing.suggestedDirectUnit??snapshot.precoDiretoUnit);
+  const suggestedShopee=Number(pricing.suggestedShopeeUnit??snapshot.precoShopeeUnit);
+  const legacyDirect=Number(pricing.directUnit);
+  const legacyShopee=Number(pricing.shopeeUnit);
+  const directManual=pricing.directManual!==undefined
+    ? pricing.directManual
+    : (Number.isFinite(legacyDirect)&&Number.isFinite(suggestedDirect)&&Math.abs(legacyDirect-suggestedDirect)>.009?legacyDirect:null);
+  const shopeeManual=pricing.shopeeManual!==undefined
+    ? pricing.shopeeManual
+    : (Number.isFinite(legacyShopee)&&Number.isFinite(suggestedShopee)&&Math.abs(legacyShopee-suggestedShopee)>.009?legacyShopee:null);
+  document.getElementById('manualDirectPrice').value=directManual!=null?String(directManual).replace('.',','):'';
+  document.getElementById('manualShopeePrice').value=shopeeManual!=null?String(shopeeManual).replace('.',','):'';
+  setPhoto(null,null);
+  const imageId=record.imageId||snapshot.imageId||null;
+  if(imageId){const url=await mediaGetObjectUrl(imageId);if(url)setPhoto(url,imageId);}
+  recalc();persistLastCalc();refreshGenesisCalculatorEditBanner();showScreen('calc');
+  saveActiveDraft('full-record-edit-opened');
+  showToast('Todos os dados disponíveis foram carregados para edição.',true);
+}
+
+async function openQuoteComposer(record,{fromCalculator=false}={}){
   const selectedModelSnapshot=readSelectedModelSnapshot();
   if(!currentPhotoDataUrl&&selectedModelSnapshot?.imageDataUrl)setPhoto(selectedModelSnapshot.imageDataUrl);
 
@@ -7338,7 +7543,7 @@ async function openQuoteComposer(record){
     quoteMessageDirty=!!(record.messageOverride||record.customMessage);
     document.getElementById('qMessage').value=record.messageOverride||record.customMessage||'';
     quoteState={saleType:record.saleType||'direct',freightType:record.freightType||'pending'};
-    activeQuotePricing={
+    activeQuotePricing=fromCalculator?currentEffectivePricing():{
       directUnit:round2(record.pricingSnapshot?.directUnit ?? record.directUnit ?? (record.saleType==='direct'?record.unitPrice:0) ?? 0),
       shopeeUnit:round2(record.pricingSnapshot?.shopeeUnit ?? record.shopeeUnit ?? (record.saleType==='shopee'?record.unitPrice:0) ?? 0)
     };
@@ -7346,10 +7551,15 @@ async function openQuoteComposer(record){
       const recovered=await GenesisImageManager.fromRecord(record);
       if(recovered.imageId){record.imageId=recovered.imageId;saveQuotes();}
     }
-    activeQuoteImageId=record.imageId||null;
+    activeQuoteImageId=fromCalculator?(currentPhotoImageId||record.imageId||null):(record.imageId||null);
     activeQuoteDraftPhotoDataUrl=null;
-    activeQuoteInternalSnapshot=record.internalSnapshot||null;
+    activeQuoteInternalSnapshot=fromCalculator?(captureInternalSnapshot()||record.internalSnapshot||null):(record.internalSnapshot||null);
     activeQuoteColors=normalizedQuoteColors(record.availableColors);
+    if(fromCalculator){
+      document.getElementById('qProduct').value=(inProduto.value||record.productName||'').trim();
+      document.getElementById('qQty').value=Math.max(1,parseInt(inQtd.value,10)||record.qty||1);
+      document.getElementById('qSourceLink').value=document.getElementById('inLinkImpressao').value.trim()||record.sourceLink||'';
+    }
   }else{
     const product=(inProduto.value||'').trim();
     document.getElementById('qClientName').value='';
@@ -7451,9 +7661,9 @@ async function saveQuoteFromComposer(showSuccess){
     availableColors:normalizedQuoteColors(activeQuoteColors),
     messageOverride:quoteMessageDirty ? getQuoteMessage() : '',
     status:document.getElementById('qStatus').value||'waiting',
-    pricingSnapshot:{directUnit:activeQuotePricing.directUnit||0,shopeeUnit:activeQuotePricing.shopeeUnit||0},
+    pricingSnapshot:{...activeQuotePricing,directUnit:activeQuotePricing.directUnit||0,shopeeUnit:activeQuotePricing.shopeeUnit||0},
     internalSnapshot:(()=>{
-      const snapshot=existing?.internalSnapshot||activeQuoteInternalSnapshot||captureInternalSnapshot();
+      const snapshot=activeQuoteInternalSnapshot||existing?.internalSnapshot||captureInternalSnapshot();
       if(snapshot&&!snapshot.imageId)snapshot.imageId=imageId||existing?.imageId||null;
       return snapshot;
     })(),
@@ -7463,6 +7673,7 @@ async function saveQuoteFromComposer(showSuccess){
   else quotes.unshift(record);
   quoteEditId=record.id;
   saveQuotes();
+  if(genesisCalculatorEditContext?.type==='quote'&&genesisCalculatorEditContext.id===record.id){genesisCalculatorEditContext=null;refreshGenesisCalculatorEditBanner();}
   renderQuoteList();
   if(showSuccess) showToast('Orçamento '+quoteNumber(record)+' salvo',true);
   clearActiveDraft();
@@ -7489,12 +7700,14 @@ function quoteSnapshotFromComposer(){
   const imageUrl=existing?.imageUrl||readSelectedModelSnapshot()?.imageUrl||'';
   return {
     id:existing?.id||'draft',seq:existing?.seq||0,productName:document.getElementById('qProduct').value.trim()||'Produto',
-    qty,unitPrice,total:round2(qty*unitPrice+freight),freight,
+    qty,unitPrice,subtotal:round2(qty*unitPrice),total:round2(qty*unitPrice+freight),freight,
     deadlineDays:quoteDays(document.getElementById('qProductionDeadline').value,'')||7,
     validityDays:quoteInt(document.getElementById('qValidity').value,cfg.commercial.defaultValidityDays||7),
     imageId:activeQuoteImageId||existing?.imageId||null,
     imageUrl,
     imageDataUrl:activeQuoteDraftPhotoDataUrl||existing?.imageDataUrl||'',
+    shopeeLink:document.getElementById('qShopeeLink').value.trim(),
+    notes:document.getElementById('qNotes').value.trim(),
     availableColors:normalizedQuoteColors(activeQuoteColors)
   };
 }
@@ -7580,9 +7793,13 @@ async function createIndividualQuoteCanvas(q){
   // Usa exatamente o mesmo resolvedor de imagem do orçamento de kit.
   if(!q.imageId)q.imageId=await GenesisImageManager.attach(q);
   const qty=Math.max(1,Number(q.qty)||1);
-  const unit=Number(q.unitPrice)||0;
+  const hasUnit=q.unitPrice!==null&&q.unitPrice!==undefined&&q.unitPrice!=='';
+  const unitRaw=Number(q.unitPrice),subtotalRaw=Number(q.subtotal??q.productTotal);
+  const unit=round2(hasUnit&&Number.isFinite(unitRaw)?unitRaw:(Number.isFinite(subtotalRaw)?subtotalRaw/qty:0));
   const freight=Number(q.freight)||0;
-  const final=Number(q.total??(qty*unit+freight))||0;
+  const hasSavedTotal=q.total!==null&&q.total!==undefined&&q.total!=='';
+  const savedTotal=Number(q.total);
+  const final=round2(hasSavedTotal&&Number.isFinite(savedTotal)?savedTotal:(qty*unit+freight));
   const colors=quoteColorLabels(q.availableColors);
   const colorsHeight=canvasAvailableColorsHeight(colors,1016);
   const width=1080,height=1214+(colorsHeight?colorsHeight+18:0);
@@ -7634,14 +7851,19 @@ async function createIndividualQuoteCanvas(q){
   const nameBottom=ry+Math.max(1,nameLines.length)*48+18;
   ctx.strokeStyle='#8c2cff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(rx,nameBottom);ctx.lineTo(rx+66,nameBottom);ctx.stroke();
 
-  ctx.fillStyle='#9b43ff';ctx.font='700 27px -apple-system,Arial';ctx.fillText('◇',rx,nameBottom+85);
-  ctx.fillStyle='#fff';ctx.font='800 25px -apple-system,Arial';ctx.fillText('Quantidade',rx+54,nameBottom+83);
-  ctx.fillStyle='#b85aff';ctx.font='500 25px -apple-system,Arial';ctx.fillText(`${qty} ${qty===1?'unidade':'unidades'}`,rx+54,nameBottom+127);
-  ctx.strokeStyle='rgba(160,78,255,.38)';ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(rx,nameBottom+174);ctx.lineTo(rx+rw,nameBottom+174);ctx.stroke();ctx.setLineDash([]);
-
-  ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+250);
-  ctx.fillStyle='#fff';ctx.font='800 25px -apple-system,Arial';ctx.fillText('Valor',rx+54,nameBottom+246);
-  ctx.fillStyle='#8f24ff';ctx.font='900 64px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+334);
+  if(qty>1){
+    ctx.fillStyle='#9b43ff';ctx.font='700 27px -apple-system,Arial';ctx.fillText('◇',rx,nameBottom+72);
+    ctx.fillStyle='#fff';ctx.font='800 17px -apple-system,Arial';ctx.fillText('QUANTIDADE E VALOR UNITÁRIO',rx+45,nameBottom+69);
+    ctx.fillStyle='#c56cff';ctx.font='700 28px -apple-system,Arial';ctx.fillText(`${qty} un. x ${fmtBRL(unit)}`,rx+45,nameBottom+111);
+    ctx.strokeStyle='rgba(160,78,255,.38)';ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(rx,nameBottom+148);ctx.lineTo(rx+rw,nameBottom+148);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+213);
+    ctx.fillStyle='#fff';ctx.font='800 19px -apple-system,Arial';ctx.fillText('TOTAL A PAGAR',rx+45,nameBottom+209);
+    ctx.fillStyle='#8f24ff';ctx.font='900 61px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+290);
+  }else{
+    ctx.fillStyle='#9b43ff';ctx.font='700 29px -apple-system,Arial';ctx.fillText('$',rx,nameBottom+112);
+    ctx.fillStyle='#fff';ctx.font='800 21px -apple-system,Arial';ctx.fillText('TOTAL A PAGAR',rx+45,nameBottom+108);
+    ctx.fillStyle='#8f24ff';ctx.font='900 64px -apple-system,Arial';ctx.fillText(fmtBRL(final),rx,nameBottom+202);
+  }
 
   // Cartões comerciais inferiores.
   const cardY=844,cardGap=16,cardW=(1016-cardGap*2)/3,cardH=142;
@@ -7671,35 +7893,7 @@ async function individualQuoteVisualFile(q){
   return new File([blob],`orcamento-${quoteNumber(q).replace('#','')}.jpg`,{type:'image/jpeg'});
 }
 function buildIndividualShareMessage(q){
-  const freight=Number(q.freight)>0?fmtBRL(Number(q.freight)):'Grátis';
-  const colors=quoteColorLabels(q.availableColors);
-  const lines=[
-    '✨ *SEU ORÇAMENTO ESTÁ PRONTO*',
-    '',
-    'Olá! 😊',
-    '',
-    '📸 Todos os detalhes da proposta estão na imagem acima.',
-    '',
-    '━━━━━━━━━━━━━━━━',
-    '',
-    `💰 *Valor:* ${fmtBRL(Number(q.total)||0)}`,
-    '',
-    `🚚 Frete: ${freight}`,
-    '',
-    `⏱️ Produção: ${Math.max(1,Number(q.deadlineDays)||7)} dias úteis`,
-    '',
-    `📅 Validade: ${Math.max(1,Number(q.validityDays)||7)} dias`,
-  ];
-  if(colors.length)lines.push('',`🎨 *Cores disponíveis:* ${colors.join(', ')}`);
-  lines.push(
-    '',
-    '━━━━━━━━━━━━━━━━',
-    '',
-    'Qualquer ajuste é só me chamar. 😊',
-    '',
-    '*Genesis Prototipagem*'
-  );
-  return lines.join('\n');
+  return buildQuoteShareMessage(q);
 }
 
 async function activeQuoteShareFile(){
@@ -7773,7 +7967,11 @@ async function quoteFallbackWithoutRedirect(text,q){
   showToast(copied?'Imagem disponibilizada e texto copiado. Use o botão Compartilhar novamente no Safari.':'Imagem do orçamento disponibilizada.');
 }
 
-document.getElementById('btnCopiarOrc').addEventListener('click',()=>openQuoteComposer(null));
+document.getElementById('btnCopiarOrc').addEventListener('click',()=>{
+  const context=genesisCalculatorEditContext;
+  const record=context?.type==='quote'?quotes.find(item=>item.id===context.id):null;
+  openQuoteComposer(record||null,{fromCalculator:!!record});
+});
 document.getElementById('btnCloseQuote').addEventListener('click',()=>closeSheet('ovCopy','sheetCopy'));
 document.getElementById('btnSaveQuote').addEventListener('click',async()=>{ await saveQuoteFromComposer(true); });
 document.getElementById('qSaleDirect').addEventListener('click',()=>{quoteState.saleType='direct';refreshQuoteUI();});
@@ -8034,7 +8232,7 @@ async function openQuoteDetail(id){
 document.getElementById('btnQdClose').addEventListener('click',()=>closeSheet('ovQuoteDetail','sheetQuoteDetail'));
 document.getElementById('btnQdEdit').addEventListener('click',()=>{
   const q=quotes.find(x=>x.id===openQuoteId); if(!q)return;
-  rawCloseSheet('ovQuoteDetail','sheetQuoteDetail'); openQuoteComposer(q);
+  rawCloseSheet('ovQuoteDetail','sheetQuoteDetail'); openGenesisRecordInCalculator(q,'quote');
 });
 document.getElementById('btnQdShare').addEventListener('click',()=>{
   const q=quotes.find(x=>x.id===openQuoteId); if(!q)return;
@@ -8233,7 +8431,18 @@ const ORDER_STATUS_LABELS={
 };
 const ORDER_STATUS_FLOW=['novo','aguardando-pagamento','a-produzir','em-producao','pronto','enviado','concluido','cancelado'];
 const CHANNEL_LABELS={direct:'Venda direta',whatsapp:'WhatsApp',instagram:'Instagram',shopee:'Shopee',other:'Outro'};
+const ORDER_PAYMENT_LABELS={pending:'Aguardando',partial:'Parcial',paid:'Pago','not-applicable':'Não se aplica'};
 function orderStatusClass(status){ return 'status-'+(status||'novo'); }
+function orderPaymentLabel(status){return ORDER_PAYMENT_LABELS[status]||'Aguardando'}
+function orderPaymentClass(status){return 'payment-'+(status||'pending')}
+function orderTotalQuantity(o){
+  if(Array.isArray(o?.items)&&o.items.length)return o.items.reduce((sum,item)=>sum+Math.max(1,parseInt(item?.qty,10)||1),0);
+  return Math.max(1,parseInt(o?.qty,10)||1);
+}
+function orderDeadlineLabel(o){
+  if(o?.payment?.dueDate&&['pending','partial'].includes(o.payment.status))return 'Pagamento '+String(o.payment.dueDate).split('-').reverse().join('/');
+  return o?.deadline?'Prazo '+String(o.deadline):'Sem prazo informado';
+}
 function normalizePhoneForWhatsApp(value){
   let d=String(value||'').replace(/\D/g,'');
   if(!d) return '';
@@ -8292,6 +8501,34 @@ function orderFinancial(o){
 
 function orderProductTotal(o){ return (Number(o.unitPrice)||0)*(parseInt(o.qty,10)||1); }
 function orderGrandTotal(o){ return orderProductTotal(o)+(Number(o.freight)||0); }
+
+async function persistKanbanOrderChange(o,message){
+  if(!o)return false;
+  o.updatedAt=Date.now();window.genesisEnsureOrderSnapshots?.(o);saveOrders();renderOrders();renderPendingPayments();refreshMoreCounts();
+  if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();
+  let synced=true;
+  try{if(window.genesisSheetsConfigured?.())synced=navigator.onLine?await window.genesisSheetsSync({silent:true}):false}catch(error){synced=false;genesisLog('order.kanban-sync.failed',{orderId:o.id,error},'warn')}
+  showToast(synced?message:message+' · aguardando sincronização',synced);
+  return true;
+}
+async function updateOrderStatusFromKanban(o,status){
+  if(!o||!ORDER_STATUS_FLOW.includes(status)||o.status===status)return false;
+  o.status=status;
+  return persistKanbanOrderChange(o,'Etapa atualizada');
+}
+async function advanceOrderFromKanban(o){
+  if(!o)return false;
+  const productionFlow=ORDER_STATUS_FLOW.filter(status=>status!=='cancelado'),index=productionFlow.indexOf(o.status);
+  const next=productionFlow[Math.min(productionFlow.length-1,Math.max(0,index)+1)];
+  if(!next||next===o.status){showToast('Este pedido já está na última etapa.');return false}
+  return updateOrderStatusFromKanban(o,next);
+}
+async function markOrderPaidFromKanban(o){
+  if(!o)return false;
+  const total=orderQuickTotal(o),nowIso=new Date().toISOString();
+  o.payment={...(o.payment||{}),total,paid:total,balance:0,status:'paid',receivedAt:genesisLocalDate(),confirmedAt:o.payment?.status==='paid'&&o.payment?.confirmedAt?o.payment.confirmedAt:nowIso};
+  return persistKanbanOrderChange(o,'Pagamento confirmado');
+}
 
 let orderEditId=null;
 let activeOrderPricing={directUnit:0,shopeeUnit:0};
@@ -8451,6 +8688,8 @@ function setOrderUnitFromChannel(){
 }
 async function openOrderFormFromCalc(){
   if(!lastResult || !lastResult.ok){ showToast('Preencha peso e tempo antes de criar o pedido.'); return; }
+  const editing=genesisCalculatorEditContext?.type==='order'?orders.find(item=>item.id===genesisCalculatorEditContext.id):null;
+  if(editing){await openOrderForm(editing,{fromCalculator:true});return;}
   orderEditId=null; activeOrderOriginQuoteId=null; clearOrderForm();
   document.getElementById('orderFormTitle').textContent='Criar pedido';
   document.getElementById('orderFormSub').textContent='Venda já confirmada: os valores atuais serão guardados como snapshot.';
@@ -8468,7 +8707,7 @@ async function openOrderFormFromCalc(){
   refreshOrderForm();
   openSheet('ovOrderForm','sheetOrderForm');
 }
-async function openOrderForm(record){
+async function openOrderForm(record,{fromCalculator=false}={}){
   if(!record){ openOrderFormFromCalc(); return; }
   orderEditId=record.id; activeOrderOriginQuoteId=record.originQuoteId||null;
   document.getElementById('orderFormTitle').textContent='Editar pedido '+orderNumber(record);
@@ -8500,15 +8739,21 @@ async function openOrderForm(record){
   document.getElementById('oPaymentDueDate').value=record.payment?.dueDate||'';
   document.getElementById('oPaymentReceivedAt').value=record.payment?.receivedAt||'';
   document.getElementById('oPaymentNote').value=record.payment?.note||'';
-  activeOrderPricing=record.pricingSnapshot||{directUnit:record.unitPrice||0,shopeeUnit:record.unitPrice||0};
-  activeOrderInternalSnapshot=record.internalSnapshot||null;
+  activeOrderPricing=fromCalculator?currentEffectivePricing():(record.pricingSnapshot||{directUnit:record.unitPrice||0,shopeeUnit:record.unitPrice||0});
+  activeOrderInternalSnapshot=fromCalculator?(captureInternalSnapshot()||record.internalSnapshot||null):(record.internalSnapshot||null);
   if(!record.imageId){
     const recovered=await GenesisImageManager.fromRecord(record);
     if(recovered.imageId){record.imageId=recovered.imageId;saveOrders();}
   }
-  activeOrderImageId=record.imageId||null;
+  activeOrderImageId=fromCalculator?(currentPhotoImageId||record.imageId||null):(record.imageId||null);
   activeOrderDraftPhotoDataUrl=null;
-  orderAutoPrice=false;
+  if(fromCalculator){
+    document.getElementById('oProduct').value=(inProduto.value||record.productName||'').trim();
+    document.getElementById('oQty').value=Math.max(1,parseInt(inQtd.value,10)||record.qty||1);
+    document.getElementById('oSourceLink').value=document.getElementById('inLinkImpressao').value.trim()||record.sourceLink||'';
+    document.getElementById('oUnitPrice').value=String((record.channel==='shopee'?activeOrderPricing.shopeeUnit:activeOrderPricing.directUnit)||record.unitPrice||0).replace('.',',');
+  }
+  orderAutoPrice=!!fromCalculator;
   refreshOrderForm();
   openSheet('ovOrderForm','sheetOrderForm');
 }
@@ -8609,9 +8854,9 @@ async function saveOrderFromForm(showSuccess){
     }),
     items:existing?.items||[{id:uid('item'),productName:document.getElementById('oProduct').value.trim(),variation:'',qty,unitPrice:isShopeeManual&&shopeeManual.gross>0?round2(shopeeManual.gross/Math.max(1,qty)):unitPrice,subtotal:isShopeeManual&&shopeeManual.gross>0?round2(shopeeManual.gross):round2(unitPrice*qty),sku:'',shopeeItemId:'',linkedModelId:null}],
     source:existing?.source||'manual',
-    pricingSnapshot:existing?.pricingSnapshot||activeOrderPricing,
+    pricingSnapshot:activeOrderPricing||existing?.pricingSnapshot,
     internalSnapshot:(()=>{
-      const snapshot=existing?.internalSnapshot||activeOrderInternalSnapshot||captureInternalSnapshot();
+      const snapshot=activeOrderInternalSnapshot||existing?.internalSnapshot||captureInternalSnapshot();
       if(snapshot&&!snapshot.imageId)snapshot.imageId=imageId||existing?.imageId||null;
       return snapshot;
     })(),
@@ -8643,6 +8888,7 @@ async function saveOrderFromForm(showSuccess){
   if(!isShopeeManual&&record.payment?.status==='pending'&&record.status==='novo')record.status='aguardando-pagamento';
   if(!isShopeeManual&&record.payment?.status==='paid'&&record.status==='aguardando-pagamento')record.status='a-produzir';
   if(existing) Object.assign(existing,record); else orders.unshift(record);
+  if(genesisCalculatorEditContext?.type==='order'&&genesisCalculatorEditContext.id===record.id){genesisCalculatorEditContext=null;refreshGenesisCalculatorEditBanner();}
   saveOrders();renderOrders();refreshMoreCounts();renderPendingPayments();if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();
   orderEditId=record.id;
   if(showSuccess) showToast('Pedido '+orderNumber(record)+' salvo',true);
@@ -8815,16 +9061,22 @@ function renderOrderCard(o,kanban){
   const card=document.createElement('div');
   card.className=kanban?'order-card':'list-item management-card';
   if(kanban){
-    card.innerHTML='<div class="top"><div><div class="product">'+escapeHtml(o.productName||'Produto')+'</div><div class="number">PEDIDO '+orderNumber(o)+'</div></div><span class="status-pill '+orderStatusClass(o.status)+'">'+escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)+'</span></div>'+
-      '<div class="client">'+escapeHtml(o.client?.name||'Cliente não informado')+' · '+escapeHtml(CHANNEL_LABELS[o.channel]||o.channel)+'</div>'+
-      '<div class="total">'+fmtBRL(o.total??orderGrandTotal(o))+'</div>';
-    if(o.imageId){
-      const img=document.createElement('img');
-      img.className='order-kanban-thumb';
-      img.alt='';
-      card.prepend(img);
-      setLibraryThumb(img,o.imageId);
-    }
+    const qty=orderTotalQuantity(o),paymentStatus=o.payment?.status||'pending',initials=escapeHtml((o.productName||'P').slice(0,2).toUpperCase());
+    card.innerHTML=
+      '<div class="kanban-card-head"><div class="kanban-card-thumb">'+(o.imageId?'<img loading="lazy" decoding="async" class="order-kanban-thumb" alt="">':'<div class="kanban-card-placeholder">'+initials+'</div>')+'</div>'+ 
+        '<div class="kanban-card-copy"><div class="kanban-card-number">PEDIDO '+escapeHtml(orderNumber(o))+' · '+qty+' un.</div><div class="product">'+escapeHtml(o.productName||'Produto')+'</div><div class="client">'+escapeHtml(o.client?.name||'Cliente não informado')+'</div></div></div>'+ 
+      '<div class="kanban-card-finance"><span>'+escapeHtml(CHANNEL_LABELS[o.channel]||o.channel||'Outro')+'</span><strong>'+fmtBRL(o.total??orderGrandTotal(o))+'</strong></div>'+ 
+      '<div class="kanban-card-statuses"><span class="status-pill '+orderStatusClass(o.status)+'">'+escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)+'</span><span class="payment-pill '+orderPaymentClass(paymentStatus)+'">'+escapeHtml(orderPaymentLabel(paymentStatus))+'</span></div>'+ 
+      '<div class="kanban-card-deadline">'+escapeHtml(orderDeadlineLabel(o))+'</div>'+ 
+      '<div class="kanban-card-actions"><button type="button" data-order-action="open">Abrir</button><button type="button" data-order-action="edit">Editar</button><button type="button" data-order-action="paid" '+(paymentStatus==='paid'?'disabled':'')+'>'+(paymentStatus==='paid'?'Pago':'Marcar pago')+'</button><button type="button" data-order-action="advance" '+(['concluido','cancelado'].includes(o.status)?'disabled':'')+'>Avançar</button></div>'+ 
+      '<label class="kanban-card-status-picker"><span>Alterar etapa</span><select aria-label="Alterar etapa do pedido">'+ORDER_STATUS_FLOW.map(status=>'<option value="'+status+'" '+(status===o.status?'selected':'')+'>'+escapeHtml(ORDER_STATUS_LABELS[status])+'</option>').join('')+'</select></label>';
+    const thumb=card.querySelector('.order-kanban-thumb');if(thumb)setLibraryThumb(thumb,o.imageId);
+    card.querySelectorAll('button,select').forEach(control=>control.addEventListener('click',event=>event.stopPropagation()));
+    card.querySelector('[data-order-action="open"]').addEventListener('click',()=>openOrderDetail(o.id));
+    card.querySelector('[data-order-action="edit"]').addEventListener('click',async()=>{if(!o.imageId){const recovered=await GenesisImageManager.attach(o);if(recovered)saveOrders()}openGenesisRecordInCalculator(o,'order')});
+    card.querySelector('[data-order-action="paid"]').addEventListener('click',()=>markOrderPaidFromKanban(o));
+    card.querySelector('[data-order-action="advance"]').addEventListener('click',()=>advanceOrderFromKanban(o));
+    card.querySelector('.kanban-card-status-picker select').addEventListener('change',event=>updateOrderStatusFromKanban(o,event.target.value));
   }else{
     const initials=escapeHtml((o.productName||'P').slice(0,2).toUpperCase());
     const thumb=o.imageId
@@ -8947,13 +9199,44 @@ function renderMobileKanban(root,list){
     rail.querySelector('.active')?.scrollIntoView({inline:'center',block:'nearest'});
   });
 }
+function renderDesktopKanbanSummary(root,list){
+  const active=list.filter(o=>o.status!=='cancelado'),revenue=active.reduce((sum,o)=>sum+Number((o.total??orderGrandTotal(o))||0),0);
+  const pending=active.reduce((sum,o)=>sum+(['pending','partial'].includes(o.payment?.status)?paymentBalance(o):0),0);
+  const deadlines=active.map(o=>quoteDays(o.deadline,0)).filter(value=>value>0),averageDays=deadlines.length?deadlines.reduce((sum,value)=>sum+value,0)/deadlines.length:0;
+  const summary=document.createElement('section');summary.className='kanban-desktop-summary';summary.setAttribute('aria-label','Resumo dos pedidos filtrados');
+  summary.innerHTML=[
+    ['Total de pedidos',String(list.length),list.length===1?'1 pedido filtrado':list.length+' pedidos filtrados'],
+    ['Faturamento',fmtBRL(revenue),'Pedidos não cancelados'],
+    ['Produção média',averageDays?averageDays.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias':'—','Prazos informados'],
+    ['A receber',fmtBRL(pending),active.filter(o=>['pending','partial'].includes(o.payment?.status)).length+' pedido(s)'],
+    ['Concluídos',String(list.filter(o=>o.status==='concluido').length),'No filtro atual']
+  ].map(([label,value,note])=>'<div class="kanban-summary-card"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value)+'</strong><small>'+escapeHtml(note)+'</small></div>').join('');
+  root.appendChild(summary);
+}
+function renderDesktopRecentOrders(root,list){
+  const section=document.createElement('section');section.className='kanban-recent-section';
+  const rows=list.slice(0,8);
+  section.innerHTML='<div class="kanban-recent-heading"><div><strong>Pedidos recentes</strong><small>Mesmos filtros do Kanban</small></div><button type="button" data-kanban-show-list>Ver em lista</button></div>'+ 
+    '<div class="kanban-recent-scroll"><table class="kanban-recent-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Produto</th><th>Produção</th><th>Pagamento</th><th>Valor</th><th>Prazo</th><th>Ações</th></tr></thead><tbody>'+ 
+    (rows.length?rows.map(o=>{const paymentStatus=o.payment?.status||'pending';return '<tr><td>'+escapeHtml(orderNumber(o))+'</td><td>'+escapeHtml(o.client?.name||'—')+'</td><td>'+escapeHtml(o.productName||'Produto')+'</td><td><span class="status-pill '+orderStatusClass(o.status)+'">'+escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)+'</span></td><td><span class="payment-pill '+orderPaymentClass(paymentStatus)+'">'+escapeHtml(orderPaymentLabel(paymentStatus))+'</span></td><td><strong>'+fmtBRL(o.total??orderGrandTotal(o))+'</strong></td><td>'+escapeHtml(orderDeadlineLabel(o))+'</td><td><div class="kanban-recent-actions"><button type="button" data-recent-open="'+escapeAttr(o.id)+'">Abrir</button><button type="button" data-recent-edit="'+escapeAttr(o.id)+'">Editar</button></div></td></tr>'}).join(''):'<tr><td colspan="8" class="kanban-recent-empty">Nenhum pedido neste filtro.</td></tr>')+ 
+    '</tbody></table></div>';
+  section.querySelector('[data-kanban-show-list]').addEventListener('click',()=>{uiState.orderView='list';saveUI();renderOrders()});
+  section.querySelectorAll('[data-recent-open]').forEach(button=>button.addEventListener('click',()=>openOrderDetail(button.dataset.recentOpen)));
+  section.querySelectorAll('[data-recent-edit]').forEach(button=>button.addEventListener('click',()=>{const o=orders.find(item=>item.id===button.dataset.recentEdit);if(o)openGenesisRecordInCalculator(o,'order')}));
+  root.appendChild(section);
+}
+let desktopKanbanScrollTimer=0;
 function renderDesktopKanban(root,list){
-  const wrap=document.createElement('div');wrap.className='kanban-wrap';
+  renderDesktopKanbanSummary(root,list);
+  const wrap=document.createElement('div');wrap.className='kanban-wrap';wrap.dataset.horizontalScroll='true';
   ORDER_STATUS_FLOW.forEach(status=>{
     const col=document.createElement('div');col.className='kanban-col';col.dataset.status=status;
     const items=list.filter(o=>o.status===status);
     col.innerHTML='<div class="kanban-title"><span>'+escapeHtml(ORDER_STATUS_LABELS[status])+'</span><span class="kanban-count">'+items.length+'</span></div>';
-    items.forEach(o=>col.appendChild(renderOrderCard(o,true)));
+    const cards=document.createElement('div');cards.className='kanban-col-cards';items.forEach(o=>cards.appendChild(renderOrderCard(o,true)));
+    if(!items.length)cards.innerHTML='<div class="kanban-column-empty">Nenhum pedido</div>';
+    const add=document.createElement('button');add.type='button';add.className='kanban-column-new';add.textContent='+ Novo pedido';add.addEventListener('click',event=>{event.stopPropagation();openOrderFormFromCalc()});
+    col.append(cards,add);
     if(window.matchMedia&&window.matchMedia('(pointer:fine)').matches){
       col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag-over')});
       col.addEventListener('dragleave',()=>col.classList.remove('drag-over'));
@@ -8965,7 +9248,10 @@ function renderDesktopKanban(root,list){
     }
     wrap.appendChild(col);
   });
+  wrap.addEventListener('scroll',()=>{uiState.orderKanbanScrollLeft=wrap.scrollLeft;clearTimeout(desktopKanbanScrollTimer);desktopKanbanScrollTimer=setTimeout(saveUI,350)},{passive:true});
   root.appendChild(wrap);
+  requestAnimationFrame(()=>{wrap.scrollLeft=Math.max(0,Number(uiState.orderKanbanScrollLeft)||0)});
+  renderDesktopRecentOrders(root,list);
 }
 function renderOrders(){
   setTimeout(renderPendingPayments,0);
@@ -8982,7 +9268,8 @@ function renderOrders(){
   empty.style.display=list.length?'none':'block';
   kanban.innerHTML='';listEl.innerHTML='';
   if(isKanban){
-    const mobile=window.matchMedia('(max-width:700px), (pointer:coarse)').matches;
+    const viewMode=document.documentElement.dataset.genesisView||'auto';
+    const mobile=viewMode==='mobile'||(viewMode!=='desktop'&&window.matchMedia('(max-width:700px), (pointer:coarse)').matches);
     if(mobile)renderMobileKanban(kanban,list);
     else renderDesktopKanban(kanban,list);
   }else{
@@ -9041,6 +9328,89 @@ function downloadPaymentReminder(o){
   const blob=new Blob([ics],{type:'text/calendar;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='cobranca-'+orderNumber(o).replace('#','')+'.ics';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Abra o arquivo .ics para adicionar a cobrança ao Calendário.',true);
 }
 /* ---------- Detalhe do pedido ---------- */
+function genesisLocalDate(){
+  const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+function orderQuickTotal(o){
+  const saved=Number(o?.total??o?.payment?.total);
+  return round2(Number.isFinite(saved)?saved:orderGrandTotal(o));
+}
+function setOrderQuickSaveState(text,state=''){
+  const el=document.getElementById('odQuickSaveState');if(!el)return;
+  el.textContent=text;el.dataset.state=state;
+}
+function updateOrderQuickPaymentUI({fromStatusChange=false,focusAmount=false}={}){
+  const o=orders.find(x=>x.id===openOrderId);if(!o)return;
+  const statusEl=document.getElementById('odQuickPaymentStatus');
+  const paidEl=document.getElementById('odQuickPaid');
+  const receivedEl=document.getElementById('odQuickReceivedAt');
+  const fields=document.getElementById('odQuickPaymentFields');
+  const balanceEl=document.getElementById('odQuickBalance');
+  const status=statusEl.value||'pending',total=orderQuickTotal(o);
+  if(fromStatusChange&&status==='paid'){
+    paidEl.value=moneyInputValue(total);receivedEl.value=genesisLocalDate();
+  }else if(fromStatusChange&&status==='partial'){
+    if(!quoteMoneyInput(paidEl.value))paidEl.value='';
+    if(!receivedEl.value)receivedEl.value=genesisLocalDate();
+  }else if(fromStatusChange&&status==='pending'){
+    paidEl.value='';receivedEl.value='';
+  }
+  fields.hidden=status==='not-applicable';fields.dataset.status=status;
+  const paid=status==='pending'||status==='not-applicable'?0:quoteMoneyInput(paidEl.value);
+  const balance=round2(Math.max(0,total-paid));
+  balanceEl.innerHTML='<span>Total do pedido</span><strong>'+fmtBRL(total)+'</strong><span>Saldo restante</span><strong>'+fmtBRL(balance)+'</strong>';
+  if(focusAmount&&status==='partial')setTimeout(()=>paidEl.focus({preventScroll:true}),50);
+}
+function populateOrderQuickPayment(o){
+  const payment=o.payment||{};
+  document.getElementById('odQuickPaymentStatus').value=payment.status||'pending';
+  document.getElementById('odQuickPaid').value=Number(payment.paid)>0?moneyInputValue(payment.paid):'';
+  document.getElementById('odQuickReceivedAt').value=payment.receivedAt||'';
+  document.getElementById('odQuickDueDate').value=payment.dueDate||'';
+  document.getElementById('odQuickPaymentNote').value=payment.note||'';
+  setOrderQuickSaveState('Salvo','saved');updateOrderQuickPaymentUI();
+}
+async function saveOrderQuickUpdate(){
+  const o=orders.find(x=>x.id===openOrderId);if(!o)return;
+  const button=document.getElementById('btnOdQuickSave');
+  const statusEl=document.getElementById('odQuickPaymentStatus');
+  const paidEl=document.getElementById('odQuickPaid');
+  const total=orderQuickTotal(o),previousStatus=o.payment?.status||'pending';
+  let status=statusEl.value||'pending',paid=quoteMoneyInput(paidEl.value);
+  if(status==='paid'&&paid<total){
+    if(paid>0){status='partial';statusEl.value=status;showToast('Como existe saldo restante, o pagamento foi salvo como parcial.');}
+    else{paid=total;paidEl.value=moneyInputValue(total);}
+  }
+  if(status==='partial'&&paid<=0){showToast('Informe o valor recebido para salvar o pagamento parcial.');paidEl.focus();return;}
+  if(status==='partial'&&paid>=total){status='paid';statusEl.value=status;paid=total;paidEl.value=moneyInputValue(total);}
+  if(status==='pending'||status==='not-applicable')paid=0;
+  const receivedAt=['paid','partial'].includes(status)?(document.getElementById('odQuickReceivedAt').value||genesisLocalDate()):'';
+  const nowIso=new Date().toISOString();
+  button.disabled=true;setOrderQuickSaveState('Salvando...','saving');
+  try{
+    o.status=document.getElementById('odStatus').value||o.status||'novo';
+    o.payment={
+      ...(o.payment||{}),status,total,paid:round2(paid),balance:round2(Math.max(0,total-paid)),
+      dueDate:document.getElementById('odQuickDueDate').value||'',receivedAt,
+      note:document.getElementById('odQuickPaymentNote').value.trim(),
+      confirmedAt:status==='paid'?(previousStatus==='paid'&&o.payment?.confirmedAt?o.payment.confirmedAt:nowIso):''
+    };
+    o.updatedAt=Date.now();window.genesisEnsureOrderSnapshots?.(o);saveOrders();saveActiveDraft('order-quick-save');
+    renderOrders();renderPendingPayments();refreshMoreCounts();
+    if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();
+    await openOrderDetail(o.id);
+    if(window.genesisSheetsConfigured?.()){
+      if(!navigator.onLine)setOrderQuickSaveState('Aguardando sincronização','pending');
+      else{
+        const synced=await window.genesisSheetsSync({silent:true});
+        setOrderQuickSaveState(synced?'Salvo':'Aguardando sincronização',synced?'saved':'pending');
+      }
+    }else setOrderQuickSaveState('Salvo','saved');
+    showToast('Pedido atualizado',true);
+  }catch(error){
+    genesisLog('order.quick-payment.failed',{orderId:o.id,error},'error');setOrderQuickSaveState('Erro ao sincronizar','error');showToast('Os dados continuam preservados neste aparelho.');
+  }finally{button.disabled=false;}
+}
 async function openOrderDetail(id){
   const o=orders.find(x=>x.id===id);if(!o)return;
   if(!o.imageId){
@@ -9053,6 +9423,7 @@ async function openOrderDetail(id){
   const saleLabel=saleDate?('Venda '+saleDate.split('-').reverse().join('/')+(o.shopee?.orderTime?' às '+o.shopee.orderTime:'')+' · '):'';
   document.getElementById('odMeta').textContent=(o.originQuoteSeq?'Originado do orçamento #'+padNumber(o.originQuoteSeq)+' · ':'')+(o.source==='shopee_screenshot'?'Importado de prints Shopee · ':'')+saleLabel+'Cadastro '+new Date(o.createdAt).toLocaleDateString('pt-BR');
   document.getElementById('odStatus').value=o.status||'novo';
+  populateOrderQuickPayment(o);
   let photo='';
   if(o.imageId){
     const src=await mediaGetObjectUrl(o.imageId);
@@ -9097,10 +9468,13 @@ async function openOrderDetail(id){
   bWa.onclick=()=>openExternalUrl(wa);bIg.onclick=()=>openExternalUrl(ig);bSh.onclick=()=>openExternalUrl(sh);bSrc.onclick=()=>isMakerWorldUrl(src)?openMakerWorldSmart(src):openExternalUrl(src);bRem.onclick=()=>downloadPaymentReminder(o);
   openSheet('ovOrderDetail','sheetOrderDetail');
 }
-document.getElementById('odStatus').addEventListener('change',()=>{
-  const o=orders.find(x=>x.id===openOrderId); if(!o)return;
-  o.status=document.getElementById('odStatus').value;o.updatedAt=Date.now();saveOrders();renderOrders();if(document.getElementById('screen-insights')?.classList.contains('active'))renderInsights();showToast('Status atualizado',true);
+['odStatus','odQuickPaid','odQuickReceivedAt','odQuickDueDate','odQuickPaymentNote'].forEach(id=>document.getElementById(id).addEventListener(id==='odStatus'?'change':'input',()=>{
+  setOrderQuickSaveState('Alterações não salvas','dirty');updateOrderQuickPaymentUI();scheduleActiveDraft('order-quick-change');
+}));
+document.getElementById('odQuickPaymentStatus').addEventListener('change',()=>{
+  setOrderQuickSaveState('Alterações não salvas','dirty');updateOrderQuickPaymentUI({fromStatusChange:true,focusAmount:true});scheduleActiveDraft('order-quick-status');
 });
+document.getElementById('btnOdQuickSave').addEventListener('click',saveOrderQuickUpdate);
 document.getElementById('btnOdClose').addEventListener('click',()=>closeSheet('ovOrderDetail','sheetOrderDetail'));
 document.getElementById('btnOdEdit').addEventListener('click',async()=>{
   const o=orders.find(x=>x.id===openOrderId);if(!o)return;
@@ -9108,7 +9482,7 @@ document.getElementById('btnOdEdit').addEventListener('click',async()=>{
     const recovered=await GenesisImageManager.attach(o);
     if(recovered)saveOrders();
   }
-  rawCloseSheet('ovOrderDetail','sheetOrderDetail');openOrderForm(o);
+  rawCloseSheet('ovOrderDetail','sheetOrderDetail');openGenesisRecordInCalculator(o,'order');
 });
 document.getElementById('btnOdDelete').addEventListener('click',()=>{
   const o=orders.find(x=>x.id===openOrderId);if(!o)return;
@@ -9123,6 +9497,7 @@ document.getElementById('btnOdDelete').addEventListener('click',()=>{
 /* ===== Evolução 17: acesso rápido à calculadora e MakerWorld ===== */
 
 function resetCalculatorForNewQuote(){
+  genesisCalculatorEditContext=null;
   setTimeMode('hhmm',false);
   inHoras.value='';
   inMinutos.value='';
@@ -9148,6 +9523,7 @@ function resetCalculatorForNewQuote(){
   syncQuickMarginFromConfig();
   refreshManualPriceHints();
   refreshMarginLiveValues();
+  refreshGenesisCalculatorEditBanner();
 }
 
 function openMwQuick(prefill){
@@ -9282,10 +9658,45 @@ function mwExpandedQueries(q){
 function mwWorkerUrl(){return String(cfg.makerworld?.workerUrl||'').trim().replace(/\/$/,'');}
 function mwCacheGet(key,maxAge){const r=makerWorldCache[key];if(!r)return null;if(Date.now()-r.at>maxAge){delete makerWorldCache[key];saveMakerWorldCache();return null;}return r.data;}
 function mwCacheSet(key,data){makerWorldCache[key]={at:Date.now(),data};const keys=Object.keys(makerWorldCache);if(keys.length>80)keys.sort((a,b)=>makerWorldCache[a].at-makerWorldCache[b].at).slice(0,keys.length-80).forEach(k=>delete makerWorldCache[k]);saveMakerWorldCache();}
+async function mwProbeCors(base){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),3500);
+  try{await fetch(base+'/health?_genesis_probe='+Date.now(),{mode:'no-cors',cache:'no-store',credentials:'omit',signal:ctrl.signal});return true}catch(error){return false}finally{clearTimeout(timer)}
+}
+function makerWorldErrorText(error){
+  const code=String(error?.code||'');
+  if(code==='worker_cors')return 'O Worker respondeu, mas o navegador bloqueou a origem (CORS).';
+  if(code==='worker_origin_not_allowed')return 'A origem deste app não está autorizada no Worker.';
+  if(code==='worker_timeout')return 'O Worker não respondeu a tempo.';
+  if(code==='worker_unreachable')return 'Worker fora do ar ou falha de internet/DNS.';
+  if(code==='worker_stale_version')return 'O Worker está em uma versão antiga. Publique o código mais recente.';
+  if(code==='worker_invalid_response')return 'O Worker devolveu uma resposta inválida.';
+  return error?.message||'Não foi possível conectar ao Worker.';
+}
 async function mwFetch(path,{signal,timeout=12000}={}){
   const base=mwWorkerUrl();if(!base)throw new Error('Configure a URL da ponte MakerWorld em Mais → Configurações.');
-  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),timeout);if(signal)signal.addEventListener('abort',()=>ctrl.abort(),{once:true});
-  try{const res=await fetch(base+path,{signal:ctrl.signal,headers:{Accept:'application/json'}});const txt=await res.text();let data={};try{data=JSON.parse(txt);}catch(e){}if(!res.ok||data.ok===false)throw new Error(data.error||('Erro HTTP '+res.status));return data;}finally{clearTimeout(timer);}
+  const ctrl=new AbortController(),started=Date.now(),timer=setTimeout(()=>ctrl.abort(),timeout);if(signal)signal.addEventListener('abort',()=>ctrl.abort(),{once:true});
+  const isHealth=/^\/health(?:\?|$)/.test(path),requestPath=isHealth?path+(path.includes('?')?'&':'?')+'_genesis='+Date.now():path,endpoint=base+requestPath;
+  try{
+    const res=await fetch(endpoint,{signal:ctrl.signal,cache:'no-store',credentials:'omit',headers:{Accept:'application/json'}});
+    const txt=await res.text();let data=null;try{data=JSON.parse(txt)}catch(error){}
+    if(!res.ok||data?.ok===false){
+      const code=res.status===403?'worker_origin_not_allowed':'worker_http_error';
+      throw genesisConnectionError(code,data?.error||('Erro HTTP '+res.status),{status:res.status,endpoint:base,elapsedMs:Date.now()-started,workerVersion:data?.version||''});
+    }
+    if(!data||typeof data!=='object')throw genesisConnectionError('worker_invalid_response','O Worker devolveu uma resposta inválida.',{status:res.status,endpoint:base,elapsedMs:Date.now()-started});
+    return data;
+  }catch(error){
+    if(error?.name==='AbortError'){
+      if(signal?.aborted)throw error;
+      throw genesisConnectionError('worker_timeout','O Worker não respondeu a tempo.',{endpoint:base,elapsedMs:Date.now()-started});
+    }
+    if(error?.code)throw error;
+    if(error instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(error?.message||''))){
+      const corsBlocked=await mwProbeCors(base);
+      throw genesisConnectionError(corsBlocked?'worker_cors':'worker_unreachable',corsBlocked?'O Worker respondeu, mas o navegador bloqueou a origem (CORS).':'Worker fora do ar ou falha de internet/DNS.',{endpoint:base,elapsedMs:Date.now()-started});
+    }
+    throw error;
+  }finally{clearTimeout(timer);}
 }
 const MakerWorldService={
   async health(){return mwFetch('/health',{timeout:8000});},
@@ -9569,10 +9980,15 @@ function genesisImageContext(kind){
   };
 }
 async function useFoundImage(kind){
+  const requestToken=++genesisImageRequestTokens[kind];
   const context=genesisImageContext(kind);
   const normalizedLink=normalizeExternalUrl(context.link)||context.link.trim();
   const productKey=mwNormalizeText(context.product);
   showToast('Carregando imagem da peça...');
+  setGenesisImageLoading(kind,true);
+  if(kind==='calc')setPhoto(null,null);
+  else if(kind==='quote'){activeQuoteImageId=null;activeQuoteDraftPhotoDataUrl=null;await refreshQuotePhotoEditor();}
+  else if(kind==='order'){activeOrderImageId=null;activeOrderDraftPhotoDataUrl=null;await refreshOrderPhotoEditor();}
   genesisLog('image.link.start',{kind,sourceUrl:normalizedLink});
   try{
     const selected=readSelectedModelSnapshot()||null;
@@ -9600,6 +10016,7 @@ async function useFoundImage(kind){
       asset=await GenesisImageManager.materializeCandidate(model,model);
     }
     if(!asset.imageId)throw new Error('Nenhuma imagem foi encontrada nesse link.');
+    if(requestToken!==genesisImageRequestTokens[kind])return;
 
     if(kind==='quote'){
       activeQuoteImageId=asset.imageId;activeQuoteDraftPhotoDataUrl=null;
@@ -9616,17 +10033,21 @@ async function useFoundImage(kind){
     genesisLog('image.link.success',{kind,imageId:asset.imageId,sourceUrl:normalizedLink});
     showToast('Imagem adicionada com sucesso',true);
   }catch(error){
+    if(requestToken!==genesisImageRequestTokens[kind])return;
     genesisLog('image.link.error',{kind,sourceUrl:normalizedLink,error},'error');
     showToast('Não foi possível carregar essa imagem. Você pode escolher outra foto.');
-  }
+  }finally{if(requestToken===genesisImageRequestTokens[kind])setGenesisImageLoading(kind,false);}
 }
 document.getElementById('btnUseFoundCalcPhoto')?.addEventListener('click',()=>useFoundImage('calc'));
 document.getElementById('btnUseFoundQuotePhoto')?.addEventListener('click',()=>useFoundImage('quote'));
 document.getElementById('btnUseFoundOrderPhoto')?.addEventListener('click',()=>useFoundImage('order'));
 function readSelectedModelSnapshot(){try{return JSON.parse(sessionStorage.getItem('genesisSelectedModel')||'null');}catch(e){return null;}}
 async function applyProfileToCalculator(m,p={},quoteAfter=false){
+  const requestToken=++genesisImageRequestTokens.calc;
+  setPhoto(null,null);setGenesisImageLoading('calc',true);
   const t=profileTimeMinutes(p),w=profileWeight(p);
   const modelSnapshot=await persistSelectedModelAsset(m);
+  if(requestToken!==genesisImageRequestTokens.calc)return;
   const currentCanonicalUrl=modelSnapshot?.modelUrl||canonicalModelUrl(m)||modelPublicUrl(m)||'';
 
   // Ao selecionar um modelo novo, nenhum dado textual do modelo anterior pode permanecer.
@@ -9645,6 +10066,7 @@ async function applyProfileToCalculator(m,p={},quoteAfter=false){
   inPeso.value=w?String(w):'';
 
   const imageDataUrl=modelSnapshot?.imageDataUrl||await modelImageToDataUrl(m);
+  if(requestToken!==genesisImageRequestTokens.calc)return;
   if(imageDataUrl)setPhoto(imageDataUrl);
   else{
     const remote=modelImageUrl(m);
@@ -9652,6 +10074,7 @@ async function applyProfileToCalculator(m,p={},quoteAfter=false){
   }
 
   recalc();persistLastCalc();showScreen('calc');
+  setGenesisImageLoading('calc',false);
 
   if(t&&w)showToast(imageDataUrl?'Tempo, peso e imagem enviados para a calculadora':'Tempo e peso enviados; a imagem ficou vinculada.',true);
   else showToast(imageDataUrl?'Nome, link e imagem carregados. Preencha tempo e peso.':'Modelo carregado. Preencha tempo e peso.');
@@ -9718,7 +10141,21 @@ async function executeMwSearch(reset=true){
 async function importMwLink(){const url=document.getElementById('mwImportUrl').value.trim();const okMw=isMakerWorldUrl(url),okTv=isThingiverseUrl(url);if(!okMw&&!okTv){showToast('Cole um link válido do MakerWorld, Bambu Handy/Bambu Lab ou Thingiverse.');return;}try{showToast('Resolvendo e importando modelo…');const d=await MakerWorldService.importUrl(url);const m=d.model||d;m.source=m.source||modelSourceFromValue(url);if(m.source==='makerworld')m.makerWorldUrl=m.makerWorldUrl||m.publicUrl||url;else m.thingiverseUrl=m.thingiverseUrl||m.publicUrl||url;mwResults=[m,...mwResults.filter(x=>modelKey(x)!==modelKey(m))];renderSearchModels();await openProfilesSheet(m);setMakerWorldStatus('ok','conectado');}catch(e){console.error(e);showToast(e?.message||'Não foi possível importar automaticamente.');setMakerWorldStatus('bad','indisponível');}}
 function setMakerWorldStatus(state,label){cfg.makerworld=cfg.makerworld||{};cfg.makerworld.lastStatus=state;cfg.makerworld.lastTestAt=Date.now();saveConfig();updateMakerWorldStatusUI(label);}
 function updateMakerWorldStatusUI(label){const state=cfg.makerworld?.lastStatus||'unknown';const text=label||(state==='ok'?'conectado':state==='bad'?'indisponível':'não testado');[['mwStatusDot','mwStatusText'],['cfgMwStatusDot','cfgMwStatusText']].forEach(([d,t])=>{const de=document.getElementById(d),te=document.getElementById(t);if(de){de.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');}if(te)te.textContent=(t==='mwStatusText'?'Ponte de modelos: ':'')+text;});}
-async function testMakerWorldConnection(){if(!mwWorkerUrl()){showToast('Informe primeiro a URL do Worker gratuito.');return false;}setMakerWorldStatus('wait','testando…');try{const h=await MakerWorldService.health();cfg.makerworld=cfg.makerworld||{};cfg.makerworld.capabilities=h.capabilities||{};saveConfig();setMakerWorldStatus('ok','conectada');const tv=h.capabilities?.thingiverse?' + Thingiverse':' + MakerWorld';showToast('Ponte conectada'+tv,true);return true;}catch(e){console.error(e);setMakerWorldStatus('bad','indisponível');showToast('Não foi possível conectar ao Worker.');return false;}}
+async function testMakerWorldConnection(){
+  if(!mwWorkerUrl()){showToast('Informe primeiro a URL do Worker gratuito.');return false;}
+  setMakerWorldStatus('wait','testando…');const started=Date.now();
+  try{
+    const h=await MakerWorldService.health();
+    if(Number(h.version||0)<10)throw genesisConnectionError('worker_stale_version','O Worker está em uma versão antiga.',{status:200,endpoint:mwWorkerUrl(),elapsedMs:Date.now()-started,workerVersion:h.version||0});
+    cfg.makerworld=cfg.makerworld||{};cfg.makerworld.capabilities=h.capabilities||{};cfg.makerworld.lastWorkerVersion=h.version||'';saveConfig();setMakerWorldStatus('ok','conectada');
+    genesisLog('connection.worker.success',{status:200,endpoint:mwWorkerUrl(),origin:location.origin,elapsedMs:Date.now()-started,workerVersion:h.version||'',capabilities:h.capabilities||{}});
+    const sources=['MakerWorld'];if(h.capabilities?.thingiverse)sources.push('Thingiverse');showToast('Ponte conectada · '+sources.join(' + '),true);return true;
+  }catch(error){
+    console.error(error);const message=makerWorldErrorText(error);setMakerWorldStatus('bad',message);
+    genesisLog('connection.worker.failure',{code:error?.code||'unknown',status:error?.status||0,endpoint:mwWorkerUrl(),origin:location.origin,elapsedMs:error?.elapsedMs||Date.now()-started,workerVersion:error?.workerVersion||'',message:String(error?.message||'').slice(0,180)},'warn');
+    showToast(message);return false;
+  }
+}
 function clearMwCache(){makerWorldCache={};saveMakerWorldCache();showToast('Cache de modelos limpo',true);}
 async function refreshSavedModel(m){try{const d=await MakerWorldService.getModel(m.modelId||modelPublicUrl(m),true,m.source||''),fresh=d.model||d;const keep={id:m.id,imageId:m.imageId,notes:m.notes,ad:m.ad,dateImported:m.dateImported,selectedProfile:m.selectedProfile};Object.assign(m,fresh,keep);saveModels();renderSavedModels();showToast('Dados atualizados',true);}catch(e){showToast('Não foi possível atualizar agora.');}}
 function openModelEdit(m){mwEditModelId=m.id;document.getElementById('meTitle').value=m.title||'';document.getElementById('meUrl').value=modelPublicUrl(m)||'';const p=modelSelectedProfile(m)||{};document.getElementById('meTime').value=profileTimeMinutes(p)||'';document.getElementById('meWeight').value=profileWeight(p)||'';document.getElementById('mePrinter').value=p.printer||'';document.getElementById('meMaterial').value=p.material||m.material||'';document.getElementById('meNotes').value=m.notes||'';const cm=m.commercial||{};document.getElementById('meCommercialDescription').value=cm.description||'';document.getElementById('meCommercialCategory').value=cm.category||'';document.getElementById('meCommercialContents').value=cm.contents||'';document.getElementById('meCommercialPurpose').value=cm.purpose||'';document.getElementById('meCommercialFeatures').value=cm.features||'';document.getElementById('meCommercialDifferentials').value=cm.differentials||'';const ad=m.ad||{};document.getElementById('meAdTitle').value=ad.title||'';document.getElementById('meAdDescription').value=ad.description||'';document.getElementById('meAdPrice').value=ad.price||'';document.getElementById('meAdStatus').value=ad.status||'none';document.getElementById('meAdLink').value=ad.link||'';openSheet('ovModelEdit','sheetModelEdit');}
@@ -9899,12 +10336,14 @@ function insightTimeSeries(list,r,g,metric){
 function renderInsightsChart(points,metric){
   const svg=document.getElementById('insightsChart');if(!svg)return;
   if(!points.length){svg.innerHTML='';return}
-  const W=340,H=190,pad={l:10,r:10,t:14,b:24},max=Math.max(1,...points.map(p=>p.value)),min=0,iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  const viewMode=document.documentElement.dataset.genesisView||'auto',desktop=viewMode==='desktop'||(viewMode!=='mobile'&&window.matchMedia('(min-width:1000px) and (pointer:fine)').matches);
+  const W=desktop?720:340,H=desktop?250:190,pad=desktop?{l:22,r:22,t:18,b:32}:{l:10,r:10,t:14,b:24},max=Math.max(1,...points.map(p=>p.value)),min=0,iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
   const x=i=>pad.l+(points.length===1?iw/2:i*iw/(points.length-1)),y=v=>pad.t+ih-(v-min)/(max-min||1)*ih;
   let grid='';for(let i=0;i<4;i++){const yy=pad.t+i*ih/3;grid+='<line class="chart-grid" x1="'+pad.l+'" y1="'+yy+'" x2="'+(W-pad.r)+'" y2="'+yy+'"/>'}
   const coords=points.map((p,i)=>x(i)+','+y(p.value)).join(' ');
   const area=points.length>1?'<polygon class="chart-area" points="'+pad.l+','+(pad.t+ih)+' '+coords+' '+(W-pad.r)+','+(pad.t+ih)+'"/>':'';
-  const step=Math.max(1,Math.ceil(points.length/6));
+  const maxLabels=desktop?Math.max(7,Math.min(12,Math.floor((svg.clientWidth||720)/78))):6,step=Math.max(1,Math.ceil(points.length/maxLabels));
   const labels=points.map((p,i)=>i%step===0||i===points.length-1?'<text class="chart-label" x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle">'+escapeHtml(p.label)+'</text>':'').join('');
   const dots=points.map((p,i)=>'<circle class="chart-dot" cx="'+x(i)+'" cy="'+y(p.value)+'" r="2.4"><title>'+escapeHtml(p.label+': '+(metric==='orders'?p.value:fmtBRL(p.value)))+'</title></circle>').join('');
   svg.innerHTML=grid+area+'<polyline class="chart-line" points="'+coords+'"/>'+dots+labels;
@@ -10155,7 +10594,7 @@ async function cloudEnsureSession(){
 }
 async function cloudSnapshot(){
   const images=await mediaExportAll();
-  return {version:6,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,shopeeCatalog,shopeeLearnedAliases,images};
+  return {version:7,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,shopeeCatalog,shopeeLearnedAliases,imageMetadata:imageEntities,images};
 }
 async function cloudApplySnapshot(data){
   if(!data||typeof data!=='object')throw new Error('Dados da nuvem inválidos.');
@@ -10172,10 +10611,11 @@ async function cloudApplySnapshot(data){
     savedModels=Array.isArray(data.savedModels)?data.savedModels:[];
     shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
     shopeeLearnedAliases=(data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object')?data.shopeeLearnedAliases:{};
+    imageEntities=Array.isArray(data.imageMetadata)?data.imageMetadata:[];
     counters=Object.assign({quote:0,order:0},data.counters||{});
     uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}},data.uiState||{});
     await mediaClear();await mediaImportAll(data.images||[]);
-    store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));store.set(KEYS.HISTORY,JSON.stringify(history));store.set(KEYS.QUOTES,JSON.stringify(quotes));store.set(KEYS.ORDERS,JSON.stringify(orders));store.set(KEYS.KITS,JSON.stringify(kits));store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));store.set(KEYS.COUNTERS,JSON.stringify(counters));store.set(KEYS.UI,JSON.stringify(uiState));
+    store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));store.set(KEYS.HISTORY,JSON.stringify(history));store.set(KEYS.QUOTES,JSON.stringify(quotes));store.set(KEYS.ORDERS,JSON.stringify(orders));store.set(KEYS.KITS,JSON.stringify(kits));store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));store.set(KEYS.IMAGES,JSON.stringify(imageEntities));store.set(KEYS.COUNTERS,JSON.stringify(counters));store.set(KEYS.UI,JSON.stringify(uiState));
     await runSchemaMigration();
     renderFilamentSelect();renderFilamentList();renderHistoryList();populateSettingsForm();renderDefaultFilamentSelect();applyOrderUIState();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();recalc();
   }finally{cloudApplying=false;}
@@ -10270,8 +10710,8 @@ function populateSettingsForm(){
   document.getElementById('cfgQuoteCompany').value = cfg.commercial.companyName || 'Genesis Prototipagem';
   document.getElementById('cfgQuoteValidity').value = cfg.commercial.defaultValidityDays || 7;
   document.getElementById('cfgQuoteDeadline').value = quoteDays(cfg.commercial.defaultProductionDeadline,'') || '';
-  document.getElementById('cfgQuoteClosing').value = cfg.commercial.closingMessage || 'Qualquer dúvida, estou à disposição!';
-  document.getElementById('cfgQuoteTemplate').value = cfg.commercial.quoteTemplate || DEFAULT_QUOTE_TEMPLATE;
+  document.getElementById('cfgQuoteClosing').value = activeQuoteClosing();
+  document.getElementById('cfgQuoteTemplate').value = activeQuoteTemplate();
   document.getElementById('cfgAdPromptTemplate').value = cfg.commercial.adPromptTemplate || DEFAULT_AD_PROMPT_TEMPLATE;
   const mw=document.getElementById('cfgMakerWorldWorker'); if(mw) mw.value=cfg.makerworld?.workerUrl||'';
   const aiEnabled=document.getElementById('cfgAiEnabled');if(aiEnabled)aiEnabled.checked=cfg.ai?.enabled!==false;
@@ -10335,8 +10775,9 @@ document.getElementById('btnSaveSettings').addEventListener('click', ()=>{
   cfg.commercial.defaultValidityDays = Math.max(1, parseInt(document.getElementById('cfgQuoteValidity').value,10)||7);
   const defaultProductionDays=quoteDays(document.getElementById('cfgQuoteDeadline').value,'');
   cfg.commercial.defaultProductionDeadline = defaultProductionDays ? String(defaultProductionDays) : '';
-  cfg.commercial.closingMessage = document.getElementById('cfgQuoteClosing').value.trim() || 'Qualquer dúvida, estou à disposição!';
+  cfg.commercial.closingMessage = document.getElementById('cfgQuoteClosing').value.trim() || 'Para confirmar, é só me chamar 😊';
   cfg.commercial.quoteTemplate = document.getElementById('cfgQuoteTemplate').value.trim() || DEFAULT_QUOTE_TEMPLATE;
+  cfg.commercial.quoteTemplateVersion = 2;
   cfg.commercial.adPromptTemplate = document.getElementById('cfgAdPromptTemplate').value.trim() || DEFAULT_AD_PROMPT_TEMPLATE;
   cfg.makerworld=cfg.makerworld||{};
   cfg.makerworld.workerUrl=(document.getElementById('cfgMakerWorldWorker')?.value||'').trim().replace(/\/$/,'');
@@ -10385,9 +10826,9 @@ document.getElementById('btnTestShopeeAI')?.addEventListener('click',()=>{
   saveConfig();testShopeeAI();
 });
 document.getElementById('btnLocalTest')?.addEventListener('click',async()=>{
-  saveLocalComputerForm();setLocalComputerStatus('','Testando...');
-  try{await localComputerFetch('/health');setLocalComputerStatus('ok','Computador conectado');showToast('Computador conectado',true)}
-  catch(error){setLocalComputerStatus('bad',error.message||'Não foi possível conectar');showToast(error.message||'Não foi possível conectar.')}
+  saveLocalComputerForm();setLocalComputerStatus('','Testando conexão...');
+  try{const health=await (await localComputerFetch('/health')).json();setLocalComputerStatus('ok','Computador conectado · servidor v'+(health.version||1));showToast('Computador conectado',true)}
+  catch(error){const message=localComputerErrorText(error);setLocalComputerStatus('bad',message);showToast(message)}
 });
 document.getElementById('btnLocalSync')?.addEventListener('click',async()=>{
   saveLocalComputerForm();
@@ -11250,7 +11691,7 @@ function enhanceOrderListHierarchy(){
 document.getElementById('btnExportBackup').addEventListener('click', async ()=>{
   const images=await mediaExportAll();
   const backup={
-    version:5,
+    version:7,
     schemaVersion:SCHEMA_VERSION,
     exportedAt:new Date().toISOString(),
     config:cfg,
@@ -11265,6 +11706,7 @@ document.getElementById('btnExportBackup').addEventListener('click', async ()=>{
     uiState,
     shopeeCatalog,
     shopeeLearnedAliases,
+    imageMetadata:imageEntities,
     images
   };
   const text=JSON.stringify(backup,null,2);
@@ -11302,11 +11744,12 @@ document.getElementById('fileImport').addEventListener('change',(e)=>{
       makerWorldCache=(data.makerWorldCache&&typeof data.makerWorldCache==='object')?data.makerWorldCache:{};
       shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
       shopeeLearnedAliases=(data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object')?data.shopeeLearnedAliases:{};
+      imageEntities=Array.isArray(data.imageMetadata)?data.imageMetadata:[];
       counters=Object.assign({quote:0,order:0,kit:0},data.counters||{});
       uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}},data.uiState||{});
       await mediaClear();
       await mediaImportAll(data.images||[]);
-      saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveCounters();saveUI();
+      saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveImages();saveCounters();saveUI();
       await runSchemaMigration();
       renderFilamentSelect();renderFilamentList();renderHistoryList();populateSettingsForm();renderDefaultFilamentSelect();
       applyOrderUIState();renderQuoteList();renderOrders();recalc();
@@ -11327,9 +11770,9 @@ document.getElementById('btnResetDefaults').addEventListener('click',()=>{
 document.getElementById('btnEraseAll').addEventListener('click',()=>{
   showConfirm('Apagar todos os dados','Esta ação excluirá permanentemente configurações, filamentos, histórico, orçamentos, pedidos e imagens. Deseja continuar?',async()=>{
     cfg=JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    filaments=[];history=[];quotes=[];orders=[];kits=[];savedModels=[];makerWorldCache={};shopeeCatalog=JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));shopeeLearnedAliases={};counters={quote:0,order:0,kit:0};
+    filaments=[];history=[];quotes=[];orders=[];kits=[];savedModels=[];imageEntities=[];makerWorldCache={};shopeeCatalog=JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));shopeeLearnedAliases={};counters={quote:0,order:0,kit:0};
     uiState={orderView:'list',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}};
-    saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveCounters();saveUI();
+    saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveImages();saveCounters();saveUI();
     await mediaClear();
     await stateSnapshotClear();
     renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();applyOrderUIState();renderOrders();populateSettingsForm();renderDefaultFilamentSelect();
@@ -11376,6 +11819,7 @@ function runManagementSelfTests(){
 
 const GENESIS_QUOTE_DRAFT_FIELDS=['qClientName','qClientPhone','qClientInstagram','qProduct','qQty','qStatus','qFreightValue','qShopeeLink','qSourceLink','qProductionDeadline','qValidity','qNotes','qMessage'];
 const GENESIS_ORDER_DRAFT_FIELDS=['oClientName','oClientPhone','oClientWhatsapp','oClientInstagram','oClientNotes','oProduct','oQty','oUnitPrice','oChannel','oFreight','oDeadline','oStatus','oNotes','oSourceLink','oOrderDate','oShopeeNumber','oShopeeGross','oShopeeNet','oShopeeOrderLink','oShopeeListingLink','oPaymentStatus','oAmountPaid','oPaymentDueDate','oPaymentReceivedAt','oPaymentNote'];
+const GENESIS_ORDER_QUICK_DRAFT_FIELDS=['odStatus','odQuickPaymentStatus','odQuickPaid','odQuickReceivedAt','odQuickDueDate','odQuickPaymentNote'];
 let genesisDraftTimer=0;
 
 function genesisReadFields(ids){
@@ -11415,6 +11859,11 @@ function saveActiveDraft(reason='autosave'){
         editId:orderEditId||null,
         values:genesisReadFields(GENESIS_ORDER_DRAFT_FIELDS),
         imageId:activeOrderImageId||null
+      },
+      orderQuick:{
+        active:openSheetId==='sheetOrderDetail',
+        orderId:openOrderId||null,
+        values:genesisReadFields(GENESIS_ORDER_QUICK_DRAFT_FIELDS)
       }
     };
     store.set(GENESIS_DRAFT_KEY,JSON.stringify(draft));
@@ -11433,7 +11882,14 @@ async function restoreActiveDraft({reopen=true}={}){
       const url=await mediaGetObjectUrl(draft.calc.imageId);
       if(url)setPhoto(url,draft.calc.imageId);
     }
-    if(draft.quote?.active){
+    if(draft.orderQuick?.active&&draft.orderQuick.orderId&&orders.some(item=>item.id===draft.orderQuick.orderId)){
+      if(reopen||document.getElementById('sheetOrderDetail').classList.contains('open')){
+        await openOrderDetail(draft.orderQuick.orderId);
+        genesisWriteFields(draft.orderQuick.values);
+        updateOrderQuickPaymentUI();setOrderQuickSaveState('Rascunho recuperado','dirty');
+        if(reopen)showToast('Rascunho do pedido recuperado.',true);
+      }
+    }else if(draft.quote?.active){
       genesisWriteFields(draft.quote.values);
       quoteEditId=draft.quote.editId||null;
       activeQuoteImageId=draft.quote.imageId||null;
@@ -11467,10 +11923,10 @@ function genesisRecoverUi(reason){
 }
 
 document.addEventListener('input',event=>{
-  if(event.target.closest('#sheetCopy,#sheetOrderForm,#screen-calc'))scheduleActiveDraft('input');
+  if(event.target.closest('#sheetCopy,#sheetOrderForm,#sheetOrderDetail,#screen-calc'))scheduleActiveDraft('input');
 },true);
 document.addEventListener('change',event=>{
-  if(event.target.closest('#sheetCopy,#sheetOrderForm,#screen-calc'))scheduleActiveDraft('change');
+  if(event.target.closest('#sheetCopy,#sheetOrderForm,#sheetOrderDetail,#screen-calc'))scheduleActiveDraft('change');
 },true);
 document.querySelectorAll('input[type="file"]').forEach(input=>{
   input.addEventListener('click',()=>saveActiveDraft('before-file-picker'),true);
@@ -12352,5 +12808,6 @@ async function genesisRepairImagesInBatches(){
 }
 </script>
 <script src="./genesis-data.js"></script>
+<script src="./genesis-workspace.js?v=2026.08.01.5-final"></script>
 </body>
 </html>
