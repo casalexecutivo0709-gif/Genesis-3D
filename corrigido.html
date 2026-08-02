@@ -3043,29 +3043,6 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
     </div>
     <div class="hairline"></div>
 
-    <p class="card-label" id="settingsCloudAnchor" style="margin:16px 4px 10px;">Nuvem legada (opcional)</p>
-    <div class="card" style="margin-bottom:14px;">
-      <p class="secondary-note" style="margin-top:0;">Compatibilidade mantida para quem já usava Supabase. Não é necessário configurar esta seção quando o Google Sheets estiver ativo.</p>
-      <div class="field"><label>Supabase Project URL</label><input id="cloudUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://xxxx.supabase.co"></div>
-      <div class="field"><label>Supabase anon/public key</label><input id="cloudAnonKey" type="password" autocomplete="off" placeholder="eyJ..."></div>
-      <div class="row2">
-        <div class="field"><label>E-mail</label><input id="cloudEmail" type="email" inputmode="email" autocomplete="username" placeholder="seu@email.com"></div>
-        <div class="field"><label>Senha</label><input id="cloudPassword" type="password" autocomplete="current-password" placeholder="••••••••"></div>
-      </div>
-      <div class="btn-row" style="margin-bottom:9px;">
-        <button class="btn btn-primary" id="btnCloudLogin" type="button">Entrar</button>
-        <button class="btn btn-secondary" id="btnCloudSignup" type="button">Criar conta</button>
-        <button class="btn btn-ghost" id="btnCloudLogout" type="button">Sair</button>
-      </div>
-      <div class="btn-row" style="margin-bottom:9px;">
-        <button class="btn btn-secondary" id="btnCloudPush" type="button">Enviar dados deste aparelho</button>
-        <button class="btn btn-secondary" id="btnCloudPull" type="button">Baixar dados da nuvem</button>
-      </div>
-      <div class="integration-line"><span><span class="integration-dot" id="cloudStatusDot"></span><span id="cloudStatusText">Nuvem não configurada</span></span></div>
-      <small style="color:var(--muted);display:block;margin-top:8px;">Sincronização automática ocorre após alterações quando houver sessão ativa. Use os botões acima para forçar uma sincronização.</small>
-    </div>
-    <div class="hairline"></div>
-
     <p class="card-label" id="settingsBackupAnchor" style="margin:16px 4px 10px;">Backup</p>
     <div class="btn-row" style="margin-bottom:9px;">
       <button class="btn btn-secondary" id="btnExportBackup">Exportar backup</button>
@@ -4303,8 +4280,8 @@ const store = {
   }
 };
 
-const CLOUD_CONFIG_KEY='genesis3d:cloudConfig';
-const CLOUD_SESSION_KEY='genesis3d:cloudSession';
+const RETIRED_REMOTE_STORAGE_KEYS=['genesis3d:cloudConfig','genesis3d:cloudSession'];
+try{RETIRED_REMOTE_STORAGE_KEYS.forEach(key=>localStorage.removeItem(key));}catch(e){}
 
 const KEYS = {
   CONFIG:'genesis3d:config',
@@ -4674,19 +4651,19 @@ function loadJSON(key, fallback){
     return parsed;
   }catch(e){ return JSON.parse(JSON.stringify(fallback)); }
 }
-function saveConfig(){ store.set(KEYS.CONFIG, JSON.stringify(cfg)); scheduleCloudSync(); scheduleStateSnapshot('config'); }
-function saveFilaments(){ store.set(KEYS.FILAMENTS, JSON.stringify(filaments)); scheduleCloudSync(); scheduleStateSnapshot('filaments'); }
-function saveHistory(){ store.set(KEYS.HISTORY, JSON.stringify(history)); scheduleCloudSync(); scheduleStateSnapshot('history'); }
-function saveQuotes(){ store.set(KEYS.QUOTES, JSON.stringify(quotes)); scheduleCloudSync(); scheduleStateSnapshot('quotes'); }
-function saveOrders(){ store.set(KEYS.ORDERS, JSON.stringify(orders)); scheduleCloudSync(); scheduleStateSnapshot('orders'); }
-function saveKits(){ store.set(KEYS.KITS, JSON.stringify(kits)); scheduleCloudSync(); scheduleStateSnapshot('kits'); }
-function saveModels(){ store.set(KEYS.MODELS, JSON.stringify(savedModels)); scheduleCloudSync(); scheduleStateSnapshot('models'); }
+function saveConfig(){ store.set(KEYS.CONFIG, JSON.stringify(cfg)); scheduleStateSnapshot('config'); }
+function saveFilaments(){ store.set(KEYS.FILAMENTS, JSON.stringify(filaments)); scheduleStateSnapshot('filaments'); }
+function saveHistory(){ store.set(KEYS.HISTORY, JSON.stringify(history)); scheduleStateSnapshot('history'); }
+function saveQuotes(){ store.set(KEYS.QUOTES, JSON.stringify(quotes)); scheduleStateSnapshot('quotes'); }
+function saveOrders(){ store.set(KEYS.ORDERS, JSON.stringify(orders)); scheduleStateSnapshot('orders'); }
+function saveKits(){ store.set(KEYS.KITS, JSON.stringify(kits)); scheduleStateSnapshot('kits'); }
+function saveModels(){ store.set(KEYS.MODELS, JSON.stringify(savedModels)); scheduleStateSnapshot('models'); }
 function saveMakerWorldCache(){ try{ store.set(KEYS.MW_CACHE, JSON.stringify(makerWorldCache)); }catch(e){} }
-function saveShopeeCatalog(){store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));scheduleCloudSync();scheduleStateSnapshot('catalog')}
-function saveShopeeAliases(){store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));scheduleCloudSync();scheduleStateSnapshot('aliases')}
-function saveImages(){store.set(KEYS.IMAGES,JSON.stringify(imageEntities));scheduleCloudSync();scheduleStateSnapshot('images')}
-function saveCounters(){ store.set(KEYS.COUNTERS, JSON.stringify(counters)); scheduleCloudSync(); scheduleStateSnapshot('counters'); }
-function saveUI(){ store.set(KEYS.UI, JSON.stringify(uiState)); scheduleCloudSync(); scheduleStateSnapshot('ui'); }
+function saveShopeeCatalog(){store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));scheduleStateSnapshot('catalog')}
+function saveShopeeAliases(){store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));scheduleStateSnapshot('aliases')}
+function saveImages(){store.set(KEYS.IMAGES,JSON.stringify(imageEntities));scheduleStateSnapshot('images')}
+function saveCounters(){ store.set(KEYS.COUNTERS, JSON.stringify(counters)); scheduleStateSnapshot('counters'); }
+function saveUI(){ store.set(KEYS.UI, JSON.stringify(uiState)); scheduleStateSnapshot('ui'); }
 
 function padNumber(n){ return String(Math.max(0,parseInt(n,10)||0)).padStart(4,'0'); }
 function quoteNumber(q){ return '#'+padNumber(q.seq); }
@@ -10546,134 +10523,6 @@ function renderDefaultFilamentSelect(){
 }
 
 
-/* =========================================================
-   NUVEM / SUPABASE — banco persistente + cache local offline
-========================================================= */
-let cloudConfig={url:'',anonKey:'',email:''};
-let cloudSession=null;
-let cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncPending=false,cloudApplying=false;
-try{cloudConfig=Object.assign(cloudConfig,JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||'{}'));}catch(e){}
-try{cloudSession=JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY)||'null');}catch(e){cloudSession=null;}
-
-function cloudNormalizeUrl(v){return String(v||'').trim().replace(/\/$/,'');}
-function cloudSaveLocalConfig(){
-  try{localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(cloudConfig));}catch(e){}
-}
-function cloudSaveSession(){
-  try{if(cloudSession)localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(cloudSession));else localStorage.removeItem(CLOUD_SESSION_KEY);}catch(e){}
-}
-function cloudSetStatus(state,text){
-  const dot=document.getElementById('cloudStatusDot'),label=document.getElementById('cloudStatusText');
-  if(dot)dot.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');
-  if(label)label.textContent=text||'Nuvem não configurada';
-}
-function cloudConfigured(){return !!(cloudNormalizeUrl(cloudConfig.url)&&String(cloudConfig.anonKey||'').trim());}
-function cloudLoggedIn(){return !!(cloudSession?.access_token&&cloudSession?.user?.id);}
-async function cloudRequest(path,{method='GET',body,auth=true,headers={}}={}){
-  if(!cloudConfigured())throw new Error('Configure a URL e a chave pública do Supabase.');
-  const h={'apikey':cloudConfig.anonKey,'Content-Type':'application/json',...headers};
-  if(auth&&cloudSession?.access_token)h.Authorization='Bearer '+cloudSession.access_token;
-  const res=await fetch(cloudNormalizeUrl(cloudConfig.url)+path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});
-  const txt=await res.text();let data=null;try{data=txt?JSON.parse(txt):null;}catch(e){data=txt;}
-  if(!res.ok)throw new Error(data?.msg||data?.message||data?.error_description||data?.error||('Erro '+res.status));
-  return data;
-}
-async function cloudRefreshSession(){
-  if(!cloudSession?.refresh_token||!cloudConfigured())return false;
-  try{
-    const data=await cloudRequest('/auth/v1/token?grant_type=refresh_token',{method:'POST',auth:false,body:{refresh_token:cloudSession.refresh_token}});
-    if(data?.access_token){cloudSession=data;cloudSaveSession();return true;}
-  }catch(e){console.warn('[Genesis Cloud] refresh',e);}
-  return false;
-}
-async function cloudEnsureSession(){
-  if(!cloudLoggedIn())return false;
-  const exp=Number(cloudSession.expires_at||0)*1000;
-  if(exp&&Date.now()>exp-60000)return await cloudRefreshSession();
-  return true;
-}
-async function cloudSnapshot(){
-  const images=await mediaExportAll();
-  return {version:7,schemaVersion:SCHEMA_VERSION,updatedAt:new Date().toISOString(),config:cfg,filaments,history,quotes,orders,kits,savedModels,counters,uiState,shopeeCatalog,shopeeLearnedAliases,imageMetadata:imageEntities,images};
-}
-async function cloudApplySnapshot(data){
-  if(!data||typeof data!=='object')throw new Error('Dados da nuvem inválidos.');
-  cloudApplying=true;
-  try{
-    cfg=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)),data.config||{});
-    cfg.shopee=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG.shopee)),data.config?.shopee||{});
-    cfg.commercial=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG.commercial)),data.config?.commercial||{});
-    filaments=Array.isArray(data.filaments)?data.filaments:[];
-    history=Array.isArray(data.history)?data.history:[];
-    quotes=Array.isArray(data.quotes)?data.quotes:[];
-    orders=Array.isArray(data.orders)?data.orders:[];
-    if(Array.isArray(data.kits))kits=data.kits;
-    savedModels=Array.isArray(data.savedModels)?data.savedModels:[];
-    shopeeCatalog=Array.isArray(data.shopeeCatalog)?data.shopeeCatalog:JSON.parse(JSON.stringify(DEFAULT_SHOPEE_CATALOG));
-    shopeeLearnedAliases=(data.shopeeLearnedAliases&&typeof data.shopeeLearnedAliases==='object')?data.shopeeLearnedAliases:{};
-    imageEntities=Array.isArray(data.imageMetadata)?data.imageMetadata:[];
-    counters=Object.assign({quote:0,order:0},data.counters||{});
-    uiState=Object.assign({orderView:'list',orderKanbanStatus:'novo',orderFilters:{status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''}},data.uiState||{});
-    await mediaClear();await mediaImportAll(data.images||[]);
-    store.set(KEYS.CONFIG,JSON.stringify(cfg));store.set(KEYS.FILAMENTS,JSON.stringify(filaments));store.set(KEYS.HISTORY,JSON.stringify(history));store.set(KEYS.QUOTES,JSON.stringify(quotes));store.set(KEYS.ORDERS,JSON.stringify(orders));store.set(KEYS.KITS,JSON.stringify(kits));store.set(KEYS.MODELS,JSON.stringify(savedModels));store.set(KEYS.SHOPEE_CATALOG,JSON.stringify(shopeeCatalog));store.set(KEYS.SHOPEE_ALIASES,JSON.stringify(shopeeLearnedAliases));store.set(KEYS.IMAGES,JSON.stringify(imageEntities));store.set(KEYS.COUNTERS,JSON.stringify(counters));store.set(KEYS.UI,JSON.stringify(uiState));
-    await runSchemaMigration();
-    renderFilamentSelect();renderFilamentList();renderHistoryList();populateSettingsForm();renderDefaultFilamentSelect();applyOrderUIState();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();recalc();
-  }finally{cloudApplying=false;}
-}
-async function cloudPush({silent=false}={}){
-  if(cloudSyncBusy){cloudSyncPending=true;return false;}
-  if(!await cloudEnsureSession()){if(!silent)showToast('Entre na conta da nuvem primeiro.');return false;}
-  cloudSyncBusy=true;cloudSetStatus('wait','Sincronizando…');
-  try{
-    const payload=await cloudSnapshot();
-    await cloudRequest('/rest/v1/genesis_state?on_conflict=user_id',{method:'POST',body:{user_id:cloudSession.user.id,payload,updated_at:new Date().toISOString()},headers:{'Prefer':'resolution=merge-duplicates,return=minimal'}});
-    cloudSetStatus('ok','Sincronizado · '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
-    if(!silent)showToast('Dados enviados para a nuvem',true);
-    return true;
-  }catch(e){console.error('[Genesis Cloud push]',e);cloudSetStatus('bad','Falha ao sincronizar');if(!silent)showToast(e.message||'Falha ao enviar para a nuvem.');return false;}
-  finally{cloudSyncBusy=false;if(cloudSyncPending){cloudSyncPending=false;setTimeout(()=>cloudPush({silent:true}),500);}}
-}
-async function cloudPull({silent=false,createIfMissing=true}={}){
-  if(!await cloudEnsureSession()){if(!silent)showToast('Entre na conta da nuvem primeiro.');return false;}
-  cloudSetStatus('wait','Baixando dados…');
-  try{
-    const rows=await cloudRequest('/rest/v1/genesis_state?user_id=eq.'+encodeURIComponent(cloudSession.user.id)+'&select=payload,updated_at&limit=1');
-    if(Array.isArray(rows)&&rows[0]?.payload){await cloudApplySnapshot(rows[0].payload);cloudSetStatus('ok','Dados restaurados da nuvem');if(!silent)showToast('Dados baixados da nuvem',true);return true;}
-    if(createIfMissing){await cloudPush({silent:true});cloudSetStatus('ok','Banco criado com os dados deste aparelho');if(!silent)showToast('Primeiro backup na nuvem criado',true);return true;}
-    cloudSetStatus('ok','Conta conectada · sem dados ainda');return false;
-  }catch(e){console.error('[Genesis Cloud pull]',e);cloudSetStatus('bad','Falha ao acessar a nuvem');if(!silent)showToast(e.message||'Falha ao baixar dados.');return false;}
-}
-function scheduleCloudSync(){
-  if(cloudApplying||!cloudLoggedIn())return;
-  clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>cloudPush({silent:true}),1800);
-}
-async function cloudLogin(){
-  cloudConfig.url=cloudNormalizeUrl(document.getElementById('cloudUrl')?.value);cloudConfig.anonKey=String(document.getElementById('cloudAnonKey')?.value||'').trim();cloudConfig.email=String(document.getElementById('cloudEmail')?.value||'').trim();cloudSaveLocalConfig();
-  const password=String(document.getElementById('cloudPassword')?.value||'');if(!cloudConfig.email||!password){showToast('Informe e-mail e senha.');return;}
-  cloudSetStatus('wait','Entrando…');
-  try{const data=await cloudRequest('/auth/v1/token?grant_type=password',{method:'POST',auth:false,body:{email:cloudConfig.email,password}});cloudSession=data;cloudSaveSession();cloudSetStatus('ok','Conectado · '+cloudConfig.email);showToast('Conta conectada',true);await cloudPull({silent:true,createIfMissing:true});}
-  catch(e){cloudSetStatus('bad','Não foi possível entrar');showToast(e.message||'Falha no login.');}
-}
-async function cloudSignup(){
-  cloudConfig.url=cloudNormalizeUrl(document.getElementById('cloudUrl')?.value);cloudConfig.anonKey=String(document.getElementById('cloudAnonKey')?.value||'').trim();cloudConfig.email=String(document.getElementById('cloudEmail')?.value||'').trim();cloudSaveLocalConfig();
-  const password=String(document.getElementById('cloudPassword')?.value||'');if(!cloudConfig.email||password.length<6){showToast('Informe um e-mail e uma senha com pelo menos 6 caracteres.');return;}
-  cloudSetStatus('wait','Criando conta…');
-  try{const data=await cloudRequest('/auth/v1/signup',{method:'POST',auth:false,body:{email:cloudConfig.email,password}});if(data?.access_token){cloudSession=data;cloudSaveSession();cloudSetStatus('ok','Conta criada e conectada');await cloudPush({silent:true});}else cloudSetStatus('ok','Conta criada · confirme o e-mail');showToast(data?.access_token?'Conta criada e conectada':'Conta criada. Confirme o e-mail antes de entrar.',true);}
-  catch(e){cloudSetStatus('bad','Falha ao criar conta');showToast(e.message||'Falha ao criar conta.');}
-}
-function cloudLogout(){cloudSession=null;cloudSaveSession();cloudSetStatus('','Desconectado');showToast('Sessão da nuvem encerrada',true);}
-function populateCloudSettings(){
-  const u=document.getElementById('cloudUrl'),k=document.getElementById('cloudAnonKey'),e=document.getElementById('cloudEmail');if(u)u.value=cloudConfig.url||'';if(k)k.value=cloudConfig.anonKey||'';if(e)e.value=cloudConfig.email||cloudSession?.user?.email||'';
-  if(cloudLoggedIn())cloudSetStatus('ok','Conectado · '+(cloudSession.user.email||cloudConfig.email||''));else if(cloudConfigured())cloudSetStatus('','Configurado · faça login');else cloudSetStatus('','Nuvem não configurada');
-}
-
-document.getElementById('btnCloudLogin')?.addEventListener('click',cloudLogin);
-document.getElementById('btnCloudSignup')?.addEventListener('click',cloudSignup);
-document.getElementById('btnCloudLogout')?.addEventListener('click',cloudLogout);
-document.getElementById('btnCloudPush')?.addEventListener('click',()=>cloudPush({silent:false}));
-document.getElementById('btnCloudPull')?.addEventListener('click',()=>showConfirm('Baixar dados da nuvem','Os dados salvos na nuvem substituirão a cópia local deste aparelho. Continuar?',()=>cloudPull({silent:false,createIfMissing:false}),'Baixar'));
-
-
 function updateMachineCostSettingsUI(){
   const mode=cfg.machineCostMode==='fixed'?'fixed':'progressive';
   document.querySelectorAll('[data-machine-mode]').forEach(btn=>btn.classList.toggle('active',btn.dataset.machineMode===mode));
@@ -10721,7 +10570,6 @@ function populateSettingsForm(){
   const localUrl=document.getElementById('localServerUrl');if(localUrl)localUrl.value=local.serverUrl;
   const localToken=document.getElementById('localServerToken');if(localToken)localToken.value=local.token;
   const localEnabled=document.getElementById('localServerEnabled');if(localEnabled)localEnabled.checked=local.enabled;
-  populateCloudSettings();
   updateMakerWorldStatusUI();
   updateShTotalDisplay();
 }
@@ -12000,11 +11848,7 @@ async function init(){
   renderSavedModels();
   renderKitComposer();
   updateMakerWorldStatusUI();
-  populateCloudSettings();
   if(typeof populateSheetsSettings==='function')populateSheetsSettings();
-  if(cloudLoggedIn()){
-    cloudEnsureSession().then(ok=>{if(ok)cloudPull({silent:true,createIfMissing:false});});
-  }
 
   initNavigationHistory();
   initSheetSwipeGestures();

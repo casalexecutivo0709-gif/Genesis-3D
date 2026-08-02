@@ -26,7 +26,6 @@ Aplicativo web instalável para orçamento, pedidos e composição de kits de im
 - Cópia automática de segurança no IndexedDB para preservar o histórico entre atualizações.
 - Espelhamento opcional dos dados e imagens no próprio computador.
 - Banco principal gratuito no Google Sheets, com fila offline e API em Google Apps Script.
-- Compatibilidade opcional com a sincronização legada do Supabase.
 
 O download do arquivo 3D é aberto na página oficial do MakerWorld ou Thingiverse. Login, licença e condições do autor continuam sendo respeitados.
 
@@ -47,12 +46,6 @@ O reconhecimento visual usa o binding `AI` do Cloudflare Workers AI em **modo gr
 É a opção principal para manter uma cópia central gratuita dos dados. A planilha fica no Google Drive do proprietário e o Apps Script recebe lotes idempotentes, com token configurado fora do repositório.
 
 O aplicativo não depende da planilha para abrir: primeiro grava no IndexedDB e sincroniza quando a internet volta. Veja o passo a passo completo em [`GOOGLE-SHEETS.md`](GOOGLE-SHEETS.md).
-
-### Supabase (legado e opcional)
-
-Foi preservado para quem já o utilizava. Uma nova instalação pode usar apenas Google Sheets, IndexedDB e a cópia opcional no computador.
-
-Se for usado, mantenha o projeto exclusivamente no plano gratuito e sem cobrança automática. O caminho principal sem nuvem continua sendo IndexedDB no celular e a cópia opcional no próprio computador.
 
 ## Publicar o aplicativo no GitHub Pages
 
@@ -116,16 +109,6 @@ O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.5.md`
 4. Toque em **Testar conexão** e depois em **Preparar dados atuais**.
 5. Ative a sincronização automática.
 
-## Ativar sincronização legada com Supabase
-
-1. Crie um projeto no Supabase.
-2. Abra o **SQL Editor** e execute todo o arquivo `supabase-schema.sql`.
-3. No aplicativo, abra **Mais → Configurações**.
-4. Informe o **Project URL** e a chave **anon/public**.
-5. Cadastre o e-mail, entre na conta e envie os dados para a nuvem.
-
-Use apenas a chave pública no aplicativo. A chave `service_role` nunca deve ser colocada no HTML.
-
 ## Instalar no celular
 
 ### iPhone
@@ -153,4 +136,3 @@ Use apenas a chave pública no aplicativo. A chave `service_role` nunca deve ser
 - `makerworld-worker.js`: ponte para MakerWorld, Thingiverse e imagens.
 - `genesis-local-server/`: cópia opcional no próprio computador.
 - `google-apps-script/`: API e criação automática da planilha Google.
-- `supabase-schema.sql`: tabela e políticas de segurança da sincronização.
