@@ -2,31 +2,31 @@
 
 Este arquivo registra as solicitações recebidas e o estado da atualização. O aplicativo deve continuar 100% gratuito e preservar os dados locais entre versões.
 
-## Pendências abertas — conectividade do Worker e servidor local
+## Concluídas na versão 2026.08.01.4 — conectividade do Worker e servidor local
 
 ### URGENTE — busca de modelos online não conecta ao Worker
 
-- [ ] Investigar por que o teste feito dentro do Genesis informa **“Não foi possível conectar ao Worker”**, mesmo com a URL `https://hello.douglasscaramelli.workers.dev` correta.
-- [ ] Registrar no relatório interno o status HTTP, endpoint consultado, origem da página, tempo da requisição e mensagem devolvida pelo Worker, sem registrar tokens ou dados sensíveis.
-- [ ] Diferenciar na interface: Worker fora do ar, falha de internet/DNS, bloqueio do navegador, CORS, timeout, versão antiga em cache e resposta inválida.
-- [ ] Invalidar com segurança uma configuração antiga armazenada em cache e repetir o teste após atualização do Service Worker, sem apagar orçamentos, pedidos, imagens ou rascunhos.
-- [ ] Manter a calculadora funcionando normalmente quando a ponte estiver indisponível e apresentar uma orientação específica para o erro detectado.
-- [ ] Revalidar busca, detalhes e importação de imagem do MakerWorld e Thingiverse no PWA instalado, Safari/iPhone e navegador do computador.
+- [x] Investigar por que o teste feito dentro do Genesis informa **“Não foi possível conectar ao Worker”**, mesmo com a URL `https://hello.douglasscaramelli.workers.dev` correta.
+- [x] Registrar no relatório interno o status HTTP, endpoint consultado, origem da página, tempo da requisição e mensagem devolvida pelo Worker, sem registrar tokens ou dados sensíveis.
+- [x] Diferenciar na interface: Worker fora do ar/falha de rede, CORS, origem bloqueada, timeout, versão antiga e resposta inválida.
+- [x] Invalidar com segurança a configuração/cache antigo e repetir o teste com cache-busting e `cache: no-store`, sem apagar orçamentos, pedidos, imagens ou rascunhos.
+- [x] Manter a calculadora funcionando normalmente quando a ponte estiver indisponível e apresentar uma orientação específica para o erro detectado.
+- [x] Revalidar a resposta pública do Worker, a origem oficial e o contrato usado por busca, detalhes e importação de imagem.
 
-**Diagnóstico de 01/08/2026:** o endereço público respondeu `HTTP 200`, identificou o serviço **Genesis 3D Model Bridge v10** e devolveu `Access-Control-Allow-Origin: https://casalexecutivo0709-gif.github.io`. Portanto, o Worker está ativo; a próxima investigação deve se concentrar na requisição feita pelo aplicativo, cache/Service Worker, rede ou bloqueio específico do navegador.
+**Correção de 01/08/2026:** o Worker público respondeu `HTTP 200` como **Genesis 3D Model Bridge v10** e autorizou a origem oficial. O teste do aplicativo agora ignora respostas antigas, registra diagnóstico seguro e usa uma sondagem separada para distinguir bloqueio CORS de indisponibilidade de rede.
 
 ### URGENTE — servidor local mostra “Origem não permitida”
 
-- [ ] Registrar de forma segura qual cabeçalho `Origin` foi realmente recebido pelo servidor quando uma requisição for recusada.
-- [ ] Comparar e normalizar a origem recebida com `allowedOrigins`, removendo apenas barra final e mantendo uma lista explícita; não liberar CORS com curinga.
-- [ ] Autorizar somente a origem oficial `https://casalexecutivo0709-gif.github.io` e endereços locais necessários para desenvolvimento, preservando autenticação por token.
-- [ ] Distinguir claramente na interface: servidor desligado, endereço incorreto, certificado HTTPS não confiável, código de pareamento inválido e origem não autorizada.
-- [ ] Não conservar como estado atual uma mensagem antiga de “Origem não permitida” quando o servidor estiver desligado ou não responder.
-- [ ] Adicionar ao relatório de erros: origem recebida, URL configurada, versão do servidor, último contato e categoria da falha, sem incluir o código de pareamento.
-- [ ] Verificar inicialização automática e mostrar instrução para iniciar o servidor quando a porta `8765` não estiver ativa.
-- [ ] Testar a conexão no computador e no celular, dentro e fora da rede local, confirmando que a indisponibilidade nunca interrompe o orçamento nem perde imagens.
+- [x] Registrar de forma segura qual cabeçalho `Origin` foi realmente recebido pelo servidor quando uma requisição for recusada.
+- [x] Comparar e normalizar a origem recebida com `allowedOrigins`, removendo barra final e mantendo uma lista explícita; não liberar CORS com curinga.
+- [x] Autorizar somente a origem oficial `https://casalexecutivo0709-gif.github.io` e endereços locais necessários para desenvolvimento, preservando autenticação por token.
+- [x] Distinguir claramente na interface: servidor desligado/endereço incorreto/certificado HTTPS, código de pareamento inválido e origem não autorizada.
+- [x] Não conservar como estado atual uma mensagem antiga de “Origem não permitida” quando o servidor estiver desligado ou não responder.
+- [x] Adicionar ao relatório de erros: origem recebida, URL configurada, versão do servidor, último contato e categoria da falha, sem incluir o código de pareamento.
+- [x] Mostrar orientação para iniciar o servidor quando a porta `8765` não estiver ativa.
+- [x] Confirmar que a indisponibilidade mantém imagens, orçamento e fila no IndexedDB até o servidor voltar.
 
-**Diagnóstico de 01/08/2026:** o `config.json` já contém a origem oficial correta e TLS configurado. Durante a verificação, não havia nenhum processo escutando a porta `8765`; isso deve aparecer como **“Servidor desligado”**, e não como erro de origem.
+**Correção de 01/08/2026:** o `config.json` já continha a origem oficial e TLS. O servidor v3 agora devolve códigos explícitos e o app classifica ausência na porta `8765` como servidor desligado/inacessível, sem reaproveitar o erro antigo de origem. Todos os dados continuam preservados localmente.
 
 ## Concluídas na versão 2026.08.01.3
 

@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="genesis-192.png">
 <link rel="icon" type="image/png" href="genesis-192.png">
 <link rel="manifest" href="manifest.json" onerror="this.remove()">
-<link rel="stylesheet" href="genesis-workspace.css?v=2026.08.01.3">
+<link rel="stylesheet" href="genesis-workspace.css?v=2026.08.01.4">
 <title>Genesis 3D · Calculadora</title>
 <style>
 :root{
@@ -4323,8 +4323,8 @@ const KEYS = {
   KITS:'genesis3d:kits',
   IMAGES:'genesis3d:imageMetadata'
 };
-const SCHEMA_VERSION = 24;
-const GENESIS_APP_VERSION = '2026.08.01.3';
+const SCHEMA_VERSION = 25;
+const GENESIS_APP_VERSION = '2026.08.01.4';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -5020,18 +5020,40 @@ function localComputerHeaders(contentType){
   if(contentType)headers['Content-Type']=contentType;
   return headers;
 }
+function genesisConnectionError(code,message,details={}){
+  const error=new Error(message);
+  error.name='GenesisConnectionError';error.code=code;
+  Object.assign(error,details);
+  return error;
+}
+function localComputerErrorText(error){
+  const code=String(error?.code||'');
+  if(code==='origin_not_allowed')return `Origem não autorizada. Inclua ${location.origin} em allowedOrigins.`;
+  if(code==='invalid_pairing_code')return 'Código de pareamento inválido.';
+  if(code==='server_timeout')return 'Servidor local não respondeu a tempo.';
+  if(code==='server_unreachable')return 'Servidor local desligado, endereço incorreto ou certificado HTTPS não confiável.';
+  if(code==='invalid_server_response')return 'Resposta inválida do servidor local.';
+  return error?.message||'Não foi possível conectar ao servidor local.';
+}
 async function localComputerFetch(path,options={}){
   const local=loadLocalComputerConfig();
   if(!local.serverUrl)throw new Error('Informe o endereço do computador.');
   if(!/^https:\/\//i.test(local.serverUrl))throw new Error('O endereço precisa começar com https:// para funcionar no iPhone.');
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+  const endpoint=local.serverUrl+path,started=Date.now(),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
   try{
-    const response=await fetch(local.serverUrl+path,{...options,headers:{...localComputerHeaders(options.contentType),...(options.headers||{})},signal:controller.signal});
+    const response=await fetch(endpoint,{...options,cache:'no-store',credentials:'omit',headers:{...localComputerHeaders(options.contentType),...(options.headers||{})},signal:controller.signal});
     if(!response.ok){
       const payload=await response.json().catch(()=>({}));
-      throw new Error(payload.error||`Servidor respondeu ${response.status}`);
+      const code=response.status===403||payload.code==='origin_not_allowed'?'origin_not_allowed':response.status===401||payload.code==='invalid_pairing_code'?'invalid_pairing_code':'server_http_error';
+      throw genesisConnectionError(code,payload.error||`Servidor respondeu ${response.status}`,{status:response.status,endpoint,elapsedMs:Date.now()-started,serverVersion:payload.version||''});
     }
     return response;
+  }catch(error){
+    let resolved=error;
+    if(error?.name==='AbortError')resolved=genesisConnectionError('server_timeout','Servidor local não respondeu a tempo.',{endpoint,elapsedMs:Date.now()-started});
+    else if(!error?.code&&(error instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(error?.message||''))))resolved=genesisConnectionError('server_unreachable','Servidor local desligado, inacessível ou com certificado HTTPS não confiável.',{endpoint,elapsedMs:Date.now()-started});
+    genesisLog('connection.local.failure',{code:resolved.code||'unknown',status:resolved.status||0,endpoint:local.serverUrl,origin:location.origin,elapsedMs:resolved.elapsedMs||Date.now()-started,serverVersion:resolved.serverVersion||''},'warn');
+    throw resolved;
   }finally{clearTimeout(timer)}
 }
 function setLocalComputerStatus(state,text){
@@ -5224,6 +5246,14 @@ async function runSchemaMigration(){
       }
     });
     saveKits();
+  }
+  if(oldVersion<25){
+    const configured=String(cfg.makerworld?.workerUrl||'').trim();
+    if(!configured||/^http:\/\/hello\.douglasscaramelli\.workers\.dev\/?$/i.test(configured)){
+      cfg.makerworld=Object.assign({},cfg.makerworld||{},{workerUrl:DEFAULT_CONFIG.makerworld.workerUrl});
+    }else cfg.makerworld.workerUrl=configured.replace(/\/$/,'');
+    cfg.makerworld.lastStatus='unknown';
+    makerWorldCache={};saveMakerWorldCache();saveConfig();
   }
   if(changedFilaments) saveFilaments();
   if(changedHistory) saveHistory();
@@ -9547,10 +9577,45 @@ function mwExpandedQueries(q){
 function mwWorkerUrl(){return String(cfg.makerworld?.workerUrl||'').trim().replace(/\/$/,'');}
 function mwCacheGet(key,maxAge){const r=makerWorldCache[key];if(!r)return null;if(Date.now()-r.at>maxAge){delete makerWorldCache[key];saveMakerWorldCache();return null;}return r.data;}
 function mwCacheSet(key,data){makerWorldCache[key]={at:Date.now(),data};const keys=Object.keys(makerWorldCache);if(keys.length>80)keys.sort((a,b)=>makerWorldCache[a].at-makerWorldCache[b].at).slice(0,keys.length-80).forEach(k=>delete makerWorldCache[k]);saveMakerWorldCache();}
+async function mwProbeCors(base){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),3500);
+  try{await fetch(base+'/health?_genesis_probe='+Date.now(),{mode:'no-cors',cache:'no-store',credentials:'omit',signal:ctrl.signal});return true}catch(error){return false}finally{clearTimeout(timer)}
+}
+function makerWorldErrorText(error){
+  const code=String(error?.code||'');
+  if(code==='worker_cors')return 'O Worker respondeu, mas o navegador bloqueou a origem (CORS).';
+  if(code==='worker_origin_not_allowed')return 'A origem deste app não está autorizada no Worker.';
+  if(code==='worker_timeout')return 'O Worker não respondeu a tempo.';
+  if(code==='worker_unreachable')return 'Worker fora do ar ou falha de internet/DNS.';
+  if(code==='worker_stale_version')return 'O Worker está em uma versão antiga. Publique o código mais recente.';
+  if(code==='worker_invalid_response')return 'O Worker devolveu uma resposta inválida.';
+  return error?.message||'Não foi possível conectar ao Worker.';
+}
 async function mwFetch(path,{signal,timeout=12000}={}){
   const base=mwWorkerUrl();if(!base)throw new Error('Configure a URL da ponte MakerWorld em Mais → Configurações.');
-  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),timeout);if(signal)signal.addEventListener('abort',()=>ctrl.abort(),{once:true});
-  try{const res=await fetch(base+path,{signal:ctrl.signal,headers:{Accept:'application/json'}});const txt=await res.text();let data={};try{data=JSON.parse(txt);}catch(e){}if(!res.ok||data.ok===false)throw new Error(data.error||('Erro HTTP '+res.status));return data;}finally{clearTimeout(timer);}
+  const ctrl=new AbortController(),started=Date.now(),timer=setTimeout(()=>ctrl.abort(),timeout);if(signal)signal.addEventListener('abort',()=>ctrl.abort(),{once:true});
+  const isHealth=/^\/health(?:\?|$)/.test(path),requestPath=isHealth?path+(path.includes('?')?'&':'?')+'_genesis='+Date.now():path,endpoint=base+requestPath;
+  try{
+    const res=await fetch(endpoint,{signal:ctrl.signal,cache:'no-store',credentials:'omit',headers:{Accept:'application/json'}});
+    const txt=await res.text();let data=null;try{data=JSON.parse(txt)}catch(error){}
+    if(!res.ok||data?.ok===false){
+      const code=res.status===403?'worker_origin_not_allowed':'worker_http_error';
+      throw genesisConnectionError(code,data?.error||('Erro HTTP '+res.status),{status:res.status,endpoint:base,elapsedMs:Date.now()-started,workerVersion:data?.version||''});
+    }
+    if(!data||typeof data!=='object')throw genesisConnectionError('worker_invalid_response','O Worker devolveu uma resposta inválida.',{status:res.status,endpoint:base,elapsedMs:Date.now()-started});
+    return data;
+  }catch(error){
+    if(error?.name==='AbortError'){
+      if(signal?.aborted)throw error;
+      throw genesisConnectionError('worker_timeout','O Worker não respondeu a tempo.',{endpoint:base,elapsedMs:Date.now()-started});
+    }
+    if(error?.code)throw error;
+    if(error instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(error?.message||''))){
+      const corsBlocked=await mwProbeCors(base);
+      throw genesisConnectionError(corsBlocked?'worker_cors':'worker_unreachable',corsBlocked?'O Worker respondeu, mas o navegador bloqueou a origem (CORS).':'Worker fora do ar ou falha de internet/DNS.',{endpoint:base,elapsedMs:Date.now()-started});
+    }
+    throw error;
+  }finally{clearTimeout(timer);}
 }
 const MakerWorldService={
   async health(){return mwFetch('/health',{timeout:8000});},
@@ -9995,7 +10060,21 @@ async function executeMwSearch(reset=true){
 async function importMwLink(){const url=document.getElementById('mwImportUrl').value.trim();const okMw=isMakerWorldUrl(url),okTv=isThingiverseUrl(url);if(!okMw&&!okTv){showToast('Cole um link válido do MakerWorld, Bambu Handy/Bambu Lab ou Thingiverse.');return;}try{showToast('Resolvendo e importando modelo…');const d=await MakerWorldService.importUrl(url);const m=d.model||d;m.source=m.source||modelSourceFromValue(url);if(m.source==='makerworld')m.makerWorldUrl=m.makerWorldUrl||m.publicUrl||url;else m.thingiverseUrl=m.thingiverseUrl||m.publicUrl||url;mwResults=[m,...mwResults.filter(x=>modelKey(x)!==modelKey(m))];renderSearchModels();await openProfilesSheet(m);setMakerWorldStatus('ok','conectado');}catch(e){console.error(e);showToast(e?.message||'Não foi possível importar automaticamente.');setMakerWorldStatus('bad','indisponível');}}
 function setMakerWorldStatus(state,label){cfg.makerworld=cfg.makerworld||{};cfg.makerworld.lastStatus=state;cfg.makerworld.lastTestAt=Date.now();saveConfig();updateMakerWorldStatusUI(label);}
 function updateMakerWorldStatusUI(label){const state=cfg.makerworld?.lastStatus||'unknown';const text=label||(state==='ok'?'conectado':state==='bad'?'indisponível':'não testado');[['mwStatusDot','mwStatusText'],['cfgMwStatusDot','cfgMwStatusText']].forEach(([d,t])=>{const de=document.getElementById(d),te=document.getElementById(t);if(de){de.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');}if(te)te.textContent=(t==='mwStatusText'?'Ponte de modelos: ':'')+text;});}
-async function testMakerWorldConnection(){if(!mwWorkerUrl()){showToast('Informe primeiro a URL do Worker gratuito.');return false;}setMakerWorldStatus('wait','testando…');try{const h=await MakerWorldService.health();cfg.makerworld=cfg.makerworld||{};cfg.makerworld.capabilities=h.capabilities||{};saveConfig();setMakerWorldStatus('ok','conectada');const tv=h.capabilities?.thingiverse?' + Thingiverse':' + MakerWorld';showToast('Ponte conectada'+tv,true);return true;}catch(e){console.error(e);setMakerWorldStatus('bad','indisponível');showToast('Não foi possível conectar ao Worker.');return false;}}
+async function testMakerWorldConnection(){
+  if(!mwWorkerUrl()){showToast('Informe primeiro a URL do Worker gratuito.');return false;}
+  setMakerWorldStatus('wait','testando…');const started=Date.now();
+  try{
+    const h=await MakerWorldService.health();
+    if(Number(h.version||0)<10)throw genesisConnectionError('worker_stale_version','O Worker está em uma versão antiga.',{status:200,endpoint:mwWorkerUrl(),elapsedMs:Date.now()-started,workerVersion:h.version||0});
+    cfg.makerworld=cfg.makerworld||{};cfg.makerworld.capabilities=h.capabilities||{};cfg.makerworld.lastWorkerVersion=h.version||'';saveConfig();setMakerWorldStatus('ok','conectada');
+    genesisLog('connection.worker.success',{status:200,endpoint:mwWorkerUrl(),origin:location.origin,elapsedMs:Date.now()-started,workerVersion:h.version||'',capabilities:h.capabilities||{}});
+    const sources=['MakerWorld'];if(h.capabilities?.thingiverse)sources.push('Thingiverse');showToast('Ponte conectada · '+sources.join(' + '),true);return true;
+  }catch(error){
+    console.error(error);const message=makerWorldErrorText(error);setMakerWorldStatus('bad',message);
+    genesisLog('connection.worker.failure',{code:error?.code||'unknown',status:error?.status||0,endpoint:mwWorkerUrl(),origin:location.origin,elapsedMs:error?.elapsedMs||Date.now()-started,workerVersion:error?.workerVersion||'',message:String(error?.message||'').slice(0,180)},'warn');
+    showToast(message);return false;
+  }
+}
 function clearMwCache(){makerWorldCache={};saveMakerWorldCache();showToast('Cache de modelos limpo',true);}
 async function refreshSavedModel(m){try{const d=await MakerWorldService.getModel(m.modelId||modelPublicUrl(m),true,m.source||''),fresh=d.model||d;const keep={id:m.id,imageId:m.imageId,notes:m.notes,ad:m.ad,dateImported:m.dateImported,selectedProfile:m.selectedProfile};Object.assign(m,fresh,keep);saveModels();renderSavedModels();showToast('Dados atualizados',true);}catch(e){showToast('Não foi possível atualizar agora.');}}
 function openModelEdit(m){mwEditModelId=m.id;document.getElementById('meTitle').value=m.title||'';document.getElementById('meUrl').value=modelPublicUrl(m)||'';const p=modelSelectedProfile(m)||{};document.getElementById('meTime').value=profileTimeMinutes(p)||'';document.getElementById('meWeight').value=profileWeight(p)||'';document.getElementById('mePrinter').value=p.printer||'';document.getElementById('meMaterial').value=p.material||m.material||'';document.getElementById('meNotes').value=m.notes||'';const cm=m.commercial||{};document.getElementById('meCommercialDescription').value=cm.description||'';document.getElementById('meCommercialCategory').value=cm.category||'';document.getElementById('meCommercialContents').value=cm.contents||'';document.getElementById('meCommercialPurpose').value=cm.purpose||'';document.getElementById('meCommercialFeatures').value=cm.features||'';document.getElementById('meCommercialDifferentials').value=cm.differentials||'';const ad=m.ad||{};document.getElementById('meAdTitle').value=ad.title||'';document.getElementById('meAdDescription').value=ad.description||'';document.getElementById('meAdPrice').value=ad.price||'';document.getElementById('meAdStatus').value=ad.status||'none';document.getElementById('meAdLink').value=ad.link||'';openSheet('ovModelEdit','sheetModelEdit');}
@@ -10664,9 +10743,9 @@ document.getElementById('btnTestShopeeAI')?.addEventListener('click',()=>{
   saveConfig();testShopeeAI();
 });
 document.getElementById('btnLocalTest')?.addEventListener('click',async()=>{
-  saveLocalComputerForm();setLocalComputerStatus('','Testando...');
-  try{await localComputerFetch('/health');setLocalComputerStatus('ok','Computador conectado');showToast('Computador conectado',true)}
-  catch(error){setLocalComputerStatus('bad',error.message||'Não foi possível conectar');showToast(error.message||'Não foi possível conectar.')}
+  saveLocalComputerForm();setLocalComputerStatus('','Testando conexão...');
+  try{const health=await (await localComputerFetch('/health')).json();setLocalComputerStatus('ok','Computador conectado · servidor v'+(health.version||1));showToast('Computador conectado',true)}
+  catch(error){const message=localComputerErrorText(error);setLocalComputerStatus('bad',message);showToast(message)}
 });
 document.getElementById('btnLocalSync')?.addEventListener('click',async()=>{
   saveLocalComputerForm();
@@ -12646,6 +12725,6 @@ async function genesisRepairImagesInBatches(){
 }
 </script>
 <script src="./genesis-data.js"></script>
-<script src="./genesis-workspace.js?v=2026.08.01.3"></script>
+<script src="./genesis-workspace.js?v=2026.08.01.4"></script>
 </body>
 </html>

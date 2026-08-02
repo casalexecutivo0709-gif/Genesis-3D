@@ -616,7 +616,7 @@ export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
     if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:cors(origin)});
-    if (!originAllowed(origin,env)) return json({ok:false,error:'Origem não permitida'},403,origin);
+    if (!originAllowed(origin,env)) return json({ok:false,code:'origin_not_allowed',error:'Origem não permitida'},403,origin,{'Cache-Control':'no-store'});
     const url = new URL(request.url);
     try {
       if(request.method==='POST'&&url.pathname==='/shopee/analyze'){
@@ -634,7 +634,7 @@ export default {
           capabilities:{makerworld:true,thingiverse:!!String(env.THINGIVERSE_ACCESS_TOKEN||'').trim(),shopeeAI:freeAiReady},
           ai:freeAiReady?{provider:'cloudflare-workers-ai-free',model:FREE_AI_MODEL,dailyDeviceSafetyLimit:FREE_AI_DAILY_DEVICE_LIMIT}:null,
           time:new Date().toISOString()
-        },200,origin);
+        },200,origin,{'Cache-Control':'no-store'});
       }
       if (url.pathname === '/search') {
         const q = cleanText(url.searchParams.get('q'),80);

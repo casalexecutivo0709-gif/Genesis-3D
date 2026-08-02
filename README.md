@@ -104,7 +104,7 @@ No desktop também é possível usar **Sincronizar imagens**, **Abrir pasta de i
 
 Atualizar o aplicativo no mesmo endereço não apaga `localStorage` nem IndexedDB. O Service Worker também só instala a nova versão depois da confirmação do usuário. A cópia no computador oferece recuperação adicional caso os dados do site sejam apagados manualmente ou pelo sistema.
 
-O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.3.md`](RELEASE-2026.08.01.3.md).
+O diagnóstico e os testes da versão atual estão em [`RELEASE-2026.08.01.4.md`](RELEASE-2026.08.01.4.md).
 
 ## Ativar sincronização com Google Sheets
 

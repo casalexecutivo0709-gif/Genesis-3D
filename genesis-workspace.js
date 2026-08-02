@@ -240,7 +240,12 @@
     const queue=await imageQueueAll(),pending=queue.filter(item=>item.status!=='synced').length;const pendingEl=document.getElementById('genesisServerPending');if(pendingEl)pendingEl.textContent=String(pending);
     const local=loadLocalComputerConfig();if(!local.enabled||!local.serverUrl)return;
     try{const health=await (await localComputerFetch('/health')).json(),status=await (await localComputerFetch('/v1/status')).json();document.getElementById('genesisServerLastContact').textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});document.getElementById('genesisServerImageCount').textContent=String(status.imageCount||0);document.getElementById('genesisServerBytes').textContent=formatBytes(status.bytesUsed);document.getElementById('genesisServerBackup').textContent=status.lastBackup?new Date(status.lastBackup).toLocaleString('pt-BR'):'Nenhum';document.getElementById('genesisServerVersion').textContent='v'+(health.version||1);document.getElementById('genesisDesktopServerText').textContent='Servidor local conectado';setLocalComputerStatus('ok','Computador conectado · biblioteca disponível');}
-    catch(error){const desktop=document.getElementById('genesisDesktopServerText');if(desktop)desktop.textContent='Servidor local desconectado';setLocalComputerStatus('bad','Servidor desconectado · dados preservados neste dispositivo');}
+    catch(error){
+      const desktop=document.getElementById('genesisDesktopServerText'),message=typeof localComputerErrorText==='function'?localComputerErrorText(error):'Servidor local desconectado.';
+      if(desktop)desktop.textContent=error?.code==='origin_not_allowed'?'Origem do app não autorizada':'Servidor local desconectado';
+      ['genesisServerImageCount','genesisServerBytes','genesisServerBackup','genesisServerVersion'].forEach(id=>{const element=document.getElementById(id);if(element)element.textContent='—'});
+      setLocalComputerStatus('bad',message+' Dados preservados neste dispositivo.');
+    }
   }
 
   function modalTemplate(id,className,title,subtitle,body){return `<div class="genesis-modal-layer ${className||''}" id="${id}" aria-hidden="true"><div class="genesis-modal-card"><div class="genesis-modal-head"><div><h2>${title}</h2><p>${subtitle||''}</p></div><button class="genesis-modal-close" type="button" data-close-genesis-modal="${id}" aria-label="Fechar">×</button></div>${body}</div></div>`;}
