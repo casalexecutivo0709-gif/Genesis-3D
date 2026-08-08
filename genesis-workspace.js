@@ -5,6 +5,7 @@
   const VALID_IMAGE_TYPES=new Set(['image/jpeg','image/png','image/webp','image/heic','image/heif']);
   const state={context:'calc',actionImageId:null,editor:null,editorUrl:'',previewUrl:'',previewTimer:0,pullBusy:false,lastMenuOpen:0};
   const coreMediaPutBlob=mediaPutBlob;
+  const coreMediaGetThumbnailObjectUrl=mediaGetThumbnailObjectUrl;
   const coreImportImageFileToMedia=importImageFileToMedia;
   const coreLocalMirrorImage=genesisLocalMirrorImage;
 
@@ -138,21 +139,36 @@
   async function uploadImageDrive(imageId){
     if(!cfg.images?.driveSync)throw new Error('Google Drive desativado.');
     if(!window.genesisSheetsConfigured?.())throw new Error('Configure o Google Apps Script para usar o Drive.');
-    const row=await mediaGetRecord(imageId),blob=row?.optimizedBlob||row?.blob;if(!blob)throw new Error('Imagem otimizada não encontrada.');
-    const dataUrl=await blobToDataUrl(blob),entity=imageEntity(imageId);
-    const result=await window.genesisSheetsApi('uploadImage',{image_id:imageId,reference_id:entity?.entidade_id||imageId,file_name:entity?.nome_arquivo||`${imageId}.webp`,mime_type:blob.type||'image/webp',base64:String(dataUrl||'').split(',')[1]||'',share_mode:cfg.images?.driveShareMode==='link'?'link':'private'});
-    upsertImageEntity(imageId,{drive_file_id:result.file_id||'',drive_url:result.direct_url||result.url||'',sync_status:'synced',drive_synced_at:nowIso()});return true;
+    const row=await mediaGetRecord(imageId),optimized=row?.optimizedBlob||row?.blob;if(!optimized)throw new Error('Imagem otimizada não encontrada.');
+    const entity=imageEntity(imageId);let thumbnail=row?.thumbnailBlob;
+    if(!thumbnail)thumbnail=(await createOptimizedVariant(optimized,360,.8)).blob;
+    const uploadVariant=async(variant,blob,existingFileId='')=>{
+      const dataUrl=await blobToDataUrl(blob),hash=await sha256(blob);
+      return window.genesisSheetsApi('uploadImage',{image_id:imageId,reference_id:entity?.entidade_id||imageId,variant,existing_file_id:existingFileId,file_name:`${imageId}-${variant}.${blob.type.includes('png')?'png':'webp'}`,mime_type:blob.type||'image/webp',hash,base64:String(dataUrl||'').split(',')[1]||'',share_mode:cfg.images?.driveShareMode==='link'?'link':'private'});
+    };
+    const thumbResult=await uploadVariant('thumbnail',thumbnail,entity?.thumbnail_drive_file_id||'');
+    upsertImageEntity(imageId,{thumbnail_drive_file_id:thumbResult.file_id||'',thumbnail_drive_url:thumbResult.direct_url||thumbResult.url||'',sync_status:'pending'});
+    const optimizedResult=await uploadVariant('optimized',optimized,entity?.drive_file_id||'');
+    upsertImageEntity(imageId,{drive_file_id:optimizedResult.file_id||'',drive_url:optimizedResult.direct_url||optimizedResult.url||'',sync_status:'synced',sync_error_code:'',sync_error:'',drive_synced_at:nowIso()});return true;
   }
+  function isDriveQuotaError(error){return /quota|storage|armazenamento|espaço|space|limit|limite|exceeded|service invoked too many times/i.test(String(error?.message||error||''));}
   async function flushImageQueue({silent=false}={}){
-    const rows=(await imageQueueAll()).filter(item=>item.status!=='synced'&&(!item.nextAttemptAt||item.nextAttemptAt<=Date.now())).sort((a,b)=>a.createdAt-b.createdAt);
-    let done=0,failed=0;
-    for(const item of rows){
-      try{item.status='syncing';item.updatedAt=Date.now();await imageQueuePut(item);if(item.target==='local')await uploadImageLocal(item.imageId);else await uploadImageDrive(item.imageId);await imageQueueDelete(item.id);done++;}
-      catch(error){item.status='failed';item.attempts=(item.attempts||0)+1;item.lastError=String(error.message||error).slice(0,300);item.nextAttemptAt=Date.now()+Math.min(300000,3000*Math.pow(2,item.attempts));item.updatedAt=Date.now();await imageQueuePut(item);failed++;genesisLog('image.sync.failed',{imageId:item.imageId,target:item.target,error},'warn');}
-    }
+    if(state.imageSyncBusy)return {done:0,failed:0,busy:true};
+    state.imageSyncBusy=true;let done=0,failed=0,quotaFailed=false;
+    try{
+      const rows=(await imageQueueAll()).filter(item=>item.status!=='synced'&&(!item.nextAttemptAt||item.nextAttemptAt<=Date.now())&&(item.target!=='drive'||cfg.images?.driveSync)).sort((a,b)=>a.createdAt-b.createdAt);
+      for(const item of rows){
+        try{item.status='syncing';item.updatedAt=Date.now();await imageQueuePut(item);if(item.target==='local')await uploadImageLocal(item.imageId);else await uploadImageDrive(item.imageId);await imageQueueDelete(item.id);done++;}
+        catch(error){
+          const quota=item.target==='drive'&&isDriveQuotaError(error);quotaFailed=quotaFailed||quota;item.status='failed';item.attempts=(item.attempts||0)+1;item.lastError=String(error.message||error).slice(0,300);item.nextAttemptAt=Date.now()+Math.min(300000,3000*Math.pow(2,item.attempts));item.updatedAt=Date.now();await imageQueuePut(item);failed++;
+          if(item.target==='drive')upsertImageEntity(item.imageId,{sync_status:'failed',sync_error_code:quota?'drive_quota':'drive_upload_failed',sync_error:item.lastError});
+          genesisLog('image.sync.failed',{imageId:item.imageId,target:item.target,quota,error},'warn');
+        }
+      }
+    }finally{state.imageSyncBusy=false;}
     await updateLocalServerPanel();updateImageStatusBadges();
-    if(!silent)showToast(failed?`${done} imagem(ns) sincronizada(s) · ${failed} aguardando nova tentativa`:`${done} imagem(ns) sincronizada(s)`,failed===0);
-    return {done,failed};
+    if(!silent)showToast(quotaFailed?'Não foi possível enviar esta imagem ao Google Drive. Ela continua salva neste dispositivo.':failed?`${done} imagem(ns) sincronizada(s) · ${failed} aguardando nova tentativa`:`${done} imagem(ns) sincronizada(s)`,failed===0);
+    return {done,failed,quotaFailed};
   }
   genesisLocalMirrorImage=async function(imageId){await enqueueImageSync(imageId);setTimeout(()=>flushImageQueue({silent:true}),200);return true;};
 
@@ -264,16 +280,35 @@
   function openGenesisModal(id){const modal=document.getElementById(id);if(!modal)return;modal.classList.add('open');modal.setAttribute('aria-hidden','false');saveActiveDraft('before-image-modal');}
   function closeGenesisModal(id){const modal=document.getElementById(id);if(!modal)return;modal.classList.remove('open');modal.setAttribute('aria-hidden','true');if(id==='genesisImageEditorModal'){void clearEditorDraft();cleanupEditor();}}
 
-  async function hydrateImageFromFallback(entity){
-    if(!entity)return '';
-    let url=await mediaGetObjectUrl(entity.id);if(url)return url;
-    try{
-      if(entity.local_file_id&&loadLocalComputerConfig().enabled){const response=await localComputerFetch('/v1/images/'+encodeURIComponent(entity.local_file_id)+'?variant=optimized'),blob=await response.blob();await coreMediaPutBlob(blob,entity.id,{sourceType:'server',sourceUrl:entity.local_url||''});return await mediaGetObjectUrl(entity.id);}
-      if(entity.drive_file_id&&window.genesisSheetsConfigured?.()){const result=await window.genesisSheetsApi('downloadImage',{file_id:entity.drive_file_id}),bytes=atob(result.base64||''),array=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)array[i]=bytes.charCodeAt(i);await coreMediaPutBlob(new Blob([array],{type:result.mime_type||entity.tipo_mime||'image/webp'}),entity.id,{sourceType:'drive',sourceUrl:entity.drive_url||''});return await mediaGetObjectUrl(entity.id);}
-      if(entity.drive_url)return entity.drive_url;
-    }catch(error){genesisLog('image.fallback.failed',{imageId:entity.id,error},'warn');}
-    return '';
+  async function storeHydratedVariant(entity,blob,variant,sourceType,sourceUrl){
+    const existing=await mediaGetRecord(entity.id),thumbnailOnly=variant==='thumbnail';
+    if(!existing)await coreMediaPutBlob(blob,entity.id,{sourceType,sourceUrl,imageMimeType:blob.type});
+    await updateMediaRecord(entity.id,thumbnailOnly?{thumbnailBlob:blob,remoteThumbnailOnly:!existing?.blob,sourceType,sourceUrl,updatedAt:Date.now()}:{blob,optimizedBlob:blob,remoteThumbnailOnly:false,sourceType,sourceUrl,updatedAt:Date.now()});
+    return thumbnailOnly?coreMediaGetThumbnailObjectUrl(entity.id):mediaGetObjectUrl(entity.id);
   }
+  async function hydrateImageFromFallback(entity,variant='optimized'){
+    if(!entity)return '';
+    const existing=await mediaGetRecord(entity.id);
+    if(variant==='thumbnail'&&(existing?.thumbnailBlob||existing?.blob))return coreMediaGetThumbnailObjectUrl(entity.id);
+    if(variant!=='thumbnail'&&existing?.blob&&!existing.remoteThumbnailOnly)return mediaGetObjectUrl(entity.id);
+    if(entity.local_file_id&&loadLocalComputerConfig().enabled){
+      try{const response=await localComputerFetch('/v1/images/'+encodeURIComponent(entity.local_file_id)+'?variant='+encodeURIComponent(variant)),blob=await response.blob();return await storeHydratedVariant(entity,blob,variant,'server',entity.local_url||'');}
+      catch(error){genesisLog('image.fallback.local_failed',{imageId:entity.id,variant,error},'warn');}
+    }
+    const driveFileId=variant==='thumbnail'?(entity.thumbnail_drive_file_id||entity.drive_file_id):entity.drive_file_id;
+    if(driveFileId&&window.genesisSheetsConfigured?.()){
+      try{
+        const result=await window.genesisSheetsApi('downloadImage',{file_id:driveFileId}),bytes=atob(result.base64||''),array=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)array[i]=bytes.charCodeAt(i);
+        return await storeHydratedVariant(entity,new Blob([array],{type:result.mime_type||entity.tipo_mime||'image/webp'}),variant,'drive',variant==='thumbnail'?entity.thumbnail_drive_url||'':entity.drive_url||'');
+      }catch(error){genesisLog('image.fallback.drive_failed',{imageId:entity.id,variant,error},'warn');}
+    }
+    const directUrl=variant==='thumbnail'?entity.thumbnail_drive_url||entity.drive_url:entity.drive_url;
+    return directUrl||'';
+  }
+  mediaGetThumbnailObjectUrl=async function(id){
+    const local=await coreMediaGetThumbnailObjectUrl(id);if(local)return local;
+    return hydrateImageFromFallback(imageEntity(id),'thumbnail');
+  };
   async function refreshLocalImageLibraryIndex(){
     const local=loadLocalComputerConfig();if(!local.enabled||!local.serverUrl)return 0;
     try{
@@ -294,8 +329,8 @@
     items.sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0));grid.innerHTML=items.length?'':'<div class="genesis-library-empty">Nenhuma imagem encontrada.</div>';
     for(const item of items.slice(0,300)){
       const button=document.createElement('button');button.type='button';button.className='genesis-library-item';button.innerHTML='<div class="genesis-library-placeholder" style="aspect-ratio:1.18;display:grid;place-items:center;color:#7d748e">Carregando…</div><div><strong>'+escapeHtml(item.nome_produto||item.nome_original||item.nome_arquivo||'Imagem')+'</strong><small>'+escapeHtml(item.origem||'Genesis')+' · versão '+(Number(item.versao)||1)+'</small></div>';grid.appendChild(button);
-      hydrateImageFromFallback(item).then(url=>{if(url){const placeholder=button.querySelector('.genesis-library-placeholder'),img=document.createElement('img');img.loading='lazy';img.src=url;img.alt='';placeholder.replaceWith(img);}else button.querySelector('.genesis-library-placeholder').textContent='Imagem fora deste dispositivo';});
-      button.addEventListener('click',async()=>{await setContextImage(state.context,item.id);closeGenesisModal('genesisImageLibraryModal');});
+      hydrateImageFromFallback(item,'thumbnail').then(url=>{if(url){const placeholder=button.querySelector('.genesis-library-placeholder'),img=document.createElement('img');img.loading='lazy';img.src=url;img.alt='';placeholder.replaceWith(img);}else button.querySelector('.genesis-library-placeholder').textContent='Imagem fora deste dispositivo';});
+      button.addEventListener('click',async()=>{await hydrateImageFromFallback(item,'optimized');await setContextImage(state.context,item.id);closeGenesisModal('genesisImageLibraryModal');});
       button.addEventListener('contextmenu',event=>{event.preventDefault();openImageActionMenu(state.context,item.id);});
     }
   }
@@ -448,6 +483,6 @@
       genesisLog('workspace.ready',{view:resolvedView(),images:imageEntities.length,version:GENESIS_APP_VERSION});
     }catch(error){genesisLog('workspace.init.failed',{error},'error');console.error('[Genesis Workspace]',error);}
   }
-  window.GenesisWorkspace={applyViewMode,openImageLibrary,openImageEditor,openImageActionMenu,flushImageQueue,refresh:refreshGenesisData,updateLocalServerPanel,isBusy:()=>!!(state.editor||state.pullBusy)};
+  window.GenesisWorkspace={applyViewMode,openImageLibrary,openImageEditor,openImageActionMenu,flushImageQueue,refresh:refreshGenesisData,updateLocalServerPanel,isBusy:()=>!!(state.editor||state.pullBusy||state.imageSyncBusy)};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(initWorkspace,250),{once:true});else setTimeout(initWorkspace,250);
 })();
