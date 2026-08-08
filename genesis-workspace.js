@@ -448,6 +448,6 @@
       genesisLog('workspace.ready',{view:resolvedView(),images:imageEntities.length,version:GENESIS_APP_VERSION});
     }catch(error){genesisLog('workspace.init.failed',{error},'error');console.error('[Genesis Workspace]',error);}
   }
-  window.GenesisWorkspace={applyViewMode,openImageLibrary,openImageEditor,openImageActionMenu,flushImageQueue,refresh:refreshGenesisData,updateLocalServerPanel};
+  window.GenesisWorkspace={applyViewMode,openImageLibrary,openImageEditor,openImageActionMenu,flushImageQueue,refresh:refreshGenesisData,updateLocalServerPanel,isBusy:()=>!!(state.editor||state.pullBusy)};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(initWorkspace,250),{once:true});else setTimeout(initWorkspace,250);
 })();

@@ -689,4 +689,5 @@
   window.genesisSheetsQueueDiagnose=diagnoseSheetsQueue;
   window.genesisSheetsQueueRepair=repairSheetsQueue;
   window.genesisOpenSyncConflicts=openSyncConflicts;
+  window.genesisSheetsSyncBusy=()=>sheetsSyncBusy;
 })();

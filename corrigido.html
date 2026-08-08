@@ -4293,6 +4293,7 @@ body::before{inset:0!important}
   <div class="btn-row" style="margin-top:8px;"><button class="btn btn-secondary" id="btnOpenShopeeSeller">Abrir Central do Vendedor</button><button class="btn btn-ghost" id="btnAdPromptClose">Fechar</button></div>
 </div>
 
+<script src="./genesis-version.js"></script>
 <script src="./genesis-finance.js"></script>
 <script>
 /* =========================================================
@@ -4354,7 +4355,7 @@ const KEYS = {
   IMAGES:'genesis3d:imageMetadata'
 };
 const SCHEMA_VERSION = 25;
-const GENESIS_APP_VERSION = '2026.08.01.5';
+const GENESIS_APP_VERSION = window.GenesisVersion?.APP_VERSION||'development';
 const GENESIS_ERROR_LOG_KEY = 'genesis3d:errorLog';
 const GENESIS_DRAFT_KEY = 'genesis3d:activeDraft';
 const GENESIS_FREE_AI_USAGE_KEY = 'genesis3d:freeAiUsage';
@@ -11984,8 +11985,32 @@ init();
 if('serviceWorker' in navigator){
   let genesisSwReloadAccepted=false;
   let genesisSwPromptVisible=false;
-  function offerGenesisUpdate(registration){
+  let genesisSwPendingRegistration=null;
+  function genesisUpdateBlockedReasons(){
+    const reasons=[];
+    if(document.querySelector('.sheet.open:not(#sheetConfirm),.genesis-modal-layer.open'))reasons.push('edição ou modal aberto');
+    if(window.genesisSheetsSyncBusy?.())reasons.push('Google Sheets sincronizando');
+    if(window.GenesisWorkspace?.isBusy?.())reasons.push('imagem sendo processada');
+    return reasons;
+  }
+  function installGenesisUpdateNotice(){
+    let notice=document.getElementById('genesisUpdateNotice');
+    if(notice)return notice;
+    notice=document.createElement('div');notice.id='genesisUpdateNotice';notice.hidden=true;
+    notice.style.cssText='position:fixed;right:14px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:17500;display:flex;align-items:center;gap:10px;max-width:min(390px,calc(100vw - 28px));padding:10px 12px;border:1px solid rgba(168,85,247,.45);border-radius:14px;background:rgba(12,16,27,.96);box-shadow:0 15px 45px rgba(0,0,0,.38);color:#f5f3ff;font:700 12px/1.25 Inter,system-ui,sans-serif';
+    notice.innerHTML='<span>Nova versão do Genesis disponível.</span><button type="button" class="btn btn-primary btn-sm" style="white-space:nowrap">Atualizar agora</button>';
+    notice.querySelector('button').onclick=()=>{
+      const reasons=genesisUpdateBlockedReasons();
+      if(reasons.length){saveActiveDraft('update-waiting');showToast(`Finalize antes de atualizar: ${reasons.join(', ')}.`);return;}
+      offerGenesisUpdate(genesisSwPendingRegistration,true);
+    };
+    document.body.appendChild(notice);return notice;
+  }
+  function offerGenesisUpdate(registration,confirmedOpen=false){
     if(!registration?.waiting||genesisSwPromptVisible)return;
+    genesisSwPendingRegistration=registration;
+    const notice=installGenesisUpdateNotice();notice.hidden=false;notice.style.display='flex';
+    if(!confirmedOpen)return;
     genesisSwPromptVisible=true;
     genesisLog('service-worker.update-ready',{scriptURL:registration.waiting.scriptURL});
     showConfirm(
@@ -11996,6 +12021,7 @@ if('serviceWorker' in navigator){
         const draftPromise=typeof genesisPersistDraftToIndexedDb==='function'?genesisPersistDraftToIndexedDb('before-app-update'):Promise.resolve();
         Promise.allSettled([draftPromise,persistStateSnapshot('before-app-update')]).finally(()=>{
           genesisSwReloadAccepted=true;
+          notice.hidden=true;notice.style.display='none';
           registration.waiting?.postMessage({type:'SKIP_WAITING'});
         });
       },
@@ -12773,6 +12799,6 @@ async function genesisRepairImagesInBatches(){
 </script>
 <script src="./genesis-sync-core.js"></script>
 <script src="./genesis-data.js"></script>
-<script src="./genesis-workspace.js?v=2026.08.08-scroll-perf"></script>
+<script src="./genesis-workspace.js"></script>
 </body>
 </html>

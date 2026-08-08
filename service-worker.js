@@ -1,7 +1,12 @@
-const STATIC_CACHE='genesis3d-static-v35-scroll-perf-20260808';
-const RUNTIME_CACHE='genesis3d-runtime-v35-scroll-perf-20260808';
-const SW_VERSION='35-scroll-perf-20260808';
-const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-finance.js','./genesis-sync-core.js','./genesis-data.js','./genesis-workspace.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
+importScripts('./genesis-version.js');
+
+const APP_VERSION=self.GenesisVersion.APP_VERSION;
+const CACHE_VERSION=self.GenesisVersion.CACHE_VERSION;
+const STATIC_CACHE=`genesis3d-static-v${CACHE_VERSION}`;
+const RUNTIME_CACHE=`genesis3d-runtime-v${CACHE_VERSION}`;
+const SW_VERSION=APP_VERSION;
+const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-version.js','./genesis-finance.js','./genesis-sync-core.js','./genesis-data.js','./genesis-workspace.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
+const CORE_PATHS=new Set(CORE.map(path=>new URL(path,self.location.href).pathname));
 const MAX_RUNTIME_ENTRIES=60;
 
 self.addEventListener('install',event=>event.waitUntil(
@@ -24,18 +29,21 @@ async function trimRuntimeCache(){
 }
 
 async function navigationResponse(request){
+  const cache=await caches.open(STATIC_CACHE),cached=await cache.match('./corrigido.html');
+  if(cached)return cached;
   try{
     const response=await fetch(request);
-    if(response?.ok){const cache=await caches.open(STATIC_CACHE);await cache.put(request,response.clone());}
+    if(response?.ok)await cache.put('./corrigido.html',response.clone());
     return response;
   }catch(error){return (await caches.match(request))||(await caches.match('./corrigido.html'));}
 }
 
 async function staticResponse(request){
-  const cached=await caches.match(request);
+  const url=new URL(request.url),isCore=CORE_PATHS.has(url.pathname),cache=await caches.open(isCore?STATIC_CACHE:RUNTIME_CACHE);
+  const cached=await cache.match(request,{ignoreSearch:isCore});
   if(cached)return cached;
   const response=await fetch(request);
-  if(response?.ok){const cache=await caches.open(RUNTIME_CACHE);await cache.put(request,response.clone());await trimRuntimeCache();}
+  if(response?.ok){await cache.put(request,response.clone());if(!isCore)await trimRuntimeCache();}
   return response;
 }
 
