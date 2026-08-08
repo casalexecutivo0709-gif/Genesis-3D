@@ -5116,6 +5116,7 @@ function setLocalComputerStatus(state,text){
   const dot=document.getElementById('localStatusDot'),label=document.getElementById('localStatusText');
   if(dot)dot.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');
   if(label)label.textContent=text;
+  window.dispatchEvent(new CustomEvent('genesis:local-server-status',{detail:{status:state==='ok'?'connected':state==='bad'?'error':'idle',text,enabled:loadLocalComputerConfig().enabled}}));
 }
 function scheduleLocalComputerSnapshot(){
   if(!loadLocalComputerConfig().enabled)return;
@@ -12810,5 +12811,6 @@ async function genesisRepairImagesInBatches(){
 <script src="./genesis-realtime-core.js"></script>
 <script src="./genesis-realtime.js"></script>
 <script src="./genesis-workspace.js"></script>
+<script src="./genesis-sync-status.js"></script>
 </body>
 </html>

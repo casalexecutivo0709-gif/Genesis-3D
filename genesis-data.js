@@ -341,10 +341,12 @@
 
   function saveSheetsConfig(){store.set(SHEETS_CONFIG_KEY,JSON.stringify(sheetsConfig));}
   function sheetsConfigured(){return /^https:\/\/script\.google\.com\/macros\/s\//i.test(String(sheetsConfig.url||''))&&!!String(sheetsConfig.token||'').trim();}
-  function setSheetsStatus(state,text){
+  function setSheetsStatus(state,text,details={}){
     const dot=document.getElementById('sheetsStatusDot'),label=document.getElementById('sheetsStatusText');
     if(dot)dot.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');
     if(label)label.textContent=text;
+    const syncState=details.syncState||(state==='bad'?'error':state==='ok'?'connected':/sincronizando|testando|criando backup/i.test(text)?'syncing':'idle');
+    window.dispatchEvent(new CustomEvent('genesis:sheets-status',{detail:{status:syncState,text,configured:sheetsConfigured(),enabled:!!sheetsConfig.enabled,busy:sheetsSyncBusy,...details}}));
   }
   function renderQueueReport(report,title='Diagnóstico da fila'){
     const box=document.getElementById('sheetsQueueReport');if(!box||!report)return;
@@ -365,12 +367,18 @@
     const queue=await dbAll(SYNC_QUEUE_STORE),pending=queue.filter(item=>item.status!=='synced').length,conflicts=queue.filter(item=>item.status==='conflict').length;
     const details=document.getElementById('sheetsSyncDetails');
     if(details)details.textContent=`${pending} alteração(ões) pendente(s)${conflicts?` · ${conflicts} conflito(s) preservado(s)`:''}${sheetsConfig.lastSuccessAt?` · último envio ${new Date(sheetsConfig.lastSuccessAt).toLocaleString('pt-BR')}`:''}.`;
-    if(message)return setSheetsStatus(message.state,message.text);
-    if(!navigator.onLine)setSheetsStatus('','Offline · dados protegidos neste aparelho');
-    else if(!sheetsConfigured())setSheetsStatus('','Google Sheets não configurado');
-    else if(conflicts)setSheetsStatus('bad','Conflito preservado · revise o diagnóstico');
-    else if(pending)setSheetsStatus('',`${pending} alteração(ões) aguardando envio`);
-    else setSheetsStatus('ok','Sincronizado');
+    const statusDetails={pending,conflicts};
+    if(message){
+      if(conflicts)return setSheetsStatus('bad','Conflito preservado · revise o diagnóstico',{...statusDetails,syncState:'conflict'});
+      if(message.state==='bad')return setSheetsStatus(message.state,message.text,{...statusDetails,syncState:'error'});
+      if(pending)return setSheetsStatus('',`${pending} alteração(ões) aguardando envio`,{...statusDetails,syncState:'syncing'});
+      return setSheetsStatus(message.state,message.text,{...statusDetails,syncState:'connected'});
+    }
+    if(!navigator.onLine)setSheetsStatus('','Offline · dados protegidos neste aparelho',{...statusDetails,syncState:'offline'});
+    else if(!sheetsConfigured())setSheetsStatus('','Google Sheets não configurado',{...statusDetails,syncState:sheetsConfig.enabled?'error':'disabled'});
+    else if(conflicts)setSheetsStatus('bad','Conflito preservado · revise o diagnóstico',{...statusDetails,syncState:'conflict'});
+    else if(pending)setSheetsStatus('',`${pending} alteração(ões) aguardando envio`,{...statusDetails,syncState:'syncing'});
+    else setSheetsStatus('ok','Sincronizado',{...statusDetails,syncState:'connected'});
     return pending;
   }
   function scheduleSheetsRetry(delay=1500){
@@ -461,11 +469,15 @@
     const meta=await dbGet(META_STORE,`sheets-fp:${entity}:${id}`),queue=(await dbAll(SYNC_QUEUE_STORE)).filter(item=>item.entity===entity&&String(item.entity_id)===String(id));
     return Math.max(Number(meta?.version)||0,...queue.map(item=>Number(item.version)||Number(item.payload?.version)||0));
   }
+  async function syncDiagnostics(){
+    let queue=[],indexedDb=true;try{queue=await dbAll(SYNC_QUEUE_STORE);}catch(error){indexedDb=false;}
+    return {internet:navigator.onLine,indexedDb,sheets:{enabled:!!sheetsConfig.enabled,configured:sheetsConfigured(),busy:sheetsSyncBusy,lastSuccessAt:sheetsConfig.lastSuccessAt||'',pending:queue.filter(item=>item.status!=='synced'&&item.status!=='conflict').length,conflicts:queue.filter(item=>item.status==='conflict').length,failed:queue.filter(item=>item.status==='failed').length}};
+  }
   async function syncSheets({silent=false}={}){
     if(sheetsSyncBusy)return false;
     if(!navigator.onLine){await refreshSheetsStatus();if(!silent)showToast('Sem internet. As alterações continuam salvas no aparelho.');return false;}
     if(!sheetsConfigured()){await refreshSheetsStatus();if(!silent)showToast('Configure a URL e o token do Google Apps Script.');return false;}
-    sheetsSyncBusy=true;setSheetsStatus('','Sincronizando com Google Sheets…');
+    sheetsSyncBusy=true;setSheetsStatus('','Sincronizando com Google Sheets…',{syncState:'syncing'});
     try{
       await enqueueSheetsRecords('sync');
       let queue=(await dbAll(SYNC_QUEUE_STORE)).filter(item=>['pending','failed','syncing'].includes(item.status)&&(!item.next_attempt_at||item.next_attempt_at<=Date.now())).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
@@ -719,6 +731,7 @@
   window.genesisSheetsDeviceId=()=>sheetsDeviceId;
   window.genesisSheetsPullEntity=pullSheetsEntity;
   window.genesisGetEntityVersion=sheetsEntityVersion;
+  window.genesisSyncDiagnostics=syncDiagnostics;
   let dataLayerStarted=false;
   async function bootDataLayer(){
     if(dataLayerStarted)return;dataLayerStarted=true;

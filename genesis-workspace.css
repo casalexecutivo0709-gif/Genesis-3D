@@ -149,3 +149,10 @@ html[data-genesis-view="desktop"] #screen-insights .ranking-name{font-size:11px;
   .genesis-modal-layer{padding:0;align-items:flex-end}.genesis-modal-card{width:100%;max-height:94vh;border-radius:24px 24px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
   .order-quick-grid{grid-template-columns:1fr}.order-quick-heading{align-items:center}
 }
+
+.genesis-sync-indicator{position:absolute;right:14px;top:calc(15px + env(safe-area-inset-top));z-index:80;display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:7px 10px;border:1px solid rgba(148,163,184,.22);border-radius:999px;background:rgba(7,10,18,.76);backdrop-filter:blur(12px);color:#d7dbea;font:800 10px/1 Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.genesis-sync-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px rgba(34,197,94,.65)}
+.genesis-sync-indicator[data-state="syncing"] .genesis-sync-dot{background:#a855f7;animation:genesisSyncPulse 1s ease-in-out infinite}.genesis-sync-indicator[data-state="offline"] .genesis-sync-dot{background:#94a3b8;box-shadow:none}.genesis-sync-indicator[data-state="conflict"] .genesis-sync-dot{background:#f59e0b;box-shadow:0 0 10px rgba(245,158,11,.55)}.genesis-sync-indicator[data-state="error"] .genesis-sync-dot{background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.55)}
+@keyframes genesisSyncPulse{50%{opacity:.45;transform:scale(.75)}}
+.genesis-sync-diagnostic{max-width:520px}.genesis-diagnostic-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 2px;border-bottom:1px solid rgba(148,163,184,.12);font-size:12px}.genesis-diagnostic-row span{color:#9ca3b5}.genesis-diagnostic-row strong{text-align:right;color:#e8eaf2}.genesis-diagnostic-row strong[data-state="error"]{color:#fca5a5}.genesis-diagnostic-row strong[data-state="conflict"]{color:#fcd34d}.genesis-diagnostic-row strong[data-state="connected"]{color:#86efac}
+@media(max-width:380px){.genesis-sync-indicator{right:10px;padding:8px;min-width:32px;justify-content:center}.genesis-sync-label{display:none}}

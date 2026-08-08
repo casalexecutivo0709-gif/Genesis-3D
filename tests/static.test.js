@@ -14,11 +14,13 @@ const localCors=fs.readFileSync(path.join(root,'genesis-local-server','cors.mjs'
 const worker=fs.readFileSync(path.join(root,'makerworld-worker.js'),'utf8');
 const realtime=fs.readFileSync(path.join(root,'genesis-realtime.js'),'utf8');
 const realtimeRules=fs.readFileSync(path.join(root,'firebase-realtime','database.rules.json'),'utf8');
+const syncStatus=fs.readFileSync(path.join(root,'genesis-sync-status.js'),'utf8');
 
 assert.match(html,/genesis-finance\.js/);
 assert.match(html,/genesis-data\.js/);
 assert.match(html,/genesis-workspace\.js/);
 assert.match(html,/genesis-realtime\.js/);
+assert.match(html,/genesis-sync-status\.js/);
 assert.match(html,/Google Sheets — banco principal gratuito/);
 assert.match(html,/const MEDIA_DB_VERSION = 4/);
 assert.match(html,/const IMAGE_QUEUE_STORE = 'imageQueue'/);
@@ -70,6 +72,10 @@ assert.match(realtime,/limitToLast=50/);
 assert.match(realtime,/incoming\.deviceId|same-device|genesisSheetsDeviceId/);
 assert.match(realtimeRules,/auth != null/);
 assert.doesNotMatch(realtimeRules,/\.read"\s*:\s*true/);
+assert.match(syncStatus,/Conectado/);
+assert.match(syncStatus,/Sincronizando/);
+assert.match(syncStatus,/Fila pendente/);
+assert.match(syncStatus,/genesisSyncDiagnostics/);
 assert.match(html,/function renderDesktopKanbanSummary/);
 assert.match(html,/function renderDesktopRecentOrders/);
 assert.match(html,/className='kanban-desktop-summary'/);

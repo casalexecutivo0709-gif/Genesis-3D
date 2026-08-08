@@ -154,7 +154,7 @@
   function isDriveQuotaError(error){return /quota|storage|armazenamento|espaço|space|limit|limite|exceeded|service invoked too many times/i.test(String(error?.message||error||''));}
   async function flushImageQueue({silent=false}={}){
     if(state.imageSyncBusy)return {done:0,failed:0,busy:true};
-    state.imageSyncBusy=true;let done=0,failed=0,quotaFailed=false;
+    state.imageSyncBusy=true;window.dispatchEvent(new CustomEvent('genesis:image-sync-status',{detail:{status:'syncing',pending:(await imageQueueAll()).length,failed:0}}));let done=0,failed=0,quotaFailed=false;
     try{
       const rows=(await imageQueueAll()).filter(item=>item.status!=='synced'&&(!item.nextAttemptAt||item.nextAttemptAt<=Date.now())&&(item.target!=='drive'||cfg.images?.driveSync)).sort((a,b)=>a.createdAt-b.createdAt);
       for(const item of rows){
@@ -167,6 +167,7 @@
       }
     }finally{state.imageSyncBusy=false;}
     await updateLocalServerPanel();updateImageStatusBadges();
+    window.dispatchEvent(new CustomEvent('genesis:image-sync-status',{detail:{status:failed?'error':'connected',pending:(await imageQueueAll()).length,failed}}));
     if(!silent)showToast(quotaFailed?'Não foi possível enviar esta imagem ao Google Drive. Ela continua salva neste dispositivo.':failed?`${done} imagem(ns) sincronizada(s) · ${failed} aguardando nova tentativa`:`${done} imagem(ns) sincronizada(s)`,failed===0);
     return {done,failed,quotaFailed};
   }
@@ -483,6 +484,7 @@
       genesisLog('workspace.ready',{view:resolvedView(),images:imageEntities.length,version:GENESIS_APP_VERSION});
     }catch(error){genesisLog('workspace.init.failed',{error},'error');console.error('[Genesis Workspace]',error);}
   }
-  window.GenesisWorkspace={applyViewMode,openImageLibrary,openImageEditor,openImageActionMenu,flushImageQueue,refresh:refreshGenesisData,updateLocalServerPanel,isBusy:()=>!!(state.editor||state.pullBusy||state.imageSyncBusy)};
+  async function workspaceDiagnostics(){const queue=await imageQueueAll(),local=loadLocalComputerConfig();return {imagePending:queue.filter(item=>item.status!=='synced').length,imageFailed:queue.filter(item=>item.status==='failed').length,imageSyncBusy:!!state.imageSyncBusy,localEnabled:!!local.enabled,localUrl:local.serverUrl||''};}
+  window.GenesisWorkspace={applyViewMode,openImageLibrary,openImageEditor,openImageActionMenu,flushImageQueue,refresh:refreshGenesisData,updateLocalServerPanel,isBusy:()=>!!(state.editor||state.pullBusy||state.imageSyncBusy),diagnostics:workspaceDiagnostics};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(initWorkspace,250),{once:true});else setTimeout(initWorkspace,250);
 })();

@@ -5,7 +5,7 @@ const CACHE_VERSION=self.GenesisVersion.CACHE_VERSION;
 const STATIC_CACHE=`genesis3d-static-v${CACHE_VERSION}`;
 const RUNTIME_CACHE=`genesis3d-runtime-v${CACHE_VERSION}`;
 const SW_VERSION=APP_VERSION;
-const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-version.js','./genesis-finance.js','./genesis-sync-core.js','./genesis-data.js','./genesis-realtime-core.js','./genesis-realtime.js','./genesis-workspace.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
+const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-version.js','./genesis-finance.js','./genesis-sync-core.js','./genesis-data.js','./genesis-realtime-core.js','./genesis-realtime.js','./genesis-workspace.js','./genesis-sync-status.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
 const CORE_PATHS=new Set(CORE.map(path=>new URL(path,self.location.href).pathname));
 const MAX_RUNTIME_ENTRIES=60;
 
