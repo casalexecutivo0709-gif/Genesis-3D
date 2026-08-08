@@ -19,18 +19,24 @@ function configuredOrigins(env) {
     .filter(Boolean);
   return new Set([...ALLOWED_ORIGINS, ...extra]);
 }
+function normalizeRequestOrigin(origin){
+  const raw=String(origin||'').trim().replace(/\/$/,'');
+  if(!raw)return '';
+  try{return new URL(raw).origin}catch{return raw}
+}
 function originAllowed(origin, env) {
-  return !origin || configuredOrigins(env).has(String(origin).replace(/\/$/, ''));
+  const normalized=normalizeRequestOrigin(origin);
+  return !normalized || normalized!=='null'&&configuredOrigins(env).has(normalized);
 }
 function cors(origin) {
-  const allowed = origin || '*';
-  return {
-    'Access-Control-Allow-Origin': allowed,
+  const normalized=normalizeRequestOrigin(origin),headers={
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
   };
+  if(normalized&&normalized!=='null')headers['Access-Control-Allow-Origin']=normalized;
+  return headers;
 }
 function json(data, status = 200, origin = '', extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -615,8 +621,8 @@ async function combinedSearch(env, query, page, limit, sort, source) {
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
+    if (!originAllowed(origin,env)) return json({ok:false,code:'origin_not_allowed',error:'Origem não permitida'},403,'',{'Cache-Control':'no-store'});
     if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:cors(origin)});
-    if (!originAllowed(origin,env)) return json({ok:false,code:'origin_not_allowed',error:'Origem não permitida'},403,origin,{'Cache-Control':'no-store'});
     const url = new URL(request.url);
     try {
       if(request.method==='POST'&&url.pathname==='/shopee/analyze'){

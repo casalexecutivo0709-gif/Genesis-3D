@@ -2,6 +2,6 @@
   "name": "genesis-3d",
   "private": true,
   "scripts": {
-    "test": "node tests/finance.test.js && node tests/sync.test.js && node tests/local-server.test.mjs && node tests/static.test.js"
+    "test": "node tests/finance.test.js && node tests/sync.test.js && node tests/local-server.test.mjs && node tests/worker.test.js && node tests/static.test.js"
   }
 }
