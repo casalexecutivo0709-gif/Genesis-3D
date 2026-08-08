@@ -137,6 +137,10 @@ html[data-genesis-view="desktop"] #screen-insights .ranking-row{padding:10px;bac
 html[data-genesis-view="desktop"] #screen-insights .ranking-name{font-size:11px;color:#f4f6fa}
 
 @media(max-width:1220px){
+  html[data-genesis-view="desktop"] #screen-calc.active{grid-template-columns:minmax(0,1fr)}
+  html[data-genesis-view="desktop"] #screen-calc .genesis-desktop-calc-side{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  html[data-genesis-view="desktop"] #sheetCopy .genesis-composer-layout{grid-template-columns:minmax(0,1fr)}
+  html[data-genesis-view="desktop"] #sheetCopy .genesis-live-preview{min-width:0;max-width:none;resize:none;border-left:0;border-top:1px solid rgba(139,92,246,.25)}
   html[data-genesis-view="desktop"] .kanban-desktop-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
   html[data-genesis-view="desktop"] #screen-insights>.insights-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
   html[data-genesis-view="desktop"] #screen-insights .insights-chart-card,html[data-genesis-view="desktop"] #screen-insights .insights-products-card{grid-column:1/-1}

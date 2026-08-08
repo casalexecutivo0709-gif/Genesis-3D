@@ -8,7 +8,7 @@
     if(!navigator.onLine)return 'offline';
     if(Number(state.sheets.conflicts)>0||state.sheets.status==='conflict')return 'conflict';
     if(state.sheets.status==='error'||(state.local.enabled&&state.local.status==='error')||(state.realtime.status==='error'&&window.GenesisRealtime?.status?.().configured)||Number(state.images.failed)>0)return 'error';
-    if(state.sheets.status==='syncing'||state.images.status==='syncing'||Number(state.sheets.pending)>0||Number(state.images.pending)>0)return 'syncing';
+    if(state.sheets.status==='syncing'||state.images.status==='syncing'||(state.sheets.enabled&&state.sheets.configured&&Number(state.sheets.pending)>0)||Number(state.images.pending)>0)return 'syncing';
     return 'connected';
   }
   function render(){const status=overall(),button=document.getElementById('genesisSyncIndicator');if(!button)return;button.dataset.state=status;button.querySelector('.genesis-sync-label').textContent=LABELS[status];button.title=`Sincronização: ${LABELS[status]}`;}
