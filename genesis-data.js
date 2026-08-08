@@ -1,6 +1,8 @@
 /* Genesis 3D — camada local IndexedDB, sincronização Google Sheets e finanças normalizadas. */
 (function(){
   const SHEETS_CONFIG_KEY='genesis3d:sheetsConfig';
+  const DEVICE_ID_KEY='genesis3d:deviceId';
+  const SyncCore=window.GenesisSyncCore;
   const COLLECTIONS={
     config:{kind:'object',get:()=>cfg,set:value=>{cfg=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)),value||{});}},
     filaments:{kind:'array',get:()=>filaments,set:value=>{filaments=value;}},
@@ -22,9 +24,11 @@
   ];
   const COLLECTION_LOCAL_KEYS={filaments:()=>KEYS.FILAMENTS,history:()=>KEYS.HISTORY,quotes:()=>KEYS.QUOTES,orders:()=>KEYS.ORDERS,kits:()=>KEYS.KITS,savedModels:()=>KEYS.MODELS,makerWorldCache:()=>KEYS.MW_CACHE,shopeeCatalog:()=>KEYS.SHOPEE_CATALOG,shopeeLearnedAliases:()=>KEYS.SHOPEE_ALIASES,images:()=>KEYS.IMAGES};
   let sheetsConfig={url:'',token:'',enabled:false,lastSyncAt:'',lastSuccessAt:''};
-  let sheetsSyncBusy=false,sheetsApplying=false,sheetsQueueTimer=0,sheetsRetryTimer=0;
+  let sheetsSyncBusy=false,sheetsApplying=false,sheetsQueueTimer=0,sheetsRetryTimer=0,syncMutationSource='local';
   let rawWriteTimers=new Map(),genericDraftTimer=0;
   try{sheetsConfig=Object.assign(sheetsConfig,JSON.parse(store.get(SHEETS_CONFIG_KEY)||'{}'));}catch(error){}
+  let sheetsDeviceId=String(store.get(DEVICE_ID_KEY)||'').trim();
+  if(!sheetsDeviceId){sheetsDeviceId=`device-${Date.now().toString(36)}-${stableHash(Math.random())}`;store.set(DEVICE_ID_KEY,sheetsDeviceId);}
 
   function dbAll(storeName){
     return openMediaDb().then(db=>new Promise(resolve=>{
@@ -184,29 +188,76 @@
   function fingerprint(record){
     const copy={...record};delete copy.updated_at;delete copy.sync_status;delete copy.version;return stableHash(JSON.stringify(copy));
   }
+  async function backupSheetsQueue(queue,reason){
+    const backup={id:`sync-queue-${Date.now()}-${stableHash(reason)}`,createdAt:Date.now(),schemaVersion:SCHEMA_VERSION,type:'sync-queue-backup',reason,queue:sanitize(queue)};
+    if(!await dbPut(LEGACY_BACKUP_STORE,backup))throw new Error('Não foi possível criar o backup da fila.');
+    const saved=await dbGet(LEGACY_BACKUP_STORE,backup.id);
+    if(!saved||!Array.isArray(saved.queue)||saved.queue.length!==queue.length)throw new Error('O backup da fila não passou na validação.');
+    return backup.id;
+  }
+  async function diagnoseSheetsQueue({persist=true}={}){
+    const queue=await dbAll(SYNC_QUEUE_STORE),report=SyncCore.diagnoseQueue(queue);
+    if(persist)await dbPut(META_STORE,{id:'sheets-queue-diagnosis',report,updatedAt:Date.now()});
+    return report;
+  }
+  async function repairSheetsQueue({silent=false,reason='manual'}={}){
+    const queue=await dbAll(SYNC_QUEUE_STORE),result=SyncCore.repairQueue(queue),removed=result.report.before-result.report.after;
+    let backupId='';
+    if(removed>0){
+      backupId=await backupSheetsQueue(queue,reason);
+      const keepIds=new Set(result.queue.map(item=>item.operation_id));
+      for(const item of queue){if(!keepIds.has(item.operation_id))await dbDelete(SYNC_QUEUE_STORE,item.operation_id);}
+      for(const item of result.queue)await dbPut(SYNC_QUEUE_STORE,item);
+      const validation=SyncCore.diagnoseQueue(await dbAll(SYNC_QUEUE_STORE));
+      if(validation.total!==result.report.after||validation.duplicates!==0)throw new Error('A fila reparada não passou na validação.');
+    }
+    const report={...result.report,backupId,removed,reason,updatedAt:Date.now()};
+    await dbPut(META_STORE,{id:'sheets-queue-last-repair',report,updatedAt:Date.now()});
+    if(!silent)showToast(removed?`Fila reparada: ${removed} duplicata(s) consolidada(s).`:'A fila já está consistente.',true);
+    await refreshSheetsStatus();return report;
+  }
+  function nextOperationVersion(record,meta,previous){
+    return Math.max(1,Number(record?.version)||1,(Number(meta?.version)||0)+1,Number(previous?.version)||0);
+  }
+  function makeOperation({entity,record,action='upsert',previous=null,meta=null,reason='change',source='local'}){
+    const now=new Date().toISOString(),entityId=String(record.id),fp=fingerprint(record),version=nextOperationVersion(record,meta,previous);
+    const payload={...record,updated_at:now,version};
+    const operationId=previous&&previous.payload_fingerprint===fp
+      ? previous.operation_id
+      : SyncCore.operationId({entity,entityId,action,version,fingerprint:fp,deviceId:sheetsDeviceId});
+    return {operation_id:operationId,operationId,entity,entityType:entity,entity_id:entityId,entityId,action,operationType:action,payload,payload_fingerprint:fp,version,device_id:sheetsDeviceId,deviceId:sheetsDeviceId,source,status:'pending',created_at:previous?.created_at||now,createdAt:previous?.createdAt||previous?.created_at||now,updated_at:now,updatedAt:now,attempts:Number(previous?.attempts)||0,last_error:'',reason};
+  }
   async function enqueueSheetsRecords(reason='change',force=false){
-    if(sheetsApplying)return 0;
+    if(sheetsApplying||!['local','migration','conflict-resolution'].includes(syncMutationSource))return 0;
+    await repairSheetsQueue({silent:true,reason:'before-enqueue'});
     const entities=buildSheetsEntities(),queue=await dbAll(SYNC_QUEUE_STORE),metaRows=await dbAll(META_STORE);
     const metaMap=new Map(metaRows.map(item=>[item.id,item]));
-    const existingQueue=new Map(queue.filter(item=>['pending','failed'].includes(item.status)).map(item=>[`${item.entity}:${item.entity_id}`,item]));
+    const existingQueue=new Map(queue.filter(item=>['pending','failed','syncing','conflict'].includes(item.status)).map(item=>[`${item.entity}:${item.entity_id}:${item.action||'upsert'}`,SyncCore.normalizeOperation(item)]));
     let count=0;
     for(const [entity,records] of Object.entries(entities)){
       const currentIds=new Set(records.map(record=>String(record.id)));
       const knownMeta=metaMap.get(`sheets-ids:${entity}`),knownIds=new Set(knownMeta?.ids||[]);
       for(const record of records){
         const key=`${entity}:${record.id}`,fp=fingerprint(record),fpMeta=metaMap.get(`sheets-fp:${key}`);
-        if(!force&&fpMeta?.fingerprint===fp)continue;
-        const previous=existingQueue.get(key),operation={
-          operation_id:previous?.operation_id||`op-${Date.now().toString(36)}-${stableHash(key+'-'+Math.random())}`,
-          entity,entity_id:String(record.id),action:'upsert',payload:{...record,updated_at:new Date().toISOString(),version:Math.max(1,Number(record.version)||1)+(Number(fpMeta?.version)||0)},
-          created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),attempts:Number(previous?.attempts)||0,last_error:'',status:'pending',reason
-        };
-        await dbPut(SYNC_QUEUE_STORE,operation);existingQueue.set(key,operation);count++;
+        if(fpMeta?.fingerprint===fp)continue;
+        const queueKey=`${key}:upsert`,previous=existingQueue.get(queueKey);
+        if(previous?.status==='conflict'){
+          previous.payload={...record,updated_at:new Date().toISOString(),version:Math.max(Number(previous.version)||1,Number(record.version)||1)};
+          previous.payload_fingerprint=fp;previous.updated_at=new Date().toISOString();previous.last_error='Conflito preservado; a versão local mais recente foi anexada.';
+          await dbPut(SYNC_QUEUE_STORE,previous);continue;
+        }
+        if(previous?.payload_fingerprint===fp)continue;
+        const operation=makeOperation({entity,record,previous,meta:fpMeta,reason,source:force?'migration':'local'});
+        if(previous&&previous.operation_id!==operation.operation_id)await dbDelete(SYNC_QUEUE_STORE,previous.operation_id);
+        await dbPut(SYNC_QUEUE_STORE,operation);existingQueue.set(queueKey,operation);count++;
       }
       for(const missing of knownIds){
         if(currentIds.has(String(missing)))continue;
-        const key=`${entity}:${missing}`,previous=existingQueue.get(key),operation={operation_id:previous?.operation_id||`op-${Date.now().toString(36)}-${stableHash(key+'-delete')}`,entity,entity_id:String(missing),action:'delete',payload:{id:String(missing),deleted:true,updated_at:new Date().toISOString()},created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),attempts:Number(previous?.attempts)||0,last_error:'',status:'pending',reason};
-        await dbPut(SYNC_QUEUE_STORE,operation);count++;
+        const key=`${entity}:${missing}`,queueKey=`${key}:delete`,previous=existingQueue.get(queueKey),record={id:String(missing),deleted:true};
+        if(previous?.status==='conflict'||previous?.payload_fingerprint===fingerprint(record))continue;
+        const operation=makeOperation({entity,record,action:'delete',previous,meta:metaMap.get(`sheets-fp:${key}`),reason,source:force?'migration':'local'});
+        if(previous&&previous.operation_id!==operation.operation_id)await dbDelete(SYNC_QUEUE_STORE,previous.operation_id);
+        await dbPut(SYNC_QUEUE_STORE,operation);existingQueue.set(queueKey,operation);count++;
       }
       await dbPut(META_STORE,{id:`sheets-ids:${entity}`,ids:[...currentIds],updatedAt:Date.now()});
     }
@@ -214,8 +265,12 @@
     if(sheetsConfig.enabled&&navigator.onLine)scheduleSheetsRetry(350);
     return count;
   }
-  function scheduleSheetsQueue(reason='change'){
-    clearTimeout(sheetsQueueTimer);sheetsQueueTimer=setTimeout(()=>enqueueSheetsRecords(reason).catch(error=>genesisLog('sheets.queue.error',{error},'error')),700);
+  function scheduleSheetsQueue(reason='change',source=syncMutationSource){
+    if(!['local','migration','conflict-resolution'].includes(source))return;
+    clearTimeout(sheetsQueueTimer);sheetsQueueTimer=setTimeout(()=>{
+      const previousSource=syncMutationSource;syncMutationSource=source;
+      enqueueSheetsRecords(reason).catch(error=>genesisLog('sheets.queue.error',{error},'error')).finally(()=>{syncMutationSource=previousSource;});
+    },700);
   }
 
   function saveSheetsConfig(){store.set(SHEETS_CONFIG_KEY,JSON.stringify(sheetsConfig));}
@@ -224,6 +279,11 @@
     const dot=document.getElementById('sheetsStatusDot'),label=document.getElementById('sheetsStatusText');
     if(dot)dot.className='integration-dot '+(state==='ok'?'ok':state==='bad'?'bad':'');
     if(label)label.textContent=text;
+  }
+  function renderQueueReport(report,title='Diagnóstico da fila'){
+    const box=document.getElementById('sheetsQueueReport');if(!box||!report)return;
+    box.style.display='block';
+    box.innerHTML=`<strong>${title}</strong><br>Antes: ${Number(report.before??report.total)||0} · Duplicadas: ${Number(report.duplicates)||0} · Reais: ${Number(report.real??report.total)||0} · Depois: ${Number(report.after??report.total)||0} · Conflitos: ${Number(report.conflictsPreserved??report.conflicts)||0}`;
   }
   async function sheetsApi(operation,payload={}){
     if(!sheetsConfigured())throw new Error('Informe a URL e o token do Google Apps Script.');
@@ -278,14 +338,26 @@
       if(!raw||raw.truncated||!raw.id)continue;
       if(!grouped.has(name))grouped.set(name,[]);grouped.get(name).push(raw);
     }
-    sheetsApplying=true;
+    const previousSource=syncMutationSource;sheetsApplying=true;syncMutationSource='remote';
     try{
       for(const [name,incoming] of grouped){
         const descriptor=COLLECTIONS[name],current=Array.isArray(descriptor.get())?descriptor.get():[],byId=new Map(current.map(item=>[String(item.id),item]));
         incoming.forEach(item=>{const existing=byId.get(String(item.id));if(!existing||Number(item.updatedAt||0)>=Number(existing.updatedAt||0)){byId.set(String(item.id),item);applied++;}});
         descriptor.set([...byId.values()]);await dbReplaceCollection(name,descriptor.get());
       }
-    }finally{sheetsApplying=false;}
+      const currentEntities=buildSheetsEntities();
+      const receivedByEntity=new Map();
+      for(const remote of records){
+        const entity=remote.entity,payload=remote.payload||{},id=String(payload.id||'');if(!entity||!id)continue;
+        const current=(currentEntities[entity]||[]).find(item=>String(item.id)===id),fp=current?fingerprint(current):fingerprint(payload);
+        await dbPut(META_STORE,{id:`sheets-fp:${entity}:${id}`,fingerprint:fp,version:Math.max(1,Number(payload.version)||1),updatedAt:Date.now(),source:'remote'});
+        if(!receivedByEntity.has(entity))receivedByEntity.set(entity,new Set());receivedByEntity.get(entity).add(id);
+      }
+      for(const [entity,ids] of receivedByEntity){
+        const currentIds=(currentEntities[entity]||[]).map(item=>String(item.id));
+        await dbPut(META_STORE,{id:`sheets-ids:${entity}`,ids:[...new Set([...currentIds,...ids])],updatedAt:Date.now(),source:'remote'});
+      }
+    }finally{sheetsApplying=false;syncMutationSource=previousSource;}
     if(applied){
       window.genesisRefreshVisibleScreen?.({includeCalc:true});
       await persistStateSnapshot('sheets-pull');
@@ -320,11 +392,12 @@
           if(result?.status==='conflict'){
             item.status='conflict';item.last_error='Conflito de versão: as duas cópias foram preservadas.';await dbPut(SYNC_QUEUE_STORE,item);
             await dbPut(DIAGNOSTIC_STORE,{id:`conflict-${item.operation_id}`,createdAt:Date.now(),type:'sync-conflict',details:{entity:item.entity,entity_id:item.entity_id,server:result.server_record,local:item.payload}});
-          }else if(result?.ok!==false){
+          }else if(result&&result.ok!==false){
             await dbDelete(SYNC_QUEUE_STORE,item.operation_id);
             await dbPut(META_STORE,{id:`sheets-fp:${item.entity}:${item.entity_id}`,fingerprint:fingerprint(item.payload),version:Number(item.payload.version)||1,updatedAt:Date.now()});
+            await dbPut(META_STORE,{id:`sheets-ack:${item.operation_id}`,entity:item.entity,entity_id:item.entity_id,version:Number(item.payload.version)||1,confirmedAt:Date.now()});
           }else{
-            item.status='failed';item.attempts=(Number(item.attempts)||0)+1;item.last_error=String(result?.error||'Falha não identificada').slice(0,500);await dbPut(SYNC_QUEUE_STORE,item);
+            item.status='failed';item.attempts=(Number(item.attempts)||0)+1;item.last_error=String(result?.error||'Resposta não confirmou esta operação').slice(0,500);item.next_attempt_at=Date.now()+Math.min(300000,Math.pow(2,item.attempts)*3000);await dbPut(SYNC_QUEUE_STORE,item);
           }
         }
         queue=queue.slice(batch.length);
@@ -348,6 +421,7 @@
   function populateSheetsSettings(){
     const url=document.getElementById('sheetsApiUrl'),token=document.getElementById('sheetsApiToken'),enabled=document.getElementById('sheetsSyncEnabled');
     if(url)url.value=sheetsConfig.url||'';if(token)token.value=sheetsConfig.token||'';if(enabled)enabled.checked=!!sheetsConfig.enabled;refreshSheetsStatus();
+    dbGet(META_STORE,'sheets-queue-last-repair').then(row=>{if(row?.report)renderQueueReport(row.report,'Último reparo seguro');});
   }
   async function prepareSheetsMigration(){
     readSheetsSettings();setSheetsStatus('','Criando backup antes da migração…');
@@ -469,7 +543,8 @@
   function installPersistenceHooks(){
     const changed=(name,smallKey,value)=>{
       if(smallKey)store.set(smallKey,JSON.stringify(value));
-      scheduleRawCollection(name);scheduleStateSnapshot(name);scheduleSheetsQueue(name);
+      const source=syncMutationSource;
+      scheduleRawCollection(name);scheduleStateSnapshot(name);scheduleSheetsQueue(name,source);
     };
     saveConfig=function(){changed('config',KEYS.CONFIG,cfg);};
     saveFilaments=function(){changed('filaments');};
@@ -507,6 +582,7 @@
   async function dataLayerRestore(){return restoreRawCollections();}
   async function dataLayerInit(){
     await migrateLegacyStorage();
+    await repairSheetsQueue({silent:true,reason:'app-init'});
     let repairedSnapshots=false;
     if(typeof window.genesisEnsureOrderSnapshots==='function')orders.forEach(order=>{const before=order.financialSnapshot?.cost;window.genesisEnsureOrderSnapshots(order);if(before==null&&order.financialSnapshot?.cost!=null)repairedSnapshots=true;});
     if(repairedSnapshots)saveOrders();
@@ -514,6 +590,8 @@
     document.getElementById('btnSheetsTest')?.addEventListener('click',testSheets);
     document.getElementById('btnSheetsSync')?.addEventListener('click',()=>{readSheetsSettings();syncSheets({silent:false});});
     document.getElementById('btnSheetsMigrate')?.addEventListener('click',prepareSheetsMigration);
+    document.getElementById('btnSheetsDiagnoseQueue')?.addEventListener('click',async()=>{const report=await diagnoseSheetsQueue();renderQueueReport(report);showToast('Diagnóstico da fila atualizado',true);});
+    document.getElementById('btnSheetsRepairQueue')?.addEventListener('click',()=>showConfirm('Reparar fila de sincronização','O Genesis fará um backup e consolidará somente operações duplicadas ou superadas. Conflitos serão preservados.',async()=>{const report=await repairSheetsQueue({reason:'manual'});renderQueueReport(report,'Reparo concluído');},'Reparar fila'));
     ['sheetsApiUrl','sheetsApiToken','sheetsSyncEnabled'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{readSheetsSettings();refreshSheetsStatus();if(sheetsConfig.enabled)scheduleSheetsRetry();}));
     document.addEventListener('input',event=>{if(event.target.closest('.screen,.sheet'))scheduleGenericDraft('input');},true);
     document.addEventListener('change',event=>{if(event.target.closest('.screen,.sheet'))scheduleGenericDraft('change');},true);
@@ -540,4 +618,6 @@
   window.genesisSheetsSync=syncSheets;
   window.genesisSheetsApi=sheetsApi;
   window.genesisSheetsConfigured=sheetsConfigured;
+  window.genesisSheetsQueueDiagnose=diagnoseSheetsQueue;
+  window.genesisSheetsQueueRepair=repairSheetsQueue;
 })();
