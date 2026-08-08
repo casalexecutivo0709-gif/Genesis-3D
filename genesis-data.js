@@ -245,7 +245,7 @@
   }
   async function resolveConflictKeepRemote(item){
     if(!item.server_record){showToast('A versão remota não está disponível neste diagnóstico.');return;}
-    await applyRemoteRecords([{entity:item.entity,payload:item.server_record}]);await dbDelete(SYNC_QUEUE_STORE,item.operation_id);await markConflictResolved(item,'keep-remote');await renderSyncConflicts();await refreshSheetsStatus();showToast('Versão do Google Sheets aplicada',true);
+    await applyRemoteRecords([{entity:item.entity,payload:item.server_record}],{ignoreQueued:true});await dbDelete(SYNC_QUEUE_STORE,item.operation_id);await markConflictResolved(item,'keep-remote');await renderSyncConflicts();await refreshSheetsStatus();showToast('Versão do Google Sheets aplicada',true);
   }
   function closeConflictMerge(){document.getElementById('genesisConflictMergeModal')?.classList.remove('open');}
   function openConflictMerge(item){
@@ -258,7 +258,7 @@
       const local=parseConflictData(item.payload),server=parseConflictData(item.server_record),merged={...server,...local};
       diffs.forEach((diff,index)=>{const choice=list.querySelector(`input[name="conflictField${index}"]:checked`)?.value||'local';merged[diff.field]=choice==='remote'?diff.server:diff.local;});
       const version=Math.max(Number(item.payload?.version)||1,Number(item.server_record?.version)||1)+1,mergedPayload={...item.server_record,...item.payload,dados_json:JSON.stringify(merged),version,updated_at:new Date().toISOString()};
-      await applyRemoteRecords([{entity:item.entity,payload:mergedPayload}]);
+      await applyRemoteRecords([{entity:item.entity,payload:mergedPayload}],{ignoreQueued:true});
       const current=(buildSheetsEntities()[item.entity]||[]).find(record=>String(record.id)===String(item.entity_id))||mergedPayload;
       await queueConflictResolution(item,current,'merge-explicit');closeConflictMerge();await renderSyncConflicts();await refreshSheetsStatus();scheduleSheetsRetry(300);showToast('Versões mescladas com suas escolhas',true);
     };
@@ -378,8 +378,21 @@
     if(!sheetsConfig.enabled||!sheetsConfigured()||!navigator.onLine||document.visibilityState==='hidden')return;
     sheetsRetryTimer=setTimeout(()=>syncSheets({silent:true}).catch(()=>{}),delay);
   }
-  async function applyRemoteRecords(records){
+  async function applyRemoteRecords(records,{ignoreQueued=false}={}){
     if(!Array.isArray(records)||!records.length)return 0;
+    const blocked=new Set();
+    if(!ignoreQueued){
+      const queue=await dbAll(SYNC_QUEUE_STORE),pending=queue.filter(item=>['pending','failed','syncing','conflict'].includes(item.status));
+      for(const remote of records){
+        const entity=remote.entity,payload=remote.payload||{},id=String(payload.id||''),item=pending.find(row=>row.entity===entity&&String(row.entity_id)===id);
+        if(!item||fingerprint(item.payload)===fingerprint(payload))continue;
+        item.status='conflict';item.server_record=payload;item.conflict_created_at=item.conflict_created_at||new Date().toISOString();item.last_error='Conflito detectado ao receber uma versão remota; as duas cópias foram preservadas.';await dbPut(SYNC_QUEUE_STORE,item);
+        await dbPut(DIAGNOSTIC_STORE,{id:`conflict-${item.operation_id}`,createdAt:Date.now(),type:'sync-conflict',details:{entity,entity_id:id,server:payload,local:item.payload}});blocked.add(`${entity}:${id}`);
+      }
+      if(blocked.size){await renderSyncConflicts();await refreshSheetsStatus();}
+    }
+    records=records.filter(remote=>!blocked.has(`${remote.entity}:${String(remote.payload?.id||'')}`));
+    if(!records.length)return 0;
     const map={Filamentos:'filaments',Calculos:'history',Orcamentos:'quotes',Kits:'kits',Pedidos:'orders',Imagens:'images'};
     const grouped=new Map();let applied=0;
     for(const remote of records){
@@ -399,6 +412,9 @@
         continue;
       }
       const name=map[remote.entity];if(!name)continue;
+      if(remote.payload?.deleted===true||String(remote.payload?.deleted).toLowerCase()==='true'){
+        if(!grouped.has(name))grouped.set(name,[]);grouped.get(name).push({id:String(remote.payload.id),_remoteDeleted:true,updatedAt:new Date(remote.payload.updated_at||0).getTime()||Date.now()});continue;
+      }
       let raw=remote.payload?.dados_json??remote.dados_json;
       try{raw=typeof raw==='string'?JSON.parse(raw):raw;}catch(error){continue;}
       if(!raw||raw.truncated||!raw.id)continue;
@@ -408,7 +424,7 @@
     try{
       for(const [name,incoming] of grouped){
         const descriptor=COLLECTIONS[name],current=Array.isArray(descriptor.get())?descriptor.get():[],byId=new Map(current.map(item=>[String(item.id),item]));
-        incoming.forEach(item=>{const existing=byId.get(String(item.id));if(!existing||Number(item.updatedAt||0)>=Number(existing.updatedAt||0)){byId.set(String(item.id),item);applied++;}});
+        incoming.forEach(item=>{const existing=byId.get(String(item.id));if(item._remoteDeleted){if(existing){byId.delete(String(item.id));applied++;}return;}if(!existing||Number(item.updatedAt||0)>=Number(existing.updatedAt||0)){byId.set(String(item.id),item);applied++;}});
         descriptor.set([...byId.values()]);await dbReplaceCollection(name,descriptor.get());
       }
       const currentEntities=buildSheetsEntities();
@@ -436,6 +452,15 @@
     sheetsConfig.lastSyncAt=response.server_time||new Date().toISOString();saveSheetsConfig();
     return applied;
   }
+  async function pullSheetsEntity(entity,id){
+    if(!sheetsConfigured()||!navigator.onLine)return false;
+    const response=await sheetsApi('read',{entity,id,include_deleted:true});
+    return applyRemoteRecords(response.records||[]);
+  }
+  async function sheetsEntityVersion(entity,id){
+    const meta=await dbGet(META_STORE,`sheets-fp:${entity}:${id}`),queue=(await dbAll(SYNC_QUEUE_STORE)).filter(item=>item.entity===entity&&String(item.entity_id)===String(id));
+    return Math.max(Number(meta?.version)||0,...queue.map(item=>Number(item.version)||Number(item.payload?.version)||0));
+  }
   async function syncSheets({silent=false}={}){
     if(sheetsSyncBusy)return false;
     if(!navigator.onLine){await refreshSheetsStatus();if(!silent)showToast('Sem internet. As alterações continuam salvas no aparelho.');return false;}
@@ -462,6 +487,7 @@
             await dbDelete(SYNC_QUEUE_STORE,item.operation_id);
             await dbPut(META_STORE,{id:`sheets-fp:${item.entity}:${item.entity_id}`,fingerprint:fingerprint(item.payload),version:Number(item.payload.version)||1,updatedAt:Date.now()});
             await dbPut(META_STORE,{id:`sheets-ack:${item.operation_id}`,entity:item.entity,entity_id:item.entity_id,version:Number(item.payload.version)||1,confirmedAt:Date.now()});
+            Promise.resolve(window.GenesisRealtime?.publish?.({operationId:item.operation_id,entityType:item.entity,entityId:item.entity_id,version:Number(item.payload.version)||1,updatedAt:item.payload.updated_at||new Date().toISOString(),deviceId:sheetsDeviceId,eventType:item.action||'upsert'})).catch(error=>genesisLog('realtime.publish.failed',{error,operationId:item.operation_id},'warn'));
           }else{
             item.status='failed';item.attempts=(Number(item.attempts)||0)+1;item.last_error=String(result?.error||'Resposta não confirmou esta operação').slice(0,500);item.next_attempt_at=Date.now()+Math.min(300000,Math.pow(2,item.attempts)*3000);await dbPut(SYNC_QUEUE_STORE,item);
           }
@@ -652,7 +678,7 @@
     let repairedSnapshots=false;
     if(typeof window.genesisEnsureOrderSnapshots==='function')orders.forEach(order=>{const before=order.financialSnapshot?.cost;window.genesisEnsureOrderSnapshots(order);if(before==null&&order.financialSnapshot?.cost!=null)repairedSnapshots=true;});
     if(repairedSnapshots)saveOrders();
-    await restoreIndexedDraft();installRecoveryPanel();await refreshSheetsStatus();
+    await restoreIndexedDraft();installRecoveryPanel();populateSheetsSettings();await refreshSheetsStatus();
     document.getElementById('btnSheetsTest')?.addEventListener('click',testSheets);
     document.getElementById('btnSheetsSync')?.addEventListener('click',()=>{readSheetsSettings();syncSheets({silent:false});});
     document.getElementById('btnSheetsMigrate')?.addEventListener('click',prepareSheetsMigration);
@@ -690,4 +716,14 @@
   window.genesisSheetsQueueRepair=repairSheetsQueue;
   window.genesisOpenSyncConflicts=openSyncConflicts;
   window.genesisSheetsSyncBusy=()=>sheetsSyncBusy;
+  window.genesisSheetsDeviceId=()=>sheetsDeviceId;
+  window.genesisSheetsPullEntity=pullSheetsEntity;
+  window.genesisGetEntityVersion=sheetsEntityVersion;
+  let dataLayerStarted=false;
+  async function bootDataLayer(){
+    if(dataLayerStarted)return;dataLayerStarted=true;
+    try{await dataLayerRestore();await dataLayerInit();window.genesisRefreshVisibleScreen?.({includeCalc:true});}
+    catch(error){dataLayerStarted=false;genesisLog('data-layer.boot.failed',{error},'error');}
+  }
+  if(window.genesisAppReady)setTimeout(bootDataLayer,0);else window.addEventListener('genesis:app-ready',()=>setTimeout(bootDataLayer,0),{once:true});
 })();

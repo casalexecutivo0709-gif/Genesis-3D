@@ -11985,7 +11985,7 @@ async function init(){
   syncQuickMarginFromConfig();
   runShopeeHybridSelfTests();
 }
-init();
+init().finally(()=>{window.genesisAppReady=true;window.dispatchEvent(new CustomEvent('genesis:app-ready'));});
 
 /* Optional: only activates if this file is hosted on a real https:// server
    alongside service-worker.js. Silently does nothing in restrictive previews
@@ -12807,6 +12807,8 @@ async function genesisRepairImagesInBatches(){
 </script>
 <script src="./genesis-sync-core.js"></script>
 <script src="./genesis-data.js"></script>
+<script src="./genesis-realtime-core.js"></script>
+<script src="./genesis-realtime.js"></script>
 <script src="./genesis-workspace.js"></script>
 </body>
 </html>

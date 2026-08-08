@@ -1,0 +1,16 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "events": {
+      "$workspace": {
+        ".read": "auth != null && $workspace.length >= 24 && $workspace.length <= 80",
+        ".indexOn": ["updatedAt", "publishedAt"],
+        "$operation": {
+          ".write": "auth != null && ((newData.exists() && newData.child('authUid').val() === auth.uid && (!data.exists() || data.child('authUid').val() === auth.uid)) || (!newData.exists() && data.child('authUid').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['operationId','entityType','entityId','version','updatedAt','deviceId','eventType','authUid','publishedAt']) && newData.child('operationId').isString() && newData.child('operationId').val().length <= 180 && newData.child('entityType').isString() && newData.child('entityType').val().length <= 80 && newData.child('entityId').isString() && newData.child('entityId').val().length <= 180 && newData.child('version').isNumber() && newData.child('version').val() > 0 && newData.child('updatedAt').isString() && newData.child('deviceId').isString() && newData.child('eventType').isString() && newData.child('authUid').val() === auth.uid && newData.child('publishedAt').isNumber()"
+        }
+      }
+    }
+  }
+}
