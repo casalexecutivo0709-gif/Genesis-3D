@@ -5079,27 +5079,35 @@ function localComputerErrorText(error){
   if(code==='origin_not_allowed')return `Origem não autorizada. Inclua ${location.origin} em allowedOrigins.`;
   if(code==='invalid_pairing_code')return 'Código de pareamento inválido.';
   if(code==='server_timeout')return 'Servidor local não respondeu a tempo.';
+  if(code==='certificate_or_unreachable')return 'O certificado HTTPS pode não ser confiável ou o servidor local está desligado.';
+  if(code==='insecure_server_url')return 'O endereço precisa usar HTTPS confiável para funcionar no aplicativo.';
+  if(code==='payload_too_large')return 'A imagem excede o limite configurado no servidor local.';
+  if(code==='invalid_image_type')return 'O servidor local recusou o formato dessa imagem.';
+  if(code==='operation_not_allowed')return 'Esta operação está desativada no servidor local.';
   if(code==='server_unreachable')return 'Servidor local desligado, endereço incorreto ou certificado HTTPS não confiável.';
   if(code==='invalid_server_response')return 'Resposta inválida do servidor local.';
   return error?.message||'Não foi possível conectar ao servidor local.';
 }
 async function localComputerFetch(path,options={}){
   const local=loadLocalComputerConfig();
-  if(!local.serverUrl)throw new Error('Informe o endereço do computador.');
-  if(!/^https:\/\//i.test(local.serverUrl))throw new Error('O endereço precisa começar com https:// para funcionar no iPhone.');
+  if(!local.serverUrl)throw genesisConnectionError('server_url_missing','Informe o endereço do computador.');
+  if(!/^https:\/\//i.test(local.serverUrl))throw genesisConnectionError('insecure_server_url','O endereço precisa começar com https:// para funcionar no iPhone.');
   const endpoint=local.serverUrl+path,started=Date.now(),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
   try{
     const response=await fetch(endpoint,{...options,cache:'no-store',credentials:'omit',headers:{...localComputerHeaders(options.contentType),...(options.headers||{})},signal:controller.signal});
     if(!response.ok){
       const payload=await response.json().catch(()=>({}));
-      const code=response.status===403||payload.code==='origin_not_allowed'?'origin_not_allowed':response.status===401||payload.code==='invalid_pairing_code'?'invalid_pairing_code':'server_http_error';
+      const code=payload.code||(response.status===401?'invalid_pairing_code':response.status===403?'operation_not_allowed':'server_http_error');
       throw genesisConnectionError(code,payload.error||`Servidor respondeu ${response.status}`,{status:response.status,endpoint,elapsedMs:Date.now()-started,serverVersion:payload.version||''});
     }
     return response;
   }catch(error){
     let resolved=error;
     if(error?.name==='AbortError')resolved=genesisConnectionError('server_timeout','Servidor local não respondeu a tempo.',{endpoint,elapsedMs:Date.now()-started});
-    else if(!error?.code&&(error instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(error?.message||''))))resolved=genesisConnectionError('server_unreachable','Servidor local desligado, inacessível ou com certificado HTTPS não confiável.',{endpoint,elapsedMs:Date.now()-started});
+    else if(!error?.code&&(error instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(error?.message||'')))){
+      const code=/^https:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$/i.test(local.serverUrl)?'certificate_or_unreachable':'server_unreachable';
+      resolved=genesisConnectionError(code,'Servidor local desligado, inacessível ou com certificado HTTPS não confiável.',{endpoint,elapsedMs:Date.now()-started});
+    }
     genesisLog('connection.local.failure',{code:resolved.code||'unknown',status:resolved.status||0,endpoint:local.serverUrl,origin:location.origin,elapsedMs:resolved.elapsedMs||Date.now()-started,serverVersion:resolved.serverVersion||''},'warn');
     throw resolved;
   }finally{clearTimeout(timer)}

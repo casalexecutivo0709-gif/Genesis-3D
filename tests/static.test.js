@@ -10,6 +10,7 @@ const workspace=fs.readFileSync(path.join(root,'genesis-workspace.js'),'utf8');
 const workspaceCss=fs.readFileSync(path.join(root,'genesis-workspace.css'),'utf8');
 const appsScript=fs.readFileSync(path.join(root,'google-apps-script','Code.gs'),'utf8');
 const localServer=fs.readFileSync(path.join(root,'genesis-local-server','server.mjs'),'utf8');
+const localCors=fs.readFileSync(path.join(root,'genesis-local-server','cors.mjs'),'utf8');
 
 assert.match(html,/genesis-finance\.js/);
 assert.match(html,/genesis-data\.js/);
@@ -73,7 +74,9 @@ assert.match(html,/function localComputerErrorText/);
 assert.match(html,/worker_origin_not_allowed/);
 assert.match(html,/server_unreachable/);
 assert.match(localServer,/const SERVER_VERSION=3/);
-assert.match(localServer,/function normalizeOrigin/);
+assert.match(localCors,/function normalizeOrigin/);
+assert.match(localServer,/isOriginAllowed/);
+assert.match(localServer,/access-control-request-private-network/);
 assert.match(localServer,/code:'origin_not_allowed'/);
 assert.match(localServer,/code:'invalid_pairing_code'/);
 assert.match(localServer,/migrateLegacyImageIndex/);

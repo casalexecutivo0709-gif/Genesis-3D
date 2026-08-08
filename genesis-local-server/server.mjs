@@ -6,6 +6,7 @@ import {basename, dirname, extname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomBytes, createHash, timingSafeEqual} from 'node:crypto';
 import {spawn} from 'node:child_process';
+import {corsHeaders,isOriginAllowed,normalizeOrigin} from './cors.mjs';
 
 const ROOT=dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH=join(ROOT,'config.json');
@@ -48,23 +49,14 @@ function cleanFileName(value){
   const name=basename(String(value||'imagem')).normalize('NFKD').replace(/[^a-zA-Z0-9._ -]/g,'').trim().replace(/\s+/g,'-').slice(0,100);
   return name||'imagem';
 }
-function normalizeOrigin(value){
-  const raw=String(value||'').trim().replace(/\/$/,'');
-  if(!raw)return '';
-  try{return new URL(raw).origin.toLowerCase()}catch{return raw.toLowerCase()}
-}
 function configuredOrigins(){
-  return new Set((config.allowedOrigins||[DEFAULT_ORIGIN]).map(normalizeOrigin).filter(Boolean));
+  return (config.allowedOrigins||[DEFAULT_ORIGIN]).map(normalizeOrigin).filter(Boolean);
 }
 function allowedOrigin(req){
-  const origin=normalizeOrigin(req.headers.origin||'');
-  if(!origin)return true;
-  if(configuredOrigins().has(origin))return true;
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+  return isOriginAllowed(req.headers.origin||'',configuredOrigins());
 }
 function cors(req){
-  const origin=normalizeOrigin(req.headers.origin||DEFAULT_ORIGIN);
-  return {'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,X-Genesis-Token,X-Genesis-Source-Type,X-Genesis-Variant,X-Genesis-File-Name,X-Genesis-Width,X-Genesis-Height,X-Genesis-Entity,X-Genesis-Entity-Id,X-Genesis-Hash','Access-Control-Max-Age':'86400','Vary':'Origin'};
+  return corsHeaders(req.headers.origin||DEFAULT_ORIGIN,{privateNetwork:String(req.headers['access-control-request-private-network']||'').toLowerCase()==='true'});
 }
 function sendJson(req,res,status,payload){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...cors(req)});res.end(JSON.stringify(payload));}
 function authorized(req){
@@ -178,8 +170,14 @@ async function handler(req,res){
       if(req.method==='GET'){await imageResponse(req,res,id,cleanVariant(url.searchParams.get('variant')||'optimized')||'optimized');return;}
     }
     if(req.method==='POST'&&url.pathname==='/v1/folder/open'){await openDataFolder();sendJson(req,res,200,{ok:true,path:DATA_DIR});return;}
-    sendJson(req,res,404,{ok:false,error:'Endpoint inexistente.'});
-  }catch(error){console.error(new Date().toISOString(),error);sendJson(req,res,error.status||500,{ok:false,error:error.status?error.message:'Falha interna no servidor local.'});}
+    sendJson(req,res,404,{ok:false,code:'not_found',error:'Endpoint inexistente.'});
+  }catch(error){
+    console.error(new Date().toISOString(),error);
+    const status=error.status||500,code=error.code||(
+      status===413?'payload_too_large':status===415?'invalid_image_type':status===403?'operation_not_allowed':status===400?'invalid_request':'server_error'
+    );
+    sendJson(req,res,status,{ok:false,code,error:status<500?error.message:'Falha interna no servidor local.'});
+  }
 }
 
 let server;const pfxPath=String(config.tls?.pfxPath||'').trim(),certPath=String(config.tls?.certPath||'').trim(),keyPath=String(config.tls?.keyPath||'').trim(),hasPem=Boolean(certPath&&keyPath);
