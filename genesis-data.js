@@ -216,6 +216,72 @@
     if(!silent)showToast(removed?`Fila reparada: ${removed} duplicata(s) consolidada(s).`:'A fila já está consistente.',true);
     await refreshSheetsStatus();return report;
   }
+  function parseConflictData(payload){
+    let value=payload?.dados_json??payload?.valor_json??payload;
+    try{value=typeof value==='string'?JSON.parse(value):value;}catch(error){value={};}
+    return value&&typeof value==='object'?value:{};
+  }
+  function conflictDiffs(localPayload,serverPayload){
+    const local=parseConflictData(localPayload),server=parseConflictData(serverPayload),ignore=new Set(['updatedAt','updated_at','version','sync_status']);
+    return [...new Set([...Object.keys(local),...Object.keys(server)])].filter(key=>!ignore.has(key)&&JSON.stringify(local[key])!==JSON.stringify(server[key])).map(key=>({field:key,local:local[key],server:server[key]}));
+  }
+  function conflictValue(value){
+    if(value===undefined)return '—';if(value===null)return 'null';
+    const text=typeof value==='object'?JSON.stringify(value):String(value);return text.length>260?text.slice(0,257)+'…':text;
+  }
+  async function markConflictResolved(item,resolution){
+    const id=`conflict-${item.operation_id}`,row=await dbGet(DIAGNOSTIC_STORE,id)||{id,createdAt:Date.now(),type:'sync-conflict',details:{entity:item.entity,entity_id:item.entity_id,local:item.payload,server:item.server_record}};
+    row.resolvedAt=Date.now();row.resolution=resolution;row.deviceId=sheetsDeviceId;row.type='sync-conflict-resolved';await dbPut(DIAGNOSTIC_STORE,row);
+  }
+  async function queueConflictResolution(item,payload,resolution){
+    const serverVersion=Number(item.server_record?.version)||1,localVersion=Number(payload?.version)||Number(item.version)||1,version=Math.max(serverVersion,localVersion)+1,updatedAt=new Date().toISOString();
+    const finalPayload={...payload,version,updated_at:updatedAt},fp=fingerprint(finalPayload),operationId=SyncCore.operationId({entity:item.entity,entityId:item.entity_id,action:item.action||'upsert',version,fingerprint:fp,deviceId:sheetsDeviceId});
+    const operation={...item,operation_id:operationId,operationId,payload:finalPayload,payload_fingerprint:fp,version,status:'pending',source:'conflict-resolution',reason:resolution,device_id:sheetsDeviceId,deviceId:sheetsDeviceId,created_at:updatedAt,updated_at:updatedAt,attempts:0,last_error:''};
+    delete operation.server_record;delete operation.conflict_created_at;
+    await dbDelete(SYNC_QUEUE_STORE,item.operation_id);await dbPut(SYNC_QUEUE_STORE,operation);await markConflictResolved(item,resolution);return operation;
+  }
+  async function resolveConflictKeepLocal(item){
+    await queueConflictResolution(item,item.payload,'keep-local');await renderSyncConflicts();await refreshSheetsStatus();scheduleSheetsRetry(300);showToast('Versão deste dispositivo preservada',true);
+  }
+  async function resolveConflictKeepRemote(item){
+    if(!item.server_record){showToast('A versão remota não está disponível neste diagnóstico.');return;}
+    await applyRemoteRecords([{entity:item.entity,payload:item.server_record}]);await dbDelete(SYNC_QUEUE_STORE,item.operation_id);await markConflictResolved(item,'keep-remote');await renderSyncConflicts();await refreshSheetsStatus();showToast('Versão do Google Sheets aplicada',true);
+  }
+  function closeConflictMerge(){document.getElementById('genesisConflictMergeModal')?.classList.remove('open');}
+  function openConflictMerge(item){
+    const modal=document.getElementById('genesisConflictMergeModal'),list=document.getElementById('genesisConflictMergeFields'),diffs=conflictDiffs(item.payload,item.server_record);
+    if(!modal||!list)return;
+    if(!diffs.length){showToast('As versões não possuem campos diferentes para mesclar.');return;}
+    list.innerHTML=diffs.map((diff,index)=>`<div class="genesis-conflict-field"><strong>${escapeHtml(diff.field)}</strong><label><input type="radio" name="conflictField${index}" value="local" checked> Dispositivo: ${escapeHtml(conflictValue(diff.local))}</label><label><input type="radio" name="conflictField${index}" value="remote"> Sheets: ${escapeHtml(conflictValue(diff.server))}</label></div>`).join('');
+    modal.classList.add('open');
+    document.getElementById('genesisConflictMergeSave').onclick=async()=>{
+      const local=parseConflictData(item.payload),server=parseConflictData(item.server_record),merged={...server,...local};
+      diffs.forEach((diff,index)=>{const choice=list.querySelector(`input[name="conflictField${index}"]:checked`)?.value||'local';merged[diff.field]=choice==='remote'?diff.server:diff.local;});
+      const version=Math.max(Number(item.payload?.version)||1,Number(item.server_record?.version)||1)+1,mergedPayload={...item.server_record,...item.payload,dados_json:JSON.stringify(merged),version,updated_at:new Date().toISOString()};
+      await applyRemoteRecords([{entity:item.entity,payload:mergedPayload}]);
+      const current=(buildSheetsEntities()[item.entity]||[]).find(record=>String(record.id)===String(item.entity_id))||mergedPayload;
+      await queueConflictResolution(item,current,'merge-explicit');closeConflictMerge();await renderSyncConflicts();await refreshSheetsStatus();scheduleSheetsRetry(300);showToast('Versões mescladas com suas escolhas',true);
+    };
+  }
+  function installConflictPanel(){
+    if(document.getElementById('genesisSyncConflictModal'))return;
+    const style=document.createElement('style');style.textContent='.genesis-conflict-list{display:grid;gap:12px;max-height:min(68vh,620px);overflow:auto}.genesis-conflict-card,.genesis-conflict-field{padding:13px;border:1px solid rgba(255,193,82,.24);border-radius:14px;background:rgba(42,30,12,.24)}.genesis-conflict-card h3{margin:0 0 5px;font-size:15px}.genesis-conflict-meta{font-size:11px;color:#9ba4b5}.genesis-conflict-diffs{display:grid;gap:7px;margin:10px 0}.genesis-conflict-diff{display:grid;grid-template-columns:90px 1fr;gap:8px;font-size:11px}.genesis-conflict-diff span{color:#9ba4b5}.genesis-conflict-actions{display:flex;flex-wrap:wrap;gap:7px}.genesis-conflict-field{display:grid;gap:7px;margin-bottom:8px}.genesis-conflict-field label{display:flex;gap:7px;align-items:flex-start;font-size:11px;overflow-wrap:anywhere}.genesis-conflict-field input{width:auto;min-height:0}';document.head.appendChild(style);
+    const panel=document.createElement('div');panel.id='genesisSyncConflictModal';panel.className='genesis-modal-layer';panel.innerHTML='<div class="genesis-modal-card" style="max-width:760px"><div class="genesis-modal-head"><div><h3>Conflitos de sincronização</h3><p>Nenhuma versão é descartada sem sua escolha.</p></div><button type="button" id="genesisConflictClose">×</button></div><div id="genesisConflictList" class="genesis-conflict-list"></div></div>';document.body.appendChild(panel);
+    const merge=document.createElement('div');merge.id='genesisConflictMergeModal';merge.className='genesis-modal-layer';merge.style.zIndex='19100';merge.innerHTML='<div class="genesis-modal-card" style="max-width:680px"><div class="genesis-modal-head"><div><h3>Mesclar versões</h3><p>Escolha explicitamente qual valor manter em cada campo diferente.</p></div><button type="button" id="genesisConflictMergeClose">×</button></div><div id="genesisConflictMergeFields" style="max-height:58vh;overflow:auto"></div><div class="btn-row" style="margin-top:12px"><button class="btn btn-primary" id="genesisConflictMergeSave" type="button">Salvar mesclagem</button><button class="btn btn-secondary" id="genesisConflictMergeCancel" type="button">Cancelar</button></div></div>';document.body.appendChild(merge);
+    document.getElementById('genesisConflictClose').onclick=()=>panel.classList.remove('open');document.getElementById('genesisConflictMergeClose').onclick=closeConflictMerge;document.getElementById('genesisConflictMergeCancel').onclick=closeConflictMerge;
+  }
+  async function renderSyncConflicts(){
+    installConflictPanel();const queue=await dbAll(SYNC_QUEUE_STORE),conflicts=queue.filter(item=>item.status==='conflict'),list=document.getElementById('genesisConflictList');
+    if(!list)return conflicts;
+    list.innerHTML=conflicts.length?'':'<div class="secondary-note">Nenhum conflito aguardando decisão.</div>';
+    conflicts.forEach(item=>{
+      const card=document.createElement('article'),diffs=conflictDiffs(item.payload,item.server_record);card.className='genesis-conflict-card';
+      card.innerHTML=`<h3>${escapeHtml(item.entity)} · ${escapeHtml(item.entity_id)}</h3><div class="genesis-conflict-meta">Dispositivo: ${escapeHtml(item.payload?.updated_at||'—')} · Google Sheets: ${escapeHtml(item.server_record?.updated_at||'—')}</div><div class="genesis-conflict-diffs">${diffs.slice(0,8).map(diff=>`<div class="genesis-conflict-diff"><strong>${escapeHtml(diff.field)}</strong><div><span>Dispositivo:</span> ${escapeHtml(conflictValue(diff.local))}<br><span>Sheets:</span> ${escapeHtml(conflictValue(diff.server))}</div></div>`).join('')||'<span class="secondary-note">Metadados de versão diferentes.</span>'}</div><div class="genesis-conflict-actions"><button class="btn btn-secondary btn-sm" data-resolution="local">Manter este dispositivo</button><button class="btn btn-secondary btn-sm" data-resolution="remote">Manter Google Sheets</button><button class="btn btn-primary btn-sm" data-resolution="merge">Mesclar versões</button></div>`;
+      card.querySelector('[data-resolution="local"]').onclick=()=>resolveConflictKeepLocal(item);card.querySelector('[data-resolution="remote"]').onclick=()=>resolveConflictKeepRemote(item);card.querySelector('[data-resolution="merge"]').onclick=()=>openConflictMerge(item);list.appendChild(card);
+    });
+    const button=document.getElementById('btnSheetsConflicts');if(button)button.textContent=`Resolver conflitos${conflicts.length?` (${conflicts.length})`:''}`;return conflicts;
+  }
+  async function openSyncConflicts(){await renderSyncConflicts();document.getElementById('genesisSyncConflictModal')?.classList.add('open');}
   function nextOperationVersion(record,meta,previous){
     return Math.max(1,Number(record?.version)||1,(Number(meta?.version)||0)+1,Number(previous?.version)||0);
   }
@@ -390,7 +456,7 @@
         for(const item of batch){
           const result=results.get(item.operation_id);
           if(result?.status==='conflict'){
-            item.status='conflict';item.last_error='Conflito de versão: as duas cópias foram preservadas.';await dbPut(SYNC_QUEUE_STORE,item);
+            item.status='conflict';item.server_record=result.server_record||null;item.conflict_created_at=new Date().toISOString();item.last_error='Conflito de versão: as duas cópias foram preservadas.';await dbPut(SYNC_QUEUE_STORE,item);
             await dbPut(DIAGNOSTIC_STORE,{id:`conflict-${item.operation_id}`,createdAt:Date.now(),type:'sync-conflict',details:{entity:item.entity,entity_id:item.entity_id,server:result.server_record,local:item.payload}});
           }else if(result&&result.ok!==false){
             await dbDelete(SYNC_QUEUE_STORE,item.operation_id);
@@ -592,6 +658,8 @@
     document.getElementById('btnSheetsMigrate')?.addEventListener('click',prepareSheetsMigration);
     document.getElementById('btnSheetsDiagnoseQueue')?.addEventListener('click',async()=>{const report=await diagnoseSheetsQueue();renderQueueReport(report);showToast('Diagnóstico da fila atualizado',true);});
     document.getElementById('btnSheetsRepairQueue')?.addEventListener('click',()=>showConfirm('Reparar fila de sincronização','O Genesis fará um backup e consolidará somente operações duplicadas ou superadas. Conflitos serão preservados.',async()=>{const report=await repairSheetsQueue({reason:'manual'});renderQueueReport(report,'Reparo concluído');},'Reparar fila'));
+    document.getElementById('btnSheetsConflicts')?.addEventListener('click',openSyncConflicts);
+    await renderSyncConflicts();
     ['sheetsApiUrl','sheetsApiToken','sheetsSyncEnabled'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{readSheetsSettings();refreshSheetsStatus();if(sheetsConfig.enabled)scheduleSheetsRetry();}));
     document.addEventListener('input',event=>{if(event.target.closest('.screen,.sheet'))scheduleGenericDraft('input');},true);
     document.addEventListener('change',event=>{if(event.target.closest('.screen,.sheet'))scheduleGenericDraft('change');},true);
@@ -620,4 +688,5 @@
   window.genesisSheetsConfigured=sheetsConfigured;
   window.genesisSheetsQueueDiagnose=diagnoseSheetsQueue;
   window.genesisSheetsQueueRepair=repairSheetsQueue;
+  window.genesisOpenSyncConflicts=openSyncConflicts;
 })();
