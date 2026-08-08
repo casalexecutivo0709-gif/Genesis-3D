@@ -287,7 +287,7 @@
       }
     }finally{sheetsApplying=false;}
     if(applied){
-      renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();populateSettingsForm();
+      window.genesisRefreshVisibleScreen?.({includeCalc:true});
       await persistStateSnapshot('sheets-pull');
     }
     return applied;

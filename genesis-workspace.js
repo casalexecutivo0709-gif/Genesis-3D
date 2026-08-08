@@ -423,7 +423,7 @@
   }
   async function refreshGenesisData(){
     if(state.pullBusy)return;state.pullBusy=true;const indicator=document.getElementById('genesisPullIndicator');showPullIndicator(indicator,'Atualizando...',{refreshing:true});const scrollY=window.scrollY;
-    try{saveActiveDraft('pull-to-refresh');await persistStateSnapshot('pull-to-refresh');const tasks=[flushImageQueue({silent:true}),updateLocalServerPanel()];if(window.genesisSheetsConfigured?.())tasks.push(window.genesisSheetsSync({silent:true}));await Promise.allSettled(tasks);renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();await updateDesktopSummary();await updateImageStatusBadges();showToast('Dados e imagens atualizados',true);}
+    try{saveActiveDraft('pull-to-refresh');await persistStateSnapshot('pull-to-refresh');const tasks=[flushImageQueue({silent:true}),updateLocalServerPanel()];if(window.genesisSheetsConfigured?.())tasks.push(window.genesisSheetsSync({silent:true}));await Promise.allSettled(tasks);window.genesisRefreshVisibleScreen?.({includeCalc:true});await updateDesktopSummary();await updateImageStatusBadges();showToast('Dados e imagens atualizados',true);}
     catch(error){genesisLog('pull-refresh.failed',{error},'warn');showToast('Não foi possível atualizar agora. Os dados continuam salvos.');}
     finally{window.scrollTo({top:scrollY,behavior:'instant'});hidePullIndicator(indicator);state.pullBusy=false;}
   }

@@ -1,6 +1,6 @@
-const STATIC_CACHE='genesis3d-static-v34-kanban-insights-20260801';
-const RUNTIME_CACHE='genesis3d-runtime-v34-kanban-insights-20260801';
-const SW_VERSION='34-kanban-insights-20260801';
+const STATIC_CACHE='genesis3d-static-v35-scroll-perf-20260808';
+const RUNTIME_CACHE='genesis3d-runtime-v35-scroll-perf-20260808';
+const SW_VERSION='35-scroll-perf-20260808';
 const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-finance.js','./genesis-data.js','./genesis-workspace.js','./genesis-workspace.css','./genesis-logo.png','./genesis-192.png','./genesis-512.png','./genesis-hat-mask.png'];
 const MAX_RUNTIME_ENTRIES=60;
 

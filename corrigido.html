@@ -2600,6 +2600,37 @@ img.library-thumb,img.kit-thumb,.order-kanban-thumb{content-visibility:auto}
 
 /* Keep the entry background uniform: the fixed atmospheric layer must not extend below the app. */
 body::before{inset:0!important}
+
+/* V34: Safari/iPhone scroll stability.
+   Repeated glass layers are visually preserved by their gradients/borders,
+   but no longer allocate one live backdrop surface per card/control. */
+.list-item,.order-card,.quote-card,.kit-saved-card,.model-card,.mw-quick-card,
+.ocr-item-card,.hybrid-order-card,.management-card{
+  content-visibility:auto;
+  contain-intrinsic-size:auto 92px;
+}
+.genesis-load-more{
+  width:100%;min-height:44px;margin:10px 0 2px;border-radius:13px;
+  color:#d9dde5;background:rgba(19,25,35,.82);
+  border:1px solid rgba(195,211,234,.12);font-weight:750;
+}
+@media (max-width:820px), (pointer:coarse){
+  .topbar,.bottomnav,.sheet,.overlay,
+  .card,.list-item,.order-card,.quote-card,.more-item,.stat-card,.kanban-col,
+  .hybrid-order-card,.hybrid-summary-card,.production-stat,.ocr-item-card,
+  .management-card,.insights-card,.insight-kpi,.model-card,.mw-quick-card,
+  .mobile-kanban-chip,.mobile-kanban-stage,.mini-count,.status-pill,
+  input[type=number],input[type=text],input[type=email],input[type=password],
+  input[type=url],input[type=search],input[type=date],select,textarea,
+  .btn-secondary,.btn-ghost,.icon-btn,.fchip{
+    -webkit-backdrop-filter:none!important;
+    backdrop-filter:none!important;
+  }
+  .bottomnav{background:rgba(12,17,25,.96)!important}
+  .topbar{background:linear-gradient(180deg,rgba(8,11,20,.98),rgba(7,10,17,.93) 72%,rgba(7,10,17,.12))!important}
+  .sheet{background:linear-gradient(145deg,rgba(24,29,40,.98),rgba(10,15,23,.98))!important}
+  .overlay{background:rgba(0,0,0,.62)!important}
+}
 </style>
 
 </head>
@@ -4843,6 +4874,23 @@ async function mediaGetObjectUrl(id){
   mediaTrimObjectUrlCache(id);
   return url;
 }
+async function mediaGetThumbnailObjectUrl(id){
+  if(!id)return '';
+  const cacheId='thumbnail:'+id;
+  if(mediaObjectUrlCache.has(cacheId)){
+    const existing=mediaObjectUrlCache.get(cacheId);
+    mediaObjectUrlCache.delete(cacheId);
+    mediaObjectUrlCache.set(cacheId,existing);
+    return existing;
+  }
+  const row=await mediaGetRecord(id);
+  const blob=row?.thumbnailBlob||row?.editedBlob||row?.optimizedBlob||row?.blob;
+  if(!blob)return '';
+  const url=URL.createObjectURL(blob);
+  mediaObjectUrlCache.set(cacheId,url);
+  mediaTrimObjectUrlCache(cacheId);
+  return url;
+}
 async function mediaDelete(id){
   if(!id) return;
   mediaMemoryFallback.delete(id);
@@ -5108,7 +5156,7 @@ async function genesisLocalRestore(){
   }
   persistGenesisCoreToLocalStorage();await runSchemaMigration();await persistStateSnapshot('computer-restore');
   setLocalComputerStatus('ok',`Restaurado: ${quotes.length} orçamento(s), ${orders.length} pedido(s)`);
-  renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();renderOrders();renderSavedModels();renderKitComposer();refreshMoreCounts();populateSettingsForm();recalc();
+  genesisRefreshVisibleScreen({includeCalc:true});
 }
 window.addEventListener('pagehide', ()=>{
   persistStateSnapshot('pagehide').catch(()=>{});
@@ -5143,17 +5191,34 @@ function genesisRunMediaQueue(){
   if('requestIdleCallback' in window)requestIdleCallback(runner,{timeout:500});
   else setTimeout(()=>runner(null),40);
 }
+const genesisLazyTasks=new Map();
+const genesisLazyObserver='IntersectionObserver' in window
+  ? new IntersectionObserver(entries=>{
+      entries.forEach(entry=>{
+        if(!entry.isIntersecting)return;
+        const task=genesisLazyTasks.get(entry.target);
+        genesisLazyObserver.unobserve(entry.target);
+        genesisLazyTasks.delete(entry.target);
+        entry.target.removeAttribute('data-genesis-lazy');
+        if(task)genesisQueueMediaTask(task);
+      });
+    },{rootMargin:'140px'})
+  : null;
 function genesisLazyHydrate(element,task){
   if(!element||typeof task!=='function')return;
-  if('IntersectionObserver' in window){
-    const observer=new IntersectionObserver(entries=>{
-      if(entries.some(entry=>entry.isIntersecting)){
-        observer.disconnect();
-        genesisQueueMediaTask(task);
-      }
-    },{rootMargin:'180px'});
-    observer.observe(element);
+  if(genesisLazyObserver){
+    genesisLazyTasks.set(element,task);
+    element.setAttribute('data-genesis-lazy','');
+    genesisLazyObserver.observe(element);
   }else genesisQueueMediaTask(task);
+}
+function genesisReleaseLazyHydration(root){
+  if(!root||!genesisLazyObserver)return;
+  root.querySelectorAll('[data-genesis-lazy]').forEach(element=>{
+    genesisLazyObserver.unobserve(element);
+    genesisLazyTasks.delete(element);
+    element.removeAttribute('data-genesis-lazy');
+  });
 }
 
 /* ---------- schema migration: aditiva, nunca apaga dados antigos ---------- */
@@ -5614,7 +5679,6 @@ function updateGenesisVisualViewport(){
 }
 updateGenesisVisualViewport();
 window.visualViewport?.addEventListener('resize',updateGenesisVisualViewport);
-window.visualViewport?.addEventListener('scroll',updateGenesisVisualViewport);
 window.addEventListener('resize',updateGenesisVisualViewport);
 
 function syncGenesisLayerScrollLock(){
@@ -5855,7 +5919,6 @@ window.addEventListener('focus',repairGenesisBottomNav);
 window.addEventListener('orientationchange',repairGenesisBottomNav);
 window.addEventListener('resize',repairGenesisBottomNav);
 window.visualViewport?.addEventListener('resize',repairGenesisBottomNav);
-window.visualViewport?.addEventListener('scroll',repairGenesisBottomNav);
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden)repairGenesisBottomNav();
 });
@@ -5886,6 +5949,14 @@ function genesisPrepareScreenContent(name){
   if(name==='more'&&typeof refreshMoreCounts==='function')refreshMoreCounts();
   if(name==='kits'&&typeof renderKitComposer==='function')renderKitComposer();
 }
+function genesisRefreshVisibleScreen({includeCalc=false}={}){
+  renderFilamentSelect();
+  const active=currentPrimaryScreen();
+  genesisPrepareScreenContent(active);
+  refreshMoreCounts();
+  if(includeCalc||active==='calc')recalc();
+}
+window.genesisRefreshVisibleScreen=genesisRefreshVisibleScreen;
 function genesisUpdateNavForScreen(name){
   const navGroup=navGroupForScreen(name);
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===navGroup));
@@ -6993,7 +7064,6 @@ function genesisKeyboardViewportUpdate(){
   }
 }
 window.visualViewport?.addEventListener('resize',genesisKeyboardViewportUpdate);
-window.visualViewport?.addEventListener('scroll',genesisKeyboardViewportUpdate);
 
 /* ---------- Genesis ImageManager: uma única fonte de imagem para todos os fluxos ---------- */
 const GenesisImageManager={
@@ -8085,7 +8155,7 @@ function refreshExpiredQuotes(){
 async function setLibraryThumb(img,imageId,fallbackDataUrl){
   if(!img) return;
   let src='';
-  if(imageId) src=await mediaGetObjectUrl(imageId);
+  if(imageId) src=await mediaGetThumbnailObjectUrl(imageId);
   if(!src && fallbackDataUrl) src=fallbackDataUrl;
   if(src) img.src=src;
 }
@@ -8095,7 +8165,7 @@ async function hydrateManagementThumb(card,record,kind){
   let asset={imageId:record.imageId||null,dataUrl:record.imageDataUrl||record.productImage||record.imageUrl||''};
 
   if(asset.imageId){
-    const src=await mediaGetObjectUrl(asset.imageId);
+    const src=await mediaGetThumbnailObjectUrl(asset.imageId);
     if(src){
       let img=card.querySelector('.library-thumb');
       if(!img){
@@ -8128,7 +8198,7 @@ async function hydrateManagementThumb(card,record,kind){
   }
 
   const src=asset.imageId
-    ? await mediaGetObjectUrl(asset.imageId)
+    ? await mediaGetThumbnailObjectUrl(asset.imageId)
     : asset.dataUrl;
   if(!src)return;
 
@@ -8140,6 +8210,25 @@ async function hydrateManagementThumb(card,record,kind){
     card.querySelector('.library-placeholder')?.replaceWith(img);
   }
   img.src=src;
+}
+
+const genesisListWindows=Object.create(null);
+function genesisListBatchSize(){
+  return window.matchMedia('(max-width:820px), (pointer:coarse)').matches?24:72;
+}
+function genesisResetListWindow(key){genesisListWindows[key]=1;}
+function genesisVisibleRecords(key,list){
+  const pages=Math.max(1,Number(genesisListWindows[key])||1);
+  return list.slice(0,pages*genesisListBatchSize());
+}
+function genesisAppendLoadMore(root,key,total,renderFn){
+  const shown=Math.min(total,(Number(genesisListWindows[key])||1)*genesisListBatchSize());
+  if(!root||shown>=total)return;
+  const button=document.createElement('button');
+  button.type='button';button.className='genesis-load-more';
+  button.textContent=`Carregar mais (${shown} de ${total})`;
+  button.addEventListener('click',()=>{genesisListWindows[key]=(Number(genesisListWindows[key])||1)+1;renderFn()});
+  root.appendChild(button);
 }
 
 function renderQuoteList(){
@@ -8156,14 +8245,15 @@ function renderQuoteList(){
   );
   if(status!=='all') list=list.filter(q=>q.status===status);
   document.getElementById('quoteCountBadge').textContent=String(list.length);
+  genesisReleaseLazyHydration(listEl);
   listEl.innerHTML='';
   empty.style.display=list.length?'none':'block';
-  list.forEach(q=>{
+  genesisVisibleRecords('quotes',list).forEach(q=>{
     const row=document.createElement('div');
     row.className='list-item management-card';
     const initials=(q.productName||'P').slice(0,2).toUpperCase();
     row.innerHTML=
-      ((q.imageId||q.imageDataUrl||q.imageUrl)?'<img loading="lazy" decoding="async" class="library-thumb" data-image-id="'+escapeHtml(q.imageId||'')+'" src="'+escapeHtml(q.imageDataUrl||q.imageUrl||'')+'" alt="">':'<div class="library-placeholder">'+escapeHtml(initials)+'</div>')+
+      ((q.imageId||q.imageDataUrl||q.imageUrl)?'<img loading="lazy" decoding="async" class="library-thumb" data-image-id="'+escapeHtml(q.imageId||'')+'" '+(q.imageId?'':'src="'+escapeHtml(q.imageDataUrl||q.imageUrl||'')+'"')+' alt="">':'<div class="library-placeholder">'+escapeHtml(initials)+'</div>')+
       '<div class="info"><div class="name quote-product-title">'+escapeHtml(q.productName||'Produto')+'</div>'+
       '<div class="meta quote-secondary-line">Orçamento '+quoteNumber(q)+(q.client?.name?' · '+escapeHtml(q.client.name):'')+'</div>'+
       '<div class="meta">'+new Date(q.createdAt).toLocaleDateString('pt-BR')+'</div></div>'+
@@ -8172,9 +8262,10 @@ function renderQuoteList(){
     listEl.appendChild(row);
     genesisLazyHydrate(row,()=>hydrateManagementThumb(row,q,'quote'));
   });
+  genesisAppendLoadMore(listEl,'quotes',list.length,renderQuoteList);
 }
-document.getElementById('quoteSearch').addEventListener('input',renderQuoteList);
-document.getElementById('quoteStatusFilter').addEventListener('change',renderQuoteList);
+document.getElementById('quoteSearch').addEventListener('input',()=>{genesisResetListWindow('quotes');renderQuoteList()});
+document.getElementById('quoteStatusFilter').addEventListener('change',()=>{genesisResetListWindow('quotes');renderQuoteList()});
 document.getElementById('btnQuoteEmptyCreate').addEventListener('click',()=>showScreen('calc'));
 
 let openQuoteId=null;
@@ -9150,11 +9241,12 @@ function renderMobileKanban(root,list){
   const cards=document.createElement('div');
   cards.className='mobile-kanban-cards';
   if(items.length){
-    items.forEach(o=>{
+    genesisVisibleRecords('mobile-kanban-'+active,items).forEach(o=>{
       const card=renderOrderCard(o,false);
       card.classList.add('mobile-kanban-order');
       cards.appendChild(card);
     });
+    genesisAppendLoadMore(cards,'mobile-kanban-'+active,items.length,renderOrders);
   }else{
     cards.innerHTML='<div class="mobile-kanban-empty"><strong>Nenhum pedido nesta etapa</strong><span>Deslize ou selecione outra etapa acima.</span></div>';
   }
@@ -9259,6 +9351,7 @@ function renderOrders(){
   kanban.style.display=isKanban?'block':'none';
   listEl.style.display=isKanban?'none':'block';
   empty.style.display=list.length?'none':'block';
+  genesisReleaseLazyHydration(kanban);genesisReleaseLazyHydration(listEl);
   kanban.innerHTML='';listEl.innerHTML='';
   if(isKanban){
     const viewMode=document.documentElement.dataset.genesisView||'auto';
@@ -9266,7 +9359,8 @@ function renderOrders(){
     if(mobile)renderMobileKanban(kanban,list);
     else renderDesktopKanban(kanban,list);
   }else{
-    list.forEach(o=>listEl.appendChild(renderOrderCard(o,false)));
+    genesisVisibleRecords('orders',list).forEach(o=>listEl.appendChild(renderOrderCard(o,false)));
+    genesisAppendLoadMore(listEl,'orders',list.length,renderOrders);
   }
 }
 
@@ -9282,17 +9376,18 @@ window.addEventListener('resize',()=>{
 
 document.getElementById('btnOrderKanban').addEventListener('click',()=>{uiState.orderView='kanban';saveUI();renderOrders();});
 document.getElementById('btnOrderList').addEventListener('click',()=>{uiState.orderView='list';saveUI();renderOrders();});
-document.getElementById('orderSearch').addEventListener('input',renderOrders);
+document.getElementById('orderSearch').addEventListener('input',()=>{genesisResetListWindow('orders');renderOrders()});
 ['orderFilterStatus','orderFilterProduct','orderFilterChannel','orderFilterDate','orderFilterStart','orderFilterEnd'].forEach(id=>{
   document.getElementById(id).addEventListener('change',()=>{
     syncOrderFiltersFromUI();
+    genesisResetListWindow('orders');
     document.getElementById('orderCustomDates').style.display=document.getElementById('orderFilterDate').value==='custom'?'grid':'none';
     renderOrders();
   });
 });
-document.getElementById('orderFilterClient').addEventListener('input',()=>{syncOrderFiltersFromUI();renderOrders();});
+document.getElementById('orderFilterClient').addEventListener('input',()=>{syncOrderFiltersFromUI();genesisResetListWindow('orders');renderOrders();});
 document.getElementById('btnClearOrderFilters').addEventListener('click',()=>{
-  uiState.orderFilters={status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''};saveUI();applyOrderUIState();renderOrders();
+  uiState.orderFilters={status:'all',product:'all',client:'',channel:'all',date:'all',start:'',end:''};saveUI();applyOrderUIState();genesisResetListWindow('orders');renderOrders();
 });
 document.getElementById('btnOrderEmptyCreate').addEventListener('click',()=>showScreen('calc'));
 
@@ -10096,7 +10191,15 @@ async function saveRemoteModelImage(m){
   if(id)m.imageId=id;
   return id||null;
 }
-function renderSavedModels(){const root=document.getElementById('savedModelsList'),empty=document.getElementById('savedModelsEmpty');document.getElementById('savedModelCount').textContent=savedModels.length;let list=savedModels.slice();const q=mwNormalizeText(mwSavedSearch);if(q)list=list.filter(m=>mwNormalizeText((m.title||'')+' '+(m.creator||'')+' '+(m.notes||'')).includes(q));empty.style.display=list.length?'none':'block';root.innerHTML=list.map(m=>modelCardHtml(m,true)).join('');wireModelCards(root,true);}
+function renderSavedModels(){
+  const root=document.getElementById('savedModelsList'),empty=document.getElementById('savedModelsEmpty');
+  document.getElementById('savedModelCount').textContent=savedModels.length;
+  let list=savedModels.slice();const q=mwNormalizeText(mwSavedSearch);
+  if(q)list=list.filter(m=>mwNormalizeText((m.title||'')+' '+(m.creator||'')+' '+(m.notes||'')).includes(q));
+  empty.style.display=list.length?'none':'block';
+  root.innerHTML=genesisVisibleRecords('models',list).map(m=>modelCardHtml(m,true)).join('');
+  wireModelCards(root,true);genesisAppendLoadMore(root,'models',list.length,renderSavedModels);
+}
 function populatePrinterFilter(){const sel=document.getElementById('mwPrinterFilter'),prev=sel.value||'all';const vals=[...new Set(mwResults.flatMap(m=>[...(m.printers||[]),...(m.profiles||[]).map(p=>p.printer)]).filter(Boolean))].sort();sel.innerHTML='<option value="all">Todas</option>'+vals.map(v=>'<option value="'+escapeAttr(v)+'">'+escapeHtml(v)+'</option>').join('');sel.value=vals.includes(prev)?prev:'all';}
 async function executeMwSearch(reset=true){
   const q=document.getElementById('mwSearchInput').value.trim();
@@ -10167,7 +10270,7 @@ document.getElementById('btnAdPromptClose').addEventListener('click',()=>closeSh
 
 document.getElementById('btnModelsSearchTab').addEventListener('click',()=>{document.getElementById('modelsSearchPane').style.display='block';document.getElementById('modelsSavedPane').style.display='none';document.getElementById('btnModelsSearchTab').className='btn btn-primary';document.getElementById('btnModelsSavedTab').className='btn btn-secondary';});
 document.getElementById('btnModelsSavedTab').addEventListener('click',()=>{document.getElementById('modelsSearchPane').style.display='none';document.getElementById('modelsSavedPane').style.display='block';document.getElementById('btnModelsSearchTab').className='btn btn-secondary';document.getElementById('btnModelsSavedTab').className='btn btn-primary';renderSavedModels();});
-document.getElementById('btnMwSearch').addEventListener('click',()=>executeMwSearch(true));document.getElementById('mwSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();executeMwSearch(true);}});document.getElementById('btnMwLoadMore').addEventListener('click',()=>executeMwSearch(false));document.getElementById('mwPrinterFilter').addEventListener('change',renderSearchModels);document.getElementById('mwSort').addEventListener('change',()=>{if(mwSearchTerm)executeMwSearch(true);});document.getElementById('mwSource')?.addEventListener('change',()=>{if(mwSearchTerm)executeMwSearch(true);});document.getElementById('btnMwImport').addEventListener('click',importMwLink);document.getElementById('savedModelsSearch').addEventListener('input',e=>{mwSavedSearch=e.target.value;renderSavedModels();});
+document.getElementById('btnMwSearch').addEventListener('click',()=>executeMwSearch(true));document.getElementById('mwSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();executeMwSearch(true);}});document.getElementById('btnMwLoadMore').addEventListener('click',()=>executeMwSearch(false));document.getElementById('mwPrinterFilter').addEventListener('change',renderSearchModels);document.getElementById('mwSort').addEventListener('change',()=>{if(mwSearchTerm)executeMwSearch(true);});document.getElementById('mwSource')?.addEventListener('change',()=>{if(mwSearchTerm)executeMwSearch(true);});document.getElementById('btnMwImport').addEventListener('click',importMwLink);document.getElementById('savedModelsSearch').addEventListener('input',e=>{mwSavedSearch=e.target.value;genesisResetListWindow('models');renderSavedModels();});
 document.getElementById('btnMwQuickTest').addEventListener('click',testMakerWorldConnection);document.getElementById('btnTestMakerWorld').addEventListener('click',()=>{cfg.makerworld.workerUrl=(document.getElementById('cfgMakerWorldWorker').value||'').trim().replace(/\/$/,'');saveConfig();testMakerWorldConnection();});document.getElementById('btnClearMakerWorldCache').addEventListener('click',clearMwCache);
 
 
@@ -10420,6 +10523,7 @@ let histSearchTerm='', histSortDesc=true;
 function renderHistoryList(){
   const listEl=document.getElementById('historyList');
   const emptyEl=document.getElementById('historyEmpty');
+  genesisReleaseLazyHydration(listEl);
   if(history.length===0){listEl.innerHTML='';emptyEl.style.display='block';return;}
   emptyEl.style.display='none';
   let list=history.slice();
@@ -10427,7 +10531,7 @@ function renderHistoryList(){
   if(term) list=list.filter(h=>(h.productName||'').toLowerCase().includes(term));
   list.sort((a,b)=>histSortDesc?b.createdAt-a.createdAt:a.createdAt-b.createdAt);
   listEl.innerHTML='';
-  list.forEach(h=>{
+  genesisVisibleRecords('history',list).forEach(h=>{
     const d=new Date(h.createdAt);
     const dateStr=d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     const row=document.createElement('div');row.className='list-item management-card';
@@ -10441,13 +10545,16 @@ function renderHistoryList(){
     listEl.appendChild(row);
     const img=row.querySelector('[data-hist-img]');
     if(img){
-      if(h.photoDataUrl) img.src=h.photoDataUrl;
-      else mediaGetObjectUrl(h.imageId).then(src=>{if(src)img.src=src;});
+      genesisLazyHydrate(row,async()=>{
+        const src=h.imageId?await mediaGetThumbnailObjectUrl(h.imageId):h.photoDataUrl;
+        if(src&&img.isConnected)img.src=src;
+      });
     }
   });
+  genesisAppendLoadMore(listEl,'history',list.length,renderHistoryList);
 }
-document.getElementById('histSearch').addEventListener('input',e=>{histSearchTerm=e.target.value;renderHistoryList();});
-document.getElementById('btnSortHist').addEventListener('click',()=>{histSortDesc=!histSortDesc;showToast(histSortDesc?'Mais recentes primeiro':'Mais antigos primeiro');renderHistoryList();});
+document.getElementById('histSearch').addEventListener('input',e=>{histSearchTerm=e.target.value;genesisResetListWindow('history');renderHistoryList();});
+document.getElementById('btnSortHist').addEventListener('click',()=>{histSortDesc=!histSortDesc;genesisResetListWindow('history');showToast(histSortDesc?'Mais recentes primeiro':'Mais antigos primeiro');renderHistoryList();});
 
 let openHistoryId=null;
 async function openHistoryDetail(id){
@@ -11615,8 +11722,7 @@ document.getElementById('fileImport').addEventListener('change',(e)=>{
       await mediaImportAll(data.images||[]);
       saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveImages();saveCounters();saveUI();
       await runSchemaMigration();
-      renderFilamentSelect();renderFilamentList();renderHistoryList();populateSettingsForm();renderDefaultFilamentSelect();
-      applyOrderUIState();renderQuoteList();renderOrders();recalc();
+      applyOrderUIState();genesisRefreshVisibleScreen({includeCalc:true});
       showToast('Backup importado com sucesso',true);
     },'Importar');
   };
@@ -11639,8 +11745,7 @@ document.getElementById('btnEraseAll').addEventListener('click',()=>{
     saveConfig();saveFilaments();saveHistory();saveQuotes();saveOrders();saveKits();saveModels();saveMakerWorldCache();saveShopeeCatalog();saveShopeeAliases();saveImages();saveCounters();saveUI();
     await mediaClear();
     await stateSnapshotClear();
-    renderFilamentSelect();renderFilamentList();renderHistoryList();renderQuoteList();applyOrderUIState();renderOrders();populateSettingsForm();renderDefaultFilamentSelect();
-    recalc();showToast('Todos os dados foram apagados',true);
+    applyOrderUIState();genesisRefreshVisibleScreen({includeCalc:true});showToast('Todos os dados foram apagados',true);
   },'Apagar tudo');
 });
 
@@ -11852,17 +11957,8 @@ async function init(){
   document.getElementById('inQtd').value=document.getElementById('inQtd').value||'1';
   recalc();
 
-  renderFilamentList();
-  renderHistoryList();
-  populateSettingsForm();
-  renderDefaultFilamentSelect();
-
   applyOrderUIState();
-  renderQuoteList();
-  renderOrders();
   refreshMoreCounts();
-  renderSavedModels();
-  renderKitComposer();
   updateMakerWorldStatusUI();
   if(typeof populateSheetsSettings==='function')populateSheetsSettings();
 
@@ -11873,9 +11969,6 @@ async function init(){
   runManagementSelfTests();
   syncQuickMarginFromConfig();
   runShopeeHybridSelfTests();
-  const repairImages=()=>genesisRepairImagesInBatches().catch(e=>console.warn('[Genesis reparo de imagens]',e));
-  if('requestIdleCallback' in window)requestIdleCallback(repairImages,{timeout:1800});
-  else setTimeout(repairImages,900);
 }
 init();
 
@@ -12197,13 +12290,15 @@ function kitReset(){
 function openKitPicker(){
   kitPickerSelection=new Set(activeKitItems.map(i=>kitItemKey(i.source,i.sourceId)));
   document.getElementById('kitPickerSearch').value='';
+  genesisResetListWindow('kit-picker');
   renderKitPicker();openSheet('ovKitPicker','sheetKitPicker');
 }
 async function renderKitPicker(){
   const q=(document.getElementById('kitPickerSearch')?.value||'').trim().toLowerCase();
   const list=kitSourceRecords().filter(i=>(kitPickerSource==='all'||i.source===kitPickerSource)&&(!q||(i.name+' '+i.client).toLowerCase().includes(q)));
+  const visibleList=genesisVisibleRecords('kit-picker',list);
   const root=document.getElementById('kitPickerList');
-  root.innerHTML=list.length?list.map(i=>{
+  root.innerHTML=list.length?visibleList.map(i=>{
     const key=kitItemKey(i.source,i.sourceId),selected=kitPickerSelection.has(key);
     return `<button class="kit-picker-item ${selected?'selected':''}" data-kit-pick="${escapeHtml(key)}" type="button">
       <div class="kit-thumb placeholder" data-kit-picker-thumb="${escapeHtml(key)}"></div>
@@ -12211,7 +12306,8 @@ async function renderKitPicker(){
       <span class="kit-picker-add">${selected?'✓':'+'}</span>
     </button>`;
   }).join(''):'<div class="kit-empty-inline">Nenhum item encontrado.</div>';
-  list.forEach(i=>kitThumb(document.querySelector(`[data-kit-picker-thumb="${CSS.escape(kitItemKey(i.source,i.sourceId))}"]`),i.imageId,i.name,i));
+  visibleList.forEach(i=>kitThumb(document.querySelector(`[data-kit-picker-thumb="${CSS.escape(kitItemKey(i.source,i.sourceId))}"]`),i.imageId,i.name,i));
+  genesisAppendLoadMore(root,'kit-picker',list.length,renderKitPicker);
 }
 function saveActiveKit(status='draft'){
   if(!activeKitItems.length){showToast('Selecione pelo menos um item.');return null}
@@ -12252,7 +12348,8 @@ function renderSavedKits(){
   const root=document.getElementById('kitSavedList'),empty=document.getElementById('kitSavedEmpty');
   if(!root)return;
   empty.style.display=kits.length?'none':'block';
-  root.innerHTML=kits.map(k=>`<div class="kit-saved-card" data-kit-load="${k.id}">
+  const visibleKits=genesisVisibleRecords('kits',kits);
+  root.innerHTML=visibleKits.map(k=>`<div class="kit-saved-card" data-kit-load="${k.id}">
     <button class="kit-saved-main" data-kit-open="${k.id}" type="button">
       <img class="kit-thumb" data-kit-thumb="${k.id}" alt="" loading="lazy" decoding="async">
       <div><strong>${escapeHtml(k.name||'Kit Personalizado')}</strong><small>${kitNumber(k)} · ${escapeHtml(k.client?.name||'Sem cliente')} · ${(k.items||[]).length} itens</small></div>
@@ -12260,7 +12357,7 @@ function renderSavedKits(){
     </button>
     <button class="kit-saved-delete" data-kit-delete="${k.id}" type="button">Excluir</button>
   </div>`).join('');
-  kits.forEach(async k=>{
+  visibleKits.forEach(async k=>{
     const img=root.querySelector(`[data-kit-thumb="${k.id}"]`);
     if(!img)return;
     let imageId=k.previewImageId||k.imageId||(k.items||[]).find(item=>item.imageId)?.imageId||null;
@@ -12271,6 +12368,7 @@ function renderSavedKits(){
     if(imageId)await setLibraryThumb(img,imageId,'');
     else img.style.display='none';
   });
+  genesisAppendLoadMore(root,'kits',kits.length,renderSavedKits);
 }
 
 let genesisCanvasLogoPromise=null;
@@ -12572,9 +12670,9 @@ document.getElementById('kitChooseItemsBtn')?.addEventListener('click',openKitPi
 document.getElementById('kitAddItemsBtn')?.addEventListener('click',openKitPicker);
 document.getElementById('kitPickerClose')?.addEventListener('click',()=>closeSheet('ovKitPicker','sheetKitPicker'));
 document.getElementById('kitPreviewClose')?.addEventListener('click',()=>{revokeGenesisKitPreview();closeSheet('ovKitPreview','sheetKitPreview')});
-document.getElementById('kitPickerSearch')?.addEventListener('input',renderKitPicker);
+document.getElementById('kitPickerSearch')?.addEventListener('input',()=>{genesisResetListWindow('kit-picker');renderKitPicker()});
 document.querySelectorAll('[data-kit-source]').forEach(b=>b.addEventListener('click',()=>{
-  kitPickerSource=b.dataset.kitSource;document.querySelectorAll('[data-kit-source]').forEach(x=>x.classList.toggle('active',x===b));renderKitPicker();
+  kitPickerSource=b.dataset.kitSource;genesisResetListWindow('kit-picker');document.querySelectorAll('[data-kit-source]').forEach(x=>x.classList.toggle('active',x===b));renderKitPicker();
 }));
 document.getElementById('kitPickerList')?.addEventListener('click',e=>{
   const b=e.target.closest('[data-kit-pick]');if(!b)return;const key=b.dataset.kitPick;
@@ -12662,12 +12760,12 @@ async function genesisRepairImagesInBatches(){
   }
   if(changed){
     saveHistory();saveQuotes();saveOrders();saveKits();
-    renderHistoryList();renderQuoteList();renderOrders();renderSavedKits();
+    genesisRefreshVisibleScreen();
   }
   return changed;
 }
 </script>
 <script src="./genesis-data.js"></script>
-<script src="./genesis-workspace.js?v=2026.08.01.5-final"></script>
+<script src="./genesis-workspace.js?v=2026.08.08-scroll-perf"></script>
 </body>
 </html>
