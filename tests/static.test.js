@@ -116,7 +116,7 @@ assert.match(localServer,/migrateLegacyImageIndex/);
 assert.match(localServer,/\/v1\/images/);
 assert.match(localServer,/timingSafeEqual/);
 assert.doesNotMatch(sw,/clients\.claim\s*\(/);
-assert.match(version,/APP_VERSION='2026\.08\.08\.1'/);
+assert.match(version,/APP_VERSION='2026\.08\.09\.1'/);
 assert.match(sw,/STATIC_CACHE=`genesis3d-static-v\$\{CACHE_VERSION\}`/);
 assert.match(sw,/type==='SKIP_WAITING'\)self\.skipWaiting\(\)/);
 assert.doesNotMatch(sw,/addEventListener\('install',[\s\S]{0,400}skipWaiting/);

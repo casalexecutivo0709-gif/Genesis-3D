@@ -160,3 +160,11 @@ html[data-genesis-view="desktop"] #screen-insights .ranking-name{font-size:11px;
 @keyframes genesisSyncPulse{50%{opacity:.45;transform:scale(.75)}}
 .genesis-sync-diagnostic{max-width:520px}.genesis-diagnostic-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 2px;border-bottom:1px solid rgba(148,163,184,.12);font-size:12px}.genesis-diagnostic-row span{color:#9ca3b5}.genesis-diagnostic-row strong{text-align:right;color:#e8eaf2}.genesis-diagnostic-row strong[data-state="error"]{color:#fca5a5}.genesis-diagnostic-row strong[data-state="conflict"]{color:#fcd34d}.genesis-diagnostic-row strong[data-state="connected"]{color:#86efac}
 @media(max-width:380px){.genesis-sync-indicator{right:10px;padding:8px;min-width:32px;justify-content:center}.genesis-sync-label{display:none}}
+
+/* Mantém o desktop utilizável quando a largura restante após a barra lateral é estreita. */
+@media screen and (max-width:1220px){
+  html[data-genesis-view="desktop"] #screen-calc.active{grid-template-columns:minmax(0,1fr)}
+  html[data-genesis-view="desktop"] #screen-calc .genesis-desktop-calc-side{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  html[data-genesis-view="desktop"] #sheetCopy .genesis-composer-layout{grid-template-columns:minmax(0,1fr)}
+  html[data-genesis-view="desktop"] #sheetCopy .genesis-live-preview{min-width:0;max-width:none;resize:none;border-left:0;border-top:1px solid rgba(139,92,246,.25)}
+}
