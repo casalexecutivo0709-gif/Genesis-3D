@@ -26,4 +26,22 @@ assert.ok(repaired.queue.some(item=>item.operation_id==='op-other'));
 
 const logical={entity:'Pedidos',entityId:'p1',action:'upsert',version:7,fingerprint:'abc',deviceId:'phone'};
 assert.equal(Sync.operationId(logical),Sync.operationId(logical));
+
+const stablePayload={id:'p4',status:'em_producao',dados:{valor:34.44},updated_at:'2026-08-08T10:00:00.000Z',sync_status:'pending',version:1};
+assert.equal(
+  Sync.payloadFingerprint(stablePayload),
+  Sync.payloadFingerprint({...stablePayload,updated_at:'2026-08-09T10:00:00.000Z',sync_status:'synced',version:99}),
+  'Metadados de sincronização não podem criar uma nova operação lógica'
+);
+
+const repeated=[];
+for(let attempt=0;attempt<12;attempt++){
+  repeated.push({...base,operation_id:`op-repeat-${attempt}`,updated_at:`2026-08-08T10:${String(attempt).padStart(2,'0')}:00.000Z`});
+}
+const repeatedRepair=Sync.repairQueue(repeated);
+assert.equal(repeatedRepair.queue.length,1,'Doze gravações equivalentes devem virar uma operação pendente');
+assert.equal(repeatedRepair.report.afterDetails.duplicates,0);
+
+const completed=Sync.repairQueue(repeatedRepair.queue.map(item=>({...item,status:'synced'})));
+assert.equal(completed.queue.length,0,'A fila deve zerar depois da confirmação do servidor');
 console.log('Fila: diagnóstico, deduplicação, conflitos e operationId idempotente OK');
