@@ -10912,6 +10912,9 @@ const ShopeeScreenshotImporter = (()=>{
     let m=s.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2}|\d{2})\b/);
     if(m){const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}
     m=s.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    const plain=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    m=plain.match(/\b(\d{1,2})\s+(?:de\s+)?(jan(?:eiro)?|fev(?:ereiro)?|mar(?:co)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\s+(?:de\s+)?(20\d{2}|\d{2})\b/);
+    if(m){const months={jan:'01',fev:'02',mar:'03',abr:'04',mai:'05',jun:'06',jul:'07',ago:'08',set:'09',out:'10',nov:'11',dez:'12'},y=m[3].length===2?'20'+m[3]:m[3],month=months[m[2].slice(0,3)];if(month)return `${y}-${month}-${m[1].padStart(2,'0')}`}
     return '';
   }
   function timeFrom(v){const m=String(v||'').match(/\b([01]?\d|2[0-3])[:h]([0-5]\d)\b/i);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''}
@@ -10922,7 +10925,7 @@ const ShopeeScreenshotImporter = (()=>{
     for(let i=0;i<ls.length;i++){
       if(!context.test(ls[i]))continue;
       for(let j=Math.max(0,i-1);j<=Math.min(ls.length-1,i+2);j++){
-        const found=(ls[j].toUpperCase().match(code)||[]).filter(x=>!/^R\$/.test(x));
+        const found=(ls[j].toUpperCase().match(code)||[]).filter(x=>!/^R\$/.test(x)&&(x.match(/\d/g)||[]).length>=5&&!/^BR\d{8,}$/.test(x));
         found.forEach(v=>out.push({value:v,confidence:j===i?96:90,sourceLine:i}));
       }
     }
@@ -11043,7 +11046,7 @@ const ShopeeScreenshotImporter = (()=>{
     const buyerUsername=ls.find(x=>/^[a-z][a-z0-9._-]{4,39}$/i.test(x)&&/\d/.test(x)&&!/\d{6}[A-Z0-9]{7,12}/i.test(x));
     if(buyerUsername){
       addCandidate(out,'buyerUsername',buyerUsername,91,source,'Usuário do comprador');
-      if(!out.candidates.buyer)addCandidate(out,'buyer',buyerUsername,90,source,'Usuário do comprador');
+      addCandidate(out,'buyer',buyerUsername,90,source,'Usuário do comprador');
     }
     const paymentMethod=nearbyValue(ls,/^m[eé]todo\s*de\s*pagamento\s*[:\-]?/i,v=>v.length>=2&&v.length<=40,2);
     if(paymentMethod)addCandidate(out,'paymentMethod',paymentMethod.value,90,source,'Método de pagamento');
