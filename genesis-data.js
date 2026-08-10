@@ -4,6 +4,13 @@
   const DEVICE_ID_KEY='genesis3d:deviceId';
   const QUEUE_SAFETY_LIMIT=5000;
   const SyncCore=window.GenesisSyncCore;
+  const SHEETS_SYNCABLE_ENTITY_TYPES=new Set(SyncCore?.DEFAULT_SYNCABLE_ENTITY_TYPES||[
+    'Configuracoes','Produtos','Filamentos','Clientes','Calculos','Orcamentos','Orcamento_Itens',
+    'Kits','Kit_Itens','Pedidos','Vendas','Venda_Itens','Custos','Imagens'
+  ]);
+  const SHEETS_LOCAL_ONLY_ENTITY_TYPES=new Set(['Diagnosticos']);
+  const SHEETS_SYNCABLE_COLLECTIONS=new Set(SyncCore?.DEFAULT_SYNCABLE_COLLECTIONS||['config','filaments','history','quotes','orders','kits','savedModels','shopeeCatalog','images']);
+  const SHEETS_LOCAL_ONLY_COLLECTIONS=new Set(SyncCore?.DEFAULT_LOCAL_ONLY_COLLECTIONS||['makerWorldCache','shopeeLearnedAliases','counters','uiState','diagnostics','drafts','syncMetadata']);
   const COLLECTIONS={
     config:{kind:'object',get:()=>cfg,set:value=>{cfg=Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)),value||{});}},
     filaments:{kind:'array',get:()=>filaments,set:value=>{filaments=value;}},
@@ -25,7 +32,7 @@
   ];
   const COLLECTION_LOCAL_KEYS={filaments:()=>KEYS.FILAMENTS,history:()=>KEYS.HISTORY,quotes:()=>KEYS.QUOTES,orders:()=>KEYS.ORDERS,kits:()=>KEYS.KITS,savedModels:()=>KEYS.MODELS,makerWorldCache:()=>KEYS.MW_CACHE,shopeeCatalog:()=>KEYS.SHOPEE_CATALOG,shopeeLearnedAliases:()=>KEYS.SHOPEE_ALIASES,images:()=>KEYS.IMAGES};
   let sheetsConfig={url:'',token:'',enabled:false,lastSyncAt:'',lastSuccessAt:''};
-  let sheetsSyncBusy=false,sheetsApplying=false,sheetsQueueTimer=0,sheetsRetryTimer=0,syncMutationSource='local';
+  let sheetsSyncBusy=false,sheetsApplying=false,queueMaintenanceBusy=false,syncQueueArmed=false,sheetsQueueTimer=0,sheetsRetryTimer=0,syncMutationSource='user';
   let rawWriteTimers=new Map(),genericDraftTimer=0;
   try{sheetsConfig=Object.assign(sheetsConfig,JSON.parse(store.get(SHEETS_CONFIG_KEY)||'{}'));}catch(error){}
   let sheetsDeviceId=String(store.get(DEVICE_ID_KEY)||'').trim();
@@ -190,6 +197,15 @@
     return [...map.values()];
   }
   function normalizedSales(){return GenesisFinance.deduplicateOrders(orders).map(order=>GenesisFinance.normalizeSale(order)).filter(Boolean);}
+  function imageMetadataForSheets(item={}){
+    return {
+      id:item.id||'',entidade:item.entidade||'',entidade_id:item.entidade_id||'',produto_id:item.produto_id||'',orcamento_id:item.orcamento_id||'',pedido_id:item.pedido_id||'',
+      nome_original:item.nome_original||'',nome_arquivo:item.nome_arquivo||'',tipo_mime:item.tipo_mime||'',tamanho_bytes:Number(item.tamanho_bytes)||0,largura:Number(item.largura)||0,altura:Number(item.altura)||0,
+      hash:item.hash||'',imagem_original_id:item.imagem_original_id||item.id||'',imagem_editada_id:item.imagem_editada_id||'',thumbnail_id:item.thumbnail_id||'',local_file_id:item.local_file_id||'',local_url:item.local_url||'',
+      drive_file_id:item.drive_file_id||'',drive_url:item.drive_url||'',thumbnail_drive_file_id:item.thumbnail_drive_file_id||'',thumbnail_drive_url:item.thumbnail_drive_url||'',versao:Number(item.versao)||1,principal:item.principal!==false,
+      origem:item.origem||item.sourceType||'',sync_status:item.sync_status||'pending',deleted:!!item.deleted,createdAt:item.createdAt||item.created_at||'',updatedAt:item.updatedAt||item.updated_at||'',editParams:sanitize(item.editParams||item.edicao||{})
+    };
+  }
   function buildSheetsEntities(){
     const sales=normalizedSales(),products=[
       ...savedModels.map(model=>({...model,_type:'modelo'})),
@@ -209,10 +225,9 @@
       Vendas:sales.map(sale=>({...commonRecord(sale.id,{createdAt:sale.date,updatedAt:sale.date},'venda_normalizada'),venda_id:sale.id,pedido_id:sale.orderId,data:safeIso(sale.date),canal:sale.channel,cliente_id:sale.clientId,status:sale.status,valor_bruto_total:sale.gross,taxas_canal_total:sale.fees,valor_recebido_total:sale.received,faturamento_total:sale.revenue,custo_producao_total:sale.cost,lucro_total:sale.profit,margem_total:sale.margin,desconto_total:sale.discount,dados_json:jsonCell(sale)})),
       Venda_Itens:sales.flatMap(sale=>sale.items.map(item=>({...commonRecord(`${sale.id}-${item.id}`,{createdAt:sale.date,updatedAt:sale.date},'venda_normalizada'),venda_item_id:`${sale.id}-${item.id}`,venda_id:sale.id,pedido_id:sale.orderId,produto_id:item.productId,produto_nome_snapshot:item.productName,quantidade:item.qty,origem_item:item.originItem,kit_id:item.kitId,kit_nome_snapshot:item.kitName,preco_normal_unitario:item.normalUnitPrice,percentual_desconto:item.discountPercent,valor_bruto_alocado:item.gross,taxas_alocadas:item.fees,faturamento_alocado:item.revenue,custo_unitario_snapshot:item.costUnit,custo_total:item.cost,lucro:item.profit,margem:item.margin,dados_json:jsonCell(item)}))),
       Custos:history.map(item=>({...commonRecord(`cost-${item.id}`,item),calculo_id:item.id,produto_nome:item.productName||'',energia:Number(item.custoEnergia)||0,maquina:Number(item.custoMaquina)||0,filamento:Number(item.custoFilamento)||0,custo_total:Number(item.custoUnitario)||0,dados_json:jsonCell(item)})),
-      Imagens:imageEntities.map(item=>({...commonRecord(item.id,item,item.origem||item.sourceType||'genesis'),entidade:item.entidade||'',entidade_id:item.entidade_id||'',produto_id:item.produto_id||'',orcamento_id:item.orcamento_id||'',pedido_id:item.pedido_id||'',nome_original:item.nome_original||'',nome_arquivo:item.nome_arquivo||'',tipo_mime:item.tipo_mime||'',tamanho_bytes:Number(item.tamanho_bytes)||0,largura:Number(item.largura)||0,altura:Number(item.altura)||0,hash:item.hash||'',imagem_original_id:item.imagem_original_id||item.id||'',imagem_editada_id:item.imagem_editada_id||'',thumbnail_id:item.thumbnail_id||'',local_file_id:item.local_file_id||'',local_url:item.local_url||'',drive_file_id:item.drive_file_id||'',drive_url:item.drive_url||'',versao:Number(item.versao)||1,principal:item.principal!==false,origem:item.origem||item.sourceType||'',sync_status:item.sync_status||'pending',deleted:!!item.deleted,dados_json:jsonCell(item),thumbnail_drive_file_id:item.thumbnail_drive_file_id||'',thumbnail_drive_url:item.thumbnail_drive_url||''})),
-      Diagnosticos:(()=>{try{return JSON.parse(store.get(GENESIS_ERROR_LOG_KEY)||'[]').slice(-100).map((item,index)=>({...commonRecord(`diag-${stableHash(item.at+'-'+item.event+'-'+index)}`,{createdAt:item.at,updatedAt:item.at},'app'),nivel:item.level||'',evento:item.event||'',tela:item.screen||'',versao_app:item.appVersion||'',dados_json:jsonCell(item)}));}catch(error){return [];}})()
+      Imagens:imageEntities.map(item=>{const metadata=imageMetadataForSheets(item);return {...commonRecord(metadata.id,item,metadata.origem||'genesis'),...metadata,dados_json:jsonCell(metadata)};})
     };
-    return result;
+    return Object.fromEntries(Object.entries(result).filter(([entity])=>SHEETS_SYNCABLE_ENTITY_TYPES.has(entity)));
   }
   function fingerprint(record){
     const copy={...record};delete copy.updated_at;delete copy.sync_status;delete copy.version;return stableHash(JSON.stringify(copy));
@@ -223,6 +238,84 @@
     const saved=await dbGet(LEGACY_BACKUP_STORE,backup.id);
     if(!saved||!Array.isArray(saved.queue)||saved.queue.length!==queue.length)throw new Error('O backup da fila não passou na validação.');
     return backup.id;
+  }
+  function queueBackupDigest(operation={}){
+    const normalized=SyncCore.normalizeOperation(operation);
+    return stableHash(JSON.stringify([normalized.operation_id,normalized.entity,normalized.entity_id,normalized.action,normalized.status,normalized.version,SyncCore.payloadFingerprint(normalized.payload)]));
+  }
+  function queueBackupRange(backupId){
+    const prefix=`queue-backup-chunk:${backupId}:`;
+    return {prefix,range:IDBKeyRange.bound(prefix,`${prefix}\uffff`)};
+  }
+  async function validateStreamingQueueBackup(manifest){
+    const db=await openMediaDb();if(!db||!manifest?.backupId)return {ok:false,count:0,chunks:0,checksum:''};
+    const {range}=queueBackupRange(manifest.backupId);
+    return new Promise((resolve,reject)=>{
+      let count=0,chunks=0,checksum='queue-v1';
+      try{
+        const tx=db.transaction(LEGACY_BACKUP_STORE,'readonly'),request=tx.objectStore(LEGACY_BACKUP_STORE).openCursor(range);
+        request.onsuccess=event=>{const cursor=event.target.result;if(!cursor){resolve({ok:count===manifest.count&&chunks===manifest.chunks&&checksum===manifest.checksum,count,chunks,checksum});return;}const operations=Array.isArray(cursor.value?.operations)?cursor.value.operations:[];chunks++;operations.forEach(operation=>{count++;checksum=stableHash(`${checksum}|${queueBackupDigest(operation)}`);});cursor.continue();};
+        request.onerror=()=>reject(request.error||new Error('Não foi possível validar o backup da fila.'));
+      }catch(error){reject(error);}
+    });
+  }
+  async function backupSheetsQueueStreaming(reason='internal-entities-repair',onProgress){
+    const db=await openMediaDb();if(!db)throw new Error('IndexedDB indisponível para criar o backup.');
+    const totalExpected=await dbCount(SYNC_QUEUE_STORE),backupId=`internal-repair-${Date.now()}-${stableHash(`${reason}|${sheetsDeviceId}`)}`,{prefix}=queueBackupRange(backupId),diagnostic=SyncCore.createQueueDiagnosticAccumulator();
+    const manifest=await new Promise((resolve,reject)=>{
+      let count=0,chunks=0,checksum='queue-v1',buffer=[],completedManifest=null;
+      const notify=()=>{try{onProgress?.({phase:'backup',processed:count,total:totalExpected});}catch(error){}};
+      try{
+        const tx=db.transaction([SYNC_QUEUE_STORE,LEGACY_BACKUP_STORE],'readwrite'),queueStore=tx.objectStore(SYNC_QUEUE_STORE),backupStore=tx.objectStore(LEGACY_BACKUP_STORE);
+        const flush=()=>{if(!buffer.length)return;backupStore.put({id:`${prefix}${String(chunks).padStart(6,'0')}`,backupId,index:chunks,operations:buffer});chunks++;buffer=[];};
+        const request=queueStore.openCursor();
+        request.onsuccess=event=>{
+          const cursor=event.target.result;
+          if(!cursor){flush();const report=diagnostic.finish();completedManifest={id:`queue-backup-manifest:${backupId}`,backupId,type:'sync-queue-streaming-backup',reason,createdAt:Date.now(),schemaVersion:SCHEMA_VERSION,status:'complete',count,chunks,checksum,report,conflicts:report.conflicts,byEntity:report.byEntity};backupStore.put(completedManifest);return;}
+          const operation=cursor.value;diagnostic.add(operation);count++;checksum=stableHash(`${checksum}|${queueBackupDigest(operation)}`);buffer.push(operation);if(buffer.length>=250)flush();if(count===1||count%1000===0)notify();cursor.continue();
+        };
+        request.onerror=()=>tx.abort();
+        tx.oncomplete=()=>resolve(completedManifest);tx.onerror=()=>reject(tx.error||new Error('Falha ao criar backup completo da fila.'));tx.onabort=()=>reject(tx.error||new Error('Backup cancelado; nenhuma operação foi removida.'));
+      }catch(error){reject(error);}
+    });
+    if(!manifest)throw new Error('O manifesto do backup não foi criado.');
+    const validation=await validateStreamingQueueBackup(manifest);
+    if(!validation.ok)throw new Error(`Backup inválido (${validation.count} de ${manifest.count} operações). A fila foi preservada.`);
+    return {...manifest,validation};
+  }
+  async function restoreStreamingQueueBackup(backupId){
+    const db=await openMediaDb();if(!db)throw new Error('IndexedDB indisponível para restaurar o backup.');
+    const {range}=queueBackupRange(backupId);
+    return new Promise((resolve,reject)=>{
+      let restored=0;
+      try{
+        const tx=db.transaction([LEGACY_BACKUP_STORE,SYNC_QUEUE_STORE],'readwrite'),backupStore=tx.objectStore(LEGACY_BACKUP_STORE),queueStore=tx.objectStore(SYNC_QUEUE_STORE),request=backupStore.openCursor(range);
+        request.onsuccess=event=>{const cursor=event.target.result;if(!cursor)return;(cursor.value?.operations||[]).forEach(operation=>{queueStore.put(operation);restored++;});cursor.continue();};
+        request.onerror=()=>tx.abort();tx.oncomplete=()=>resolve(restored);tx.onerror=()=>reject(tx.error||new Error('Falha ao restaurar a fila.'));tx.onabort=()=>reject(tx.error||new Error('Restauração cancelada.'));
+      }catch(error){reject(error);}
+    });
+  }
+  async function removeLocalOnlyQueueOperations({onProgress}={}){
+    if(queueMaintenanceBusy)throw new Error('Já existe uma manutenção da fila em andamento.');
+    queueMaintenanceBusy=true;clearTimeout(sheetsQueueTimer);clearTimeout(sheetsRetryTimer);
+    try{
+      const backup=await backupSheetsQueueStreaming('remove-local-only-diagnostics',onProgress),before=backup.report,targetBefore=Number(before.byEntity?.Diagnosticos)||0;
+      if(!targetBefore)return {backupId:backup.backupId,backupValidation:backup.validation,before,after:before,removed:0,removedByAction:{},removedConflicts:0,commercialConflictsPreserved:before.conflicts};
+      const db=await openMediaDb();let removed=0,removedConflicts=0,removedByAction={};
+      await new Promise((resolve,reject)=>{
+        let processed=0;
+        try{
+          const tx=db.transaction(SYNC_QUEUE_STORE,'readwrite'),request=tx.objectStore(SYNC_QUEUE_STORE).openCursor();
+          request.onsuccess=event=>{const cursor=event.target.result;if(!cursor)return;const operation=SyncCore.normalizeOperation(cursor.value,processed);processed++;if(SHEETS_LOCAL_ONLY_ENTITY_TYPES.has(operation.entity)){removed++;removedByAction[operation.action]=(removedByAction[operation.action]||0)+1;if(operation.status==='conflict')removedConflicts++;cursor.delete();}if(processed===1||processed%1000===0){try{onProgress?.({phase:'remove',processed,total:before.total,removed});}catch(error){}}cursor.continue();};
+          request.onerror=()=>tx.abort();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Falha ao remover operações internas.'));tx.onabort=()=>reject(tx.error||new Error('Remoção cancelada; a transação foi revertida.'));
+        }catch(error){reject(error);}
+      });
+      const after=await diagnoseSheetsQueue();
+      const valid=removed===targetBefore&&Number(after.byEntity?.Diagnosticos||0)===0&&after.total===before.total-removed&&after.conflicts===before.conflicts-removedConflicts;
+      if(!valid){await restoreStreamingQueueBackup(backup.backupId);throw new Error('A validação do reparo falhou. A fila original foi restaurada pelo backup.');}
+      const report={backupId:backup.backupId,backupValidation:backup.validation,before,after,removed,removedByAction,removedConflicts,commercialConflictsPreserved:after.conflicts,updatedAt:Date.now()};
+      await dbPut(META_STORE,{id:'sheets-queue-local-only-repair',report,updatedAt:Date.now()});await refreshSheetsStatus();return report;
+    }finally{queueMaintenanceBusy=false;}
   }
   async function diagnoseSheetsQueue({onProgress}={}){
     const db=await openMediaDb();
@@ -280,7 +373,8 @@
   async function queueConflictResolution(item,payload,resolution){
     const serverVersion=Number(item.server_record?.version)||1,localVersion=Number(payload?.version)||Number(item.version)||1,version=Math.max(serverVersion,localVersion)+1,updatedAt=new Date().toISOString();
     const finalPayload={...payload,version,updated_at:updatedAt},fp=fingerprint(finalPayload),operationId=SyncCore.operationId({entity:item.entity,entityId:item.entity_id,action:item.action||'upsert',version,fingerprint:fp,deviceId:sheetsDeviceId});
-    const operation={...item,operation_id:operationId,operationId,payload:finalPayload,payload_fingerprint:fp,version,status:'pending',source:'conflict-resolution',reason:resolution,device_id:sheetsDeviceId,deviceId:sheetsDeviceId,created_at:updatedAt,updated_at:updatedAt,attempts:0,last_error:''};
+    if(!SHEETS_SYNCABLE_ENTITY_TYPES.has(String(item.entity||'')))throw new Error('Esta entidade é local e não pode ser sincronizada.');
+    const operation={...item,operation_id:operationId,operationId,payload:finalPayload,payload_fingerprint:fp,version,status:'pending',source:'user',caller:`conflict:${resolution}`,reason:resolution,device_id:sheetsDeviceId,deviceId:sheetsDeviceId,created_at:updatedAt,updated_at:updatedAt,attempts:0,last_error:''};
     delete operation.server_record;delete operation.conflict_created_at;
     await dbDelete(SYNC_QUEUE_STORE,item.operation_id);await dbPut(SYNC_QUEUE_STORE,operation);await markConflictResolved(item,resolution);return operation;
   }
@@ -329,7 +423,8 @@
   function nextOperationVersion(record,meta,previous){
     return Math.max(1,Number(record?.version)||1,(Number(meta?.version)||0)+1,Number(previous?.version)||0);
   }
-  function makeOperation({entity,record,action='upsert',previous=null,meta=null,reason='change',source='local'}){
+  function makeOperation({entity,record,action='upsert',previous=null,meta=null,reason='change',source='user'}){
+    if(!SHEETS_SYNCABLE_ENTITY_TYPES.has(String(entity||'')))return null;
     const now=new Date().toISOString(),entityId=String(record.id),fp=fingerprint(record),version=nextOperationVersion(record,meta,previous);
     const payload={...record,updated_at:now,version};
     const operationId=previous&&previous.payload_fingerprint===fp
@@ -338,7 +433,7 @@
     return {operation_id:operationId,operationId,entity,entityType:entity,entity_id:entityId,entityId,action,operationType:action,payload,payload_fingerprint:fp,version,device_id:sheetsDeviceId,deviceId:sheetsDeviceId,source,caller:reason,status:'pending',created_at:previous?.created_at||now,createdAt:previous?.createdAt||previous?.created_at||now,updated_at:now,updatedAt:now,attempts:Number(previous?.attempts)||0,last_error:'',reason};
   }
   async function enqueueSheetsRecords(reason='change',force=false){
-    if(sheetsApplying||!['local','migration','conflict-resolution'].includes(syncMutationSource))return 0;
+    if(queueMaintenanceBusy||sheetsApplying||!['user','migration'].includes(syncMutationSource))return 0;
     const storedOperations=await dbCount(SYNC_QUEUE_STORE);
     if(storedOperations>QUEUE_SAFETY_LIMIT){
       genesisLog('sheets.queue.write_blocked',{reason,source:syncMutationSource,storedOperations,limit:QUEUE_SAFETY_LIMIT},'warn');
@@ -362,7 +457,7 @@
           await dbPut(SYNC_QUEUE_STORE,previous);continue;
         }
         if(previous?.payload_fingerprint===fp)continue;
-        const operation=makeOperation({entity,record,previous,meta:fpMeta,reason,source:force?'migration':'local'});
+        const operation=makeOperation({entity,record,previous,meta:fpMeta,reason,source:force?'migration':'user'});if(!operation)continue;
         if(previous&&previous.operation_id!==operation.operation_id)await dbDelete(SYNC_QUEUE_STORE,previous.operation_id);
         await dbPut(SYNC_QUEUE_STORE,operation);existingQueue.set(queueKey,operation);count++;
       }
@@ -370,7 +465,7 @@
         if(currentIds.has(String(missing)))continue;
         const key=`${entity}:${missing}`,queueKey=`${key}:delete`,previous=existingQueue.get(queueKey),record={id:String(missing),deleted:true};
         if(previous?.status==='conflict'||previous?.payload_fingerprint===fingerprint(record))continue;
-        const operation=makeOperation({entity,record,action:'delete',previous,meta:metaMap.get(`sheets-fp:${key}`),reason,source:force?'migration':'local'});
+        const operation=makeOperation({entity,record,action:'delete',previous,meta:metaMap.get(`sheets-fp:${key}`),reason,source:force?'migration':'user'});if(!operation)continue;
         if(previous&&previous.operation_id!==operation.operation_id)await dbDelete(SYNC_QUEUE_STORE,previous.operation_id);
         await dbPut(SYNC_QUEUE_STORE,operation);existingQueue.set(queueKey,operation);count++;
       }
@@ -381,7 +476,7 @@
     return count;
   }
   function scheduleSheetsQueue(reason='change',source=syncMutationSource){
-    if(!['local','migration','conflict-resolution'].includes(source))return;
+    if(!['user','migration'].includes(source))return;
     clearTimeout(sheetsQueueTimer);sheetsQueueTimer=setTimeout(()=>{
       const previousSource=syncMutationSource;syncMutationSource=source;
       enqueueSheetsRecords(reason).catch(error=>genesisLog('sheets.queue.error',{error},'error')).finally(()=>{syncMutationSource=previousSource;});
@@ -408,7 +503,17 @@
     const box=document.getElementById('sheetsQueueReport');if(!box||!report)return;box.style.display='block';
     if(report.realEntities==null){box.innerHTML=`<strong>${title}</strong><br>Antes: ${Number(report.before??report.total)||0} · Duplicadas: ${Number(report.duplicates)||0} · Reais: ${Number(report.real??report.total)||0} · Depois: ${Number(report.after??report.total)||0} · Conflitos: ${Number(report.conflictsPreserved??report.conflicts)||0}`;return;}
     const date=value=>value?new Date(value).toLocaleString('pt-BR'):'—',top=(report.topEntities||[]).map(item=>`<div class="detail-row"><span>${escapeHtml(item.entity)} · ${escapeHtml(item.entityId)}</span><b>${Number(item.count).toLocaleString('pt-BR')}</b></div>`).join('')||'<div class="secondary-note">Nenhuma entidade.</div>';
-    box.innerHTML=`<strong>${title} · somente leitura</strong><div class="genesis-server-stats" style="margin-top:10px"><div class="genesis-server-stat"><span>Total armazenado</span><b>${Number(report.total).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Pendentes de envio</span><b>${Number(report.pending).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Conflitos preservados</span><b>${Number(report.conflicts).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Entidades reais</span><b>${Number(report.realEntities).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Operações únicas</span><b>${Number(report.uniqueOperations).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Possíveis duplicatas</span><b>${Number(report.probableDuplicates).toLocaleString('pt-BR')}</b></div></div><div class="secondary-note">Mais antiga: ${escapeHtml(date(report.oldestAt))}<br>Mais recente: ${escapeHtml(date(report.newestAt))}</div><details open style="margin-top:10px"><summary><strong>Por tipo de operação</strong></summary>${queueReportEntries(report.byAction)}</details><details style="margin-top:10px"><summary><strong>Por tipo de entidade</strong></summary>${queueReportEntries(report.byEntity)}</details><details style="margin-top:10px"><summary><strong>Top entidades</strong></summary>${top}</details><details style="margin-top:10px"><summary><strong>Origem registrada</strong></summary>${queueReportEntries(report.bySource)}${queueReportEntries(report.byReason)}</details>`;
+    box.innerHTML=`<strong>${title} · somente leitura</strong><div class="genesis-server-stats" style="margin-top:10px"><div class="genesis-server-stat"><span>Total armazenado</span><b>${Number(report.total).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Pendentes de envio</span><b>${Number(report.pending).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Conflitos preservados</span><b>${Number(report.conflicts).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Entidades reais</span><b>${Number(report.realEntities).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Operações únicas</span><b>${Number(report.uniqueOperations).toLocaleString('pt-BR')}</b></div><div class="genesis-server-stat"><span>Possíveis duplicatas</span><b>${Number(report.probableDuplicates).toLocaleString('pt-BR')}</b></div></div><div class="secondary-note">Mais antiga: ${escapeHtml(date(report.oldestAt))}<br>Mais recente: ${escapeHtml(date(report.newestAt))}<br>Dados locais ignorados no futuro: ${escapeHtml([...SHEETS_LOCAL_ONLY_ENTITY_TYPES,...SHEETS_LOCAL_ONLY_COLLECTIONS].join(', '))}.</div><details open style="margin-top:10px"><summary><strong>Por tipo de operação</strong></summary>${queueReportEntries(report.byAction)}</details><details style="margin-top:10px"><summary><strong>Por tipo de entidade</strong></summary>${queueReportEntries(report.byEntity)}</details><details style="margin-top:10px"><summary><strong>Entidade e operação</strong></summary>${queueReportEntries(report.byEntityAction)}</details><details style="margin-top:10px"><summary><strong>Conflitos por entidade</strong></summary>${queueReportEntries(report.conflictsByEntity)}</details><details style="margin-top:10px"><summary><strong>Top entidades</strong></summary>${top}</details><details style="margin-top:10px"><summary><strong>Origem registrada</strong></summary>${queueReportEntries(report.bySource)}${queueReportEntries(report.byReason)}</details>`;
+  }
+  function renderInternalQueueProgress(progress={}){
+    const box=document.getElementById('sheetsQueueReport');if(!box)return;
+    const phase=progress.phase==='remove'?'Removendo somente operações de Diagnosticos…':'Criando e validando backup completo…',processed=Number(progress.processed)||0,total=Number(progress.total)||0,removed=Number(progress.removed)||0;
+    box.style.display='block';box.innerHTML=`<strong>${phase}</strong><div class="secondary-note" style="margin-top:6px">${processed.toLocaleString('pt-BR')}${total?` de ${total.toLocaleString('pt-BR')}`:''} operações lidas${removed?` · ${removed.toLocaleString('pt-BR')} internas separadas`:''}. Nenhum dado comercial será excluído.</div>`;
+  }
+  function renderInternalRepairReport(report){
+    renderQueueReport(report.after,'Fila após remoção de dados internos');
+    const box=document.getElementById('sheetsQueueReport');if(!box)return;
+    box.insertAdjacentHTML('afterbegin',`<div style="margin-bottom:12px;color:#8ff0b5"><strong>${Number(report.removed).toLocaleString('pt-BR')} operações internas removidas da fila.</strong><br>Nenhum diagnóstico local ou dado comercial foi excluído.<br>Backup validado: ${escapeHtml(report.backupId)}.<br>Conflitos de Diagnosticos identificados antes da remoção: ${Number(report.removedConflicts).toLocaleString('pt-BR')} · conflitos comerciais preservados: ${Number(report.commercialConflictsPreserved).toLocaleString('pt-BR')}.</div>`);
   }
   async function sheetsApi(operation,payload={}){
     if(!sheetsConfigured())throw new Error('Informe a URL e o token do Google Apps Script.');
@@ -485,7 +590,7 @@
       if(!raw||raw.truncated||!raw.id)continue;
       if(!grouped.has(name))grouped.set(name,[]);grouped.get(name).push(raw);
     }
-    const previousSource=syncMutationSource;sheetsApplying=true;syncMutationSource='remote';
+    const previousSource=syncMutationSource;sheetsApplying=true;syncMutationSource='google-sheets';
     try{
       for(const [name,incoming] of grouped){
         const descriptor=COLLECTIONS[name],current=Array.isArray(descriptor.get())?descriptor.get():[],byId=new Map(current.map(item=>[String(item.id),item]));
@@ -497,12 +602,12 @@
       for(const remote of records){
         const entity=remote.entity,payload=remote.payload||{},id=String(payload.id||'');if(!entity||!id)continue;
         const current=(currentEntities[entity]||[]).find(item=>String(item.id)===id),fp=current?fingerprint(current):fingerprint(payload);
-        await dbPut(META_STORE,{id:`sheets-fp:${entity}:${id}`,fingerprint:fp,version:Math.max(1,Number(payload.version)||1),updatedAt:Date.now(),source:'remote'});
+        await dbPut(META_STORE,{id:`sheets-fp:${entity}:${id}`,fingerprint:fp,version:Math.max(1,Number(payload.version)||1),updatedAt:Date.now(),source:'google-sheets'});
         if(!receivedByEntity.has(entity))receivedByEntity.set(entity,new Set());receivedByEntity.get(entity).add(id);
       }
       for(const [entity,ids] of receivedByEntity){
         const currentIds=(currentEntities[entity]||[]).map(item=>String(item.id));
-        await dbPut(META_STORE,{id:`sheets-ids:${entity}`,ids:[...new Set([...currentIds,...ids])],updatedAt:Date.now(),source:'remote'});
+        await dbPut(META_STORE,{id:`sheets-ids:${entity}`,ids:[...new Set([...currentIds,...ids])],updatedAt:Date.now(),source:'google-sheets'});
       }
     }finally{sheetsApplying=false;syncMutationSource=previousSource;}
     if(applied){
@@ -531,6 +636,7 @@
     return {internet:navigator.onLine,indexedDb,sheets:{enabled:!!sheetsConfig.enabled,configured:sheetsConfigured(),busy:sheetsSyncBusy,lastSuccessAt:sheetsConfig.lastSuccessAt||'',pending:summary.pending,conflicts:summary.conflicts,failed:summary.failed}};
   }
   async function syncSheets({silent=false}={}){
+    if(queueMaintenanceBusy){if(!silent)showToast('Aguarde o backup e a manutenção segura da fila terminarem.');return false;}
     if(sheetsSyncBusy)return false;
     if(!navigator.onLine){await refreshSheetsStatus();if(!silent)showToast('Sem internet. As alterações continuam salvas no aparelho.');return false;}
     if(!sheetsConfigured()){await refreshSheetsStatus();if(!silent)showToast('Configure a URL e o token do Google Apps Script.');return false;}
@@ -713,7 +819,8 @@
     const changed=(name,smallKey,value)=>{
       if(smallKey)store.set(smallKey,JSON.stringify(value));
       const source=syncMutationSource;
-      scheduleRawCollection(name);scheduleStateSnapshot(name);scheduleSheetsQueue(name,source);
+      scheduleRawCollection(name);scheduleStateSnapshot(name);
+      if(syncQueueArmed&&(SyncCore.shouldQueueMutation?.(name,source)??(SHEETS_SYNCABLE_COLLECTIONS.has(name)&&['user','migration'].includes(source))))scheduleSheetsQueue(name,source);
     };
     saveConfig=function(){changed('config',KEYS.CONFIG,cfg);};
     saveFilaments=function(){changed('filaments');};
@@ -770,6 +877,15 @@
     });
     bind('btnSheetsRepairQueue',()=>showConfirm('Reparar fila de sincronização','O Genesis fará um backup e consolidará somente operações duplicadas ou superadas. Conflitos serão preservados.',async()=>{const report=await repairSheetsQueue({reason:'manual'});renderQueueReport(report,'Reparo concluído');},'Reparar fila'));
     bind('btnSheetsConflicts',()=>openSyncConflicts().catch(error=>{genesisLog('sheets.conflicts.open_failed',{error},'error');showToast(error.message||'Não foi possível carregar os conflitos.');}));
+    bind('btnSheetsRemoveInternalQueue',event=>{
+      const button=event.currentTarget;
+      showConfirm('Remover diagnósticos da fila','O Genesis criará e validará um backup completo. Depois removerá somente operações da entidade Diagnosticos da fila remota. Pedidos, orçamentos, imagens e conflitos comerciais serão preservados.',async()=>{
+        const originalText=button.textContent;button.disabled=true;button.textContent='Criando backup…';renderInternalQueueProgress({phase:'backup'});
+        try{const report=await removeLocalOnlyQueueOperations({onProgress:renderInternalQueueProgress});renderInternalRepairReport(report);showToast(`${report.removed.toLocaleString('pt-BR')} operações internas removidas. Dados comerciais preservados.`,true);}
+        catch(error){genesisLog('sheets.queue.internal_repair_failed',{error},'error');const box=document.getElementById('sheetsQueueReport');if(box){box.style.display='block';box.innerHTML=`<strong>Reparo não executado.</strong><div class="secondary-note" style="margin-top:6px">${escapeHtml(error.message||'Falha inesperada.')} A fila comercial foi preservada.</div>`;}showToast(error.message||'Não foi possível reparar a fila.');}
+        finally{button.disabled=false;button.textContent=originalText;}
+      },'Criar backup e remover');
+    });
     sheetsControlsBound=true;return true;
   }
 
@@ -818,6 +934,7 @@
   window.genesisSheetsConfigured=sheetsConfigured;
   window.genesisSheetsQueueDiagnose=diagnoseSheetsQueue;
   window.genesisSheetsQueueRepair=repairSheetsQueue;
+  window.genesisSheetsRemoveInternalQueue=removeLocalOnlyQueueOperations;
   window.genesisOpenSyncConflicts=openSyncConflicts;
   window.genesisSheetsSyncBusy=()=>sheetsSyncBusy;
   window.genesisSheetsDeviceId=()=>sheetsDeviceId;
@@ -826,11 +943,11 @@
   window.genesisSyncDiagnostics=syncDiagnostics;
   let dataLayerStarted=false;
   async function bootDataLayer(){
-    if(dataLayerStarted||dataLayerInitialized||dataLayerInitPromise)return;dataLayerStarted=true;
-    const previousSource=syncMutationSource;syncMutationSource='restore';
-    try{await dataLayerRestore();await dataLayerInit();window.genesisRefreshVisibleScreen?.({includeCalc:true});}
+    if(dataLayerStarted)return;dataLayerStarted=true;
+    const previousSource=syncMutationSource;let bootCompleted=false;syncMutationSource='restore';
+    try{if(!dataLayerInitialized&&!dataLayerInitPromise)await dataLayerRestore();await dataLayerInit();window.genesisRefreshVisibleScreen?.({includeCalc:true});bootCompleted=true;}
     catch(error){dataLayerStarted=false;genesisLog('data-layer.boot.failed',{error},'error');}
-    finally{syncMutationSource=previousSource;}
+    finally{syncMutationSource=previousSource;syncQueueArmed=bootCompleted;}
   }
   if(window.genesisAppReady)setTimeout(bootDataLayer,0);else window.addEventListener('genesis:app-ready',()=>setTimeout(bootDataLayer,0),{once:true});
 })();

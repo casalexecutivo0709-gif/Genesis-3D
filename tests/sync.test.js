@@ -65,18 +65,39 @@ assert.equal(readOnlyDiagnostic.oldestAt,'2026-08-01T10:00:00.000Z');
 assert.equal(readOnlyDiagnostic.newestAt,'2026-08-04T10:00:00.000Z');
 assert.equal(JSON.stringify(diagnosticInput),diagnosticInputSnapshot,'O diagnóstico não pode alterar nem metadados da fila');
 
-const largeDiagnostic=Sync.createQueueDiagnosticAccumulator();
-for(let index=0;index<122460;index++)largeDiagnostic.add({
-  operation_id:`large-${index}`,
-  entity:index%3===0?'Pedidos':index%3===1?'Orcamentos':'Clientes',
-  entity_id:`entity-${index%143}`,
-  action:index%4===0?'create':index%4===1?'delete':'update',
-  status:index<4?'conflict':'pending',
-  source:'local',reason:'acceptance-test',created_at:new Date(1722500000000+index).toISOString()
+assert.equal(Sync.isSyncableEntityType('Pedidos'),true);
+assert.equal(Sync.isSyncableEntityType('Imagens'),true,'Metadados de imagem continuam sincronizáveis');
+assert.equal(Sync.isSyncableEntityType('Diagnosticos'),false,'Diagnósticos devem ser estritamente locais');
+assert.equal(Sync.isSyncableEntityType('uiState'),false);
+assert.equal(Sync.shouldQueueMutation('orders','user'),true,'Pedido alterado pelo usuário deve entrar na fila');
+assert.equal(Sync.shouldQueueMutation('orders','google-sheets'),false,'Dados recebidos do Sheets não podem voltar para a fila');
+assert.equal(Sync.shouldQueueMutation('orders','restore'),false,'Restauração não pode criar operações');
+for(const collection of ['diagnostics','uiState','counters','makerWorldCache','shopeeLearnedAliases','drafts','syncMetadata'])assert.equal(Sync.shouldQueueMutation(collection,'user'),false,`${collection} deve permanecer local`);
+
+const remainingEntityCounts={Imagens:236,Produtos:34,Orcamento_Itens:32,Orcamentos:32,Pedidos:24,Venda_Itens:24,Vendas:21,Clientes:18,Kit_Itens:16,Filamentos:12,Kits:6,Configuracoes:1};
+const contaminatedQueue=[];
+for(let index=0;index<122008;index++)contaminatedQueue.push({
+  operation_id:`diag-contaminated-${index}`,entity:'Diagnosticos',entity_id:`diag-${index}`,action:index<94000?'delete':'upsert',status:'pending',payload:{id:`diag-${index}`},created_at:new Date(1722500000000+index).toISOString()
 });
-const largeReport=largeDiagnostic.finish();
-assert.equal(largeReport.total,122460,'O diagnóstico deve percorrer uma fila do tamanho observado no iPhone');
-assert.equal(largeReport.conflicts,4,'Conflitos devem permanecer apenas contabilizados');
-assert.ok(largeReport.realEntities<=429);
-assert.ok(largeReport.probableDuplicates>0);
+let commercialIndex=0;
+for(const [entity,count] of Object.entries(remainingEntityCounts))for(let index=0;index<count;index++){
+  const action=commercialIndex<328?'delete':'upsert';
+  contaminatedQueue.push({operation_id:`commercial-${commercialIndex}`,entity,entity_id:`${entity}-${index}`,action,status:commercialIndex<4?'conflict':'pending',payload:{id:`${entity}-${index}`},source:'user',reason:'acceptance-test',created_at:new Date(1722700000000+commercialIndex).toISOString()});commercialIndex++;
+}
+const contaminatedReport=Sync.diagnoseQueueReadOnly(contaminatedQueue);
+assert.equal(contaminatedReport.total,122464);
+assert.equal(contaminatedReport.pending,122460);
+assert.equal(contaminatedReport.conflicts,4);
+assert.equal(contaminatedReport.byEntity.Diagnosticos,122008);
+assert.deepEqual(contaminatedReport.byAction,{delete:94328,upsert:28136});
+const surgicalRepair=Sync.removeQueueEntities(contaminatedQueue,['Diagnosticos']);
+assert.equal(surgicalRepair.report.removed,122008);
+assert.equal(surgicalRepair.report.removedConflicts,0);
+assert.equal(surgicalRepair.report.after.total,456);
+assert.equal(surgicalRepair.report.after.pending,452);
+assert.equal(surgicalRepair.report.after.conflicts,4,'Os quatro conflitos comerciais devem permanecer intactos');
+assert.equal(surgicalRepair.report.after.byAction.delete,328);
+assert.equal(surgicalRepair.report.after.byAction.upsert,128);
+assert.equal(surgicalRepair.report.after.byEntity.Diagnosticos,undefined);
+assert.deepEqual(surgicalRepair.report.after.byEntity,remainingEntityCounts);
 console.log('Fila: diagnóstico, deduplicação, conflitos e operationId idempotente OK');

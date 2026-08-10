@@ -170,7 +170,9 @@ assert.match(data,/Conflitos de sincronização/);
 assert.match(data,/Manter este dispositivo/);
 assert.match(data,/Manter Google Sheets/);
 assert.match(data,/Mesclar versões/);
-assert.match(data,/if\(sheetsApplying\|\|!\['local','migration','conflict-resolution'\]\.includes\(syncMutationSource\)\)return 0/);
+assert.match(data,/if\(queueMaintenanceBusy\|\|sheetsApplying\|\|!\['user','migration'\]\.includes\(syncMutationSource\)\)return 0/);
+assert.match(data,/if\(!SHEETS_SYNCABLE_ENTITY_TYPES\.has\(String\(entity\|\|''\)\)\)return null/);
+assert.match(data,/syncQueueArmed&&/);
 assert.match(data,/await dbDelete\(SYNC_QUEUE_STORE,item\.operation_id\)/);
 
 assert.match(workspace,/hydrateImageFromFallback\(imageEntity\(id\),'thumbnail'\)/);

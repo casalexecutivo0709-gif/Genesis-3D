@@ -3,6 +3,13 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(root)root.GenesisSyncCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
+  const DEFAULT_SYNCABLE_ENTITY_TYPES=Object.freeze([
+    'Configuracoes','Produtos','Filamentos','Clientes','Calculos','Orcamentos','Orcamento_Itens',
+    'Kits','Kit_Itens','Pedidos','Vendas','Venda_Itens','Custos','Imagens'
+  ]);
+  const DEFAULT_LOCAL_ONLY_ENTITY_TYPES=Object.freeze(['Diagnosticos']);
+  const DEFAULT_SYNCABLE_COLLECTIONS=Object.freeze(['config','filaments','history','quotes','orders','kits','savedModels','shopeeCatalog','images']);
+  const DEFAULT_LOCAL_ONLY_COLLECTIONS=Object.freeze(['makerWorldCache','shopeeLearnedAliases','counters','uiState','diagnostics','drafts','syncMetadata']);
   function stableHash(value){
     let hash=2166136261;
     for(const char of String(value||'')){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}
@@ -36,6 +43,21 @@
   function countBy(items,keyFn){
     const counts={};items.forEach(item=>{const key=String(keyFn(item)||'desconhecido');counts[key]=(counts[key]||0)+1;});return counts;
   }
+  function entityType(value){
+    if(value&&typeof value==='object')return normalizeOperation(value).entity;
+    return String(value||'').trim();
+  }
+  function isSyncableEntityType(value,allowlist=DEFAULT_SYNCABLE_ENTITY_TYPES){
+    const allowed=allowlist instanceof Set?allowlist:new Set(Array.isArray(allowlist)?allowlist:[]);
+    return allowed.has(entityType(value));
+  }
+  function isSyncableCollection(value,allowlist=DEFAULT_SYNCABLE_COLLECTIONS){
+    const allowed=allowlist instanceof Set?allowlist:new Set(Array.isArray(allowlist)?allowlist:[]);
+    return allowed.has(String(value||'').trim());
+  }
+  function shouldQueueMutation(collection,source='user'){
+    return ['user','migration'].includes(String(source||''))&&isSyncableCollection(collection);
+  }
   function diagnoseQueue(queue){
     const normalized=(Array.isArray(queue)?queue:[]).map(normalizeOperation);
     const equivalent=countBy(normalized,equivalenceKey);
@@ -53,13 +75,14 @@
     };
   }
   function createQueueDiagnosticAccumulator(){
-    const byEntity={},byAction={},byStatus={},bySource={},byReason={},entities=new Map(),logicalOperations=new Set();
+    const byEntity={},byAction={},byStatus={},bySource={},byReason={},byEntityAction={},conflictsByEntity={},entities=new Map(),logicalOperations=new Set();
     let total=0,pending=0,conflicts=0,synced=0,failed=0,oldestMs=Infinity,newestMs=-Infinity,oldestAt='',newestAt='';
     const bump=(target,key)=>{key=String(key||'desconhecido');target[key]=(target[key]||0)+1;};
     const add=input=>{
       const item=normalizeOperation(input,total),entity=item.entity||'Desconhecido',entityId=item.entity_id||'',action=item.action||'upsert',status=item.status||'pending',source=item.source||'desconhecida',reason=item.reason||item.caller||'não informado';
-      total++;bump(byEntity,entity);bump(byAction,action);bump(byStatus,status);bump(bySource,source);bump(byReason,reason);
+      total++;bump(byEntity,entity);bump(byAction,action);bump(byStatus,status);bump(bySource,source);bump(byReason,reason);bump(byEntityAction,`${entity} · ${action}`);
       if(status==='conflict')conflicts++;else if(status==='synced')synced++;else pending++;
+      if(status==='conflict')bump(conflictsByEntity,entity);
       if(status==='failed')failed++;
       const entityKey=entityId?`${entity}|${entityId}`:`${entity}|sem-id|${item.operation_id}`;
       const entityRow=entities.get(entityKey)||{entity,entityId:entityId||'sem ID',count:0};entityRow.count++;entities.set(entityKey,entityRow);
@@ -72,7 +95,7 @@
     };
     const finish=()=>{
       const uniqueOperations=logicalOperations.size,topEntities=[...entities.values()].sort((a,b)=>b.count-a.count||a.entity.localeCompare(b.entity)||a.entityId.localeCompare(b.entityId)).slice(0,12);
-      return {total,pending,conflicts,synced,failed,realEntities:entities.size,uniqueOperations,probableDuplicates:Math.max(0,total-uniqueOperations),duplicates:Math.max(0,total-uniqueOperations),real:uniqueOperations,oldestAt,newestAt,byEntity,byAction,byStatus,bySource,byReason,topEntities};
+      return {total,pending,conflicts,synced,failed,realEntities:entities.size,uniqueOperations,probableDuplicates:Math.max(0,total-uniqueOperations),duplicates:Math.max(0,total-uniqueOperations),real:uniqueOperations,oldestAt,newestAt,byEntity,byAction,byStatus,bySource,byReason,byEntityAction,conflictsByEntity,topEntities};
     };
     return {add,finish};
   }
@@ -80,6 +103,15 @@
     const diagnostic=createQueueDiagnosticAccumulator();
     (Array.isArray(queue)?queue:[]).forEach(item=>diagnostic.add(item));
     return diagnostic.finish();
+  }
+  function removeQueueEntities(queue,entityTypes=DEFAULT_LOCAL_ONLY_ENTITY_TYPES){
+    const blocked=entityTypes instanceof Set?entityTypes:new Set(Array.isArray(entityTypes)?entityTypes:[]),kept=[],removed=[];
+    (Array.isArray(queue)?queue:[]).forEach((item,index)=>{
+      const normalized=normalizeOperation(item,index);
+      (blocked.has(normalized.entity)?removed:kept).push(normalized);
+    });
+    const before=diagnoseQueueReadOnly(queue),after=diagnoseQueueReadOnly(kept),removedReport=diagnoseQueueReadOnly(removed);
+    return {queue:kept,removed,report:{before,after,removed:removed.length,removedByEntity:removedReport.byEntity,removedByAction:removedReport.byAction,removedConflicts:removedReport.conflicts,commercialConflictsPreserved:after.conflicts}};
   }
   function preference(item){
     const statusScore={conflict:50,syncing:40,pending:30,failed:20,synced:10}[item.status]||0;
@@ -111,5 +143,5 @@
   function operationId({entity,entityId,action='upsert',version=1,fingerprint='',deviceId=''}){
     return `op-${stableHash(`${entity}|${entityId}|${action}|${version}|${fingerprint}|${deviceId}`)}`;
   }
-  return {stableHash,payloadFingerprint,normalizeOperation,equivalenceKey,diagnoseQueue,diagnoseQueueReadOnly,createQueueDiagnosticAccumulator,repairQueue,operationId};
+  return {DEFAULT_SYNCABLE_ENTITY_TYPES,DEFAULT_LOCAL_ONLY_ENTITY_TYPES,DEFAULT_SYNCABLE_COLLECTIONS,DEFAULT_LOCAL_ONLY_COLLECTIONS,stableHash,payloadFingerprint,normalizeOperation,equivalenceKey,entityType,isSyncableEntityType,isSyncableCollection,shouldQueueMutation,diagnoseQueue,diagnoseQueueReadOnly,createQueueDiagnosticAccumulator,removeQueueEntities,repairQueue,operationId};
 });

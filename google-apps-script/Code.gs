@@ -26,6 +26,10 @@ const GENESIS_SCHEMAS = {
   Sincronizacao:['id','operation_id','entity','entity_id','action','status','attempts','message','created_at','updated_at','version','origem','sync_status','deleted','dados_json'],
   Diagnosticos:['id','nivel','evento','tela','versao_app','created_at','updated_at','version','origem','sync_status','deleted','dados_json']
 };
+const GENESIS_SYNCABLE_ENTITIES = new Set([
+  'Configuracoes','Produtos','Filamentos','Clientes','Calculos','Orcamentos','Orcamento_Itens',
+  'Kits','Kit_Itens','Pedidos','Vendas','Venda_Itens','Custos','Imagens'
+]);
 
 function setupGenesisDatabase(spreadsheetName, accessToken) {
   const props=PropertiesService.getScriptProperties();
@@ -248,6 +252,7 @@ function parseBody_(event) {
 function validateEntity_(entity){if(!GENESIS_SCHEMAS[entity])throw new Error('Entidade não permitida: '+entity);}
 function validateOperation_(operation){
   if(!operation||!operation.operation_id)throw new Error('operation_id obrigatório.');validateEntity_(operation.entity);
+  if(!GENESIS_SYNCABLE_ENTITIES.has(operation.entity))throw new Error('Entidade local não sincronizável: '+operation.entity);
   if(!operation.entity_id&&!operation.payload?.id)throw new Error('entity_id obrigatório.');
   if(!['create','update','upsert','delete'].includes(operation.action))throw new Error('Ação inválida.');
 }
