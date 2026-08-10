@@ -52,6 +52,35 @@
       synced:normalized.filter(item=>item.status==='synced').length
     };
   }
+  function createQueueDiagnosticAccumulator(){
+    const byEntity={},byAction={},byStatus={},bySource={},byReason={},entities=new Map(),logicalOperations=new Set();
+    let total=0,pending=0,conflicts=0,synced=0,failed=0,oldestMs=Infinity,newestMs=-Infinity,oldestAt='',newestAt='';
+    const bump=(target,key)=>{key=String(key||'desconhecido');target[key]=(target[key]||0)+1;};
+    const add=input=>{
+      const item=normalizeOperation(input,total),entity=item.entity||'Desconhecido',entityId=item.entity_id||'',action=item.action||'upsert',status=item.status||'pending',source=item.source||'desconhecida',reason=item.reason||item.caller||'não informado';
+      total++;bump(byEntity,entity);bump(byAction,action);bump(byStatus,status);bump(bySource,source);bump(byReason,reason);
+      if(status==='conflict')conflicts++;else if(status==='synced')synced++;else pending++;
+      if(status==='failed')failed++;
+      const entityKey=entityId?`${entity}|${entityId}`:`${entity}|sem-id|${item.operation_id}`;
+      const entityRow=entities.get(entityKey)||{entity,entityId:entityId||'sem ID',count:0};entityRow.count++;entities.set(entityKey,entityRow);
+      logicalOperations.add(`${entityKey}|${action}`);
+      const rawTime=item.created_at||item.createdAt||item.updated_at||item.updatedAt||'';
+      const time=Date.parse(rawTime);
+      if(Number.isFinite(time)&&time<oldestMs){oldestMs=time;oldestAt=new Date(time).toISOString();}
+      if(Number.isFinite(time)&&time>newestMs){newestMs=time;newestAt=new Date(time).toISOString();}
+      return total;
+    };
+    const finish=()=>{
+      const uniqueOperations=logicalOperations.size,topEntities=[...entities.values()].sort((a,b)=>b.count-a.count||a.entity.localeCompare(b.entity)||a.entityId.localeCompare(b.entityId)).slice(0,12);
+      return {total,pending,conflicts,synced,failed,realEntities:entities.size,uniqueOperations,probableDuplicates:Math.max(0,total-uniqueOperations),duplicates:Math.max(0,total-uniqueOperations),real:uniqueOperations,oldestAt,newestAt,byEntity,byAction,byStatus,bySource,byReason,topEntities};
+    };
+    return {add,finish};
+  }
+  function diagnoseQueueReadOnly(queue){
+    const diagnostic=createQueueDiagnosticAccumulator();
+    (Array.isArray(queue)?queue:[]).forEach(item=>diagnostic.add(item));
+    return diagnostic.finish();
+  }
   function preference(item){
     const statusScore={conflict:50,syncing:40,pending:30,failed:20,synced:10}[item.status]||0;
     const updated=Date.parse(item.updated_at||item.updatedAt||item.created_at||item.createdAt||0)||0;
@@ -82,5 +111,5 @@
   function operationId({entity,entityId,action='upsert',version=1,fingerprint='',deviceId=''}){
     return `op-${stableHash(`${entity}|${entityId}|${action}|${version}|${fingerprint}|${deviceId}`)}`;
   }
-  return {stableHash,payloadFingerprint,normalizeOperation,equivalenceKey,diagnoseQueue,repairQueue,operationId};
+  return {stableHash,payloadFingerprint,normalizeOperation,equivalenceKey,diagnoseQueue,diagnoseQueueReadOnly,createQueueDiagnosticAccumulator,repairQueue,operationId};
 });
