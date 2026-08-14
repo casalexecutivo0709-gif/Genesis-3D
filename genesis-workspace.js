@@ -452,7 +452,8 @@
     if(document.getElementById('genesisPullIndicator'))return;
     const indicator=document.createElement('div');indicator.id='genesisPullIndicator';indicator.className='genesis-pull-indicator';indicator.hidden=true;indicator.setAttribute('aria-hidden','true');indicator.setAttribute('role','status');document.body.appendChild(indicator);
     let startY=0,distance=0,tracking=false;
-    document.addEventListener('touchstart',event=>{if(state.pullBusy||window.scrollY>2||document.querySelector('.genesis-modal-layer.open,.sheet.open'))return;startY=event.touches[0].clientY;distance=0;tracking=true;},{passive:true});
+    const editableTarget=target=>!!target?.closest?.('input:not([type="range"]),textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+    document.addEventListener('touchstart',event=>{if(state.pullBusy||editableTarget(event.target)||window.scrollY>2||document.querySelector('.genesis-modal-layer.open,.sheet.open'))return;startY=event.touches[0].clientY;distance=0;tracking=true;},{passive:true});
     document.addEventListener('touchmove',event=>{if(!tracking)return;distance=Math.max(0,Math.min(120,event.touches[0].clientY-startY));if(distance>18)showPullIndicator(indicator,distance>=72?'Solte para atualizar':'Puxe para atualizar',{offset:Math.min(0,distance-72)});else hidePullIndicator(indicator);},{passive:true});
     const finish=()=>{if(!tracking)return;tracking=false;indicator.style.removeProperty('transform');const shouldRefresh=distance>=72;distance=0;if(shouldRefresh)refreshGenesisData();else hidePullIndicator(indicator);};
     document.addEventListener('touchend',finish,{passive:true});document.addEventListener('touchcancel',()=>{tracking=false;distance=0;hidePullIndicator(indicator);},{passive:true});

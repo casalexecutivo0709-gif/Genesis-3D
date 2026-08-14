@@ -1838,17 +1838,23 @@ body.genesis-layer-open{
   text-overflow:ellipsis!important;
 }
 
+/* Campos editáveis preservam seleção, caret e trackpad nativos do iPhone. */
+input,textarea,select,[contenteditable]:not([contenteditable="false"]){
+  -webkit-user-select:text!important;
+  user-select:text!important;
+  touch-action:auto!important;
+}
 /* Campo focado fica visível acima do teclado do iPhone */
 .sheet.keyboard-visible{
   max-height:calc(var(--genesis-vvh,100dvh) - max(6px,env(safe-area-inset-top)))!important;
 }
 .sheet.keyboard-visible>.sheet-scroll-content{
-  padding-bottom:calc(var(--genesis-keyboard-height,0px) + 28px)!important;
-  scroll-padding-bottom:calc(var(--genesis-keyboard-height,0px) + 54px)!important;
+  padding-bottom:28px!important;
+  scroll-padding-bottom:54px!important;
 }
 .genesis-keyboard-focus{
   scroll-margin-top:76px!important;
-  scroll-margin-bottom:calc(var(--genesis-keyboard-height,0px) + 48px)!important;
+  scroll-margin-bottom:48px!important;
 }
 
 /* Entrada monetária padrão banco */
@@ -1908,7 +1914,7 @@ input[data-money-bank="true"]{
 .order-card .number{margin-top:3px!important;color:var(--muted)!important;font-size:9px!important}
 
 .sheet.keyboard-visible{
-  left:0!important;right:0!important;bottom:0!important;top:0!important;
+  left:0!important;right:0!important;bottom:auto!important;top:var(--genesis-vv-top,0px)!important;
   width:100%!important;height:var(--genesis-vvh,100dvh)!important;
   max-height:var(--genesis-vvh,100dvh)!important;border-radius:0!important;
   padding-top:max(8px,env(safe-area-inset-top))!important;
@@ -1922,15 +1928,36 @@ input[data-money-bank="true"]{
 .sheet.keyboard-visible>.sheet-scroll-content{
   height:100%!important;max-height:100%!important;
   padding-left:18px!important;padding-right:18px!important;
-  padding-bottom:calc(var(--genesis-keyboard-height,0px) + 34px)!important;
+  padding-bottom:34px!important;
   scroll-padding-top:88px!important;
-  scroll-padding-bottom:calc(var(--genesis-keyboard-height,0px) + 60px)!important
+  scroll-padding-bottom:60px!important
 }
 .sheet.keyboard-visible h2{
   position:sticky;top:0;z-index:4;padding-top:6px;padding-bottom:8px;
   margin-bottom:0!important;
   background:linear-gradient(180deg,rgba(8,12,19,.98),rgba(8,12,19,.82),transparent)
 }
+
+/* Calculadora composta: reaproveita os controles e resultados existentes. */
+.calc-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin-bottom:14px;border:1px solid var(--border);border-radius:15px;background:rgba(255,255,255,.025)}
+.calc-mode-tabs button{min-height:42px;border:0;border-radius:11px;background:transparent;color:var(--muted);font:inherit;font-weight:750;cursor:pointer}
+.calc-mode-tabs button.active{color:#fff;background:linear-gradient(135deg,#782ee8,#585df2);box-shadow:0 8px 24px rgba(105,55,235,.24)}
+.compound-panel[hidden],.compound-simple-only[hidden]{display:none!important}
+.compound-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.compound-head p{margin:3px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
+.compound-list{display:grid;gap:12px}
+.compound-component{position:relative;padding:14px;border:1px solid var(--border);border-radius:16px;background:rgba(255,255,255,.025)}
+.compound-component-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.compound-thumb{width:58px;height:58px;flex:0 0 58px;border-radius:12px;border:1px solid var(--border);background:#121522;object-fit:cover}
+.compound-thumb-placeholder{display:grid;place-items:center;color:var(--muted);font-size:11px;text-align:center}
+.compound-component-title{min-width:0;flex:1}.compound-component-title strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.compound-component-title small{color:var(--muted)}
+.compound-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.compound-grid .field{margin-bottom:0}.compound-grid .wide{grid-column:1/-1}
+.compound-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.compound-actions .btn{width:auto;flex:1 1 120px}
+.compound-summary{margin-top:12px;padding:13px;border:1px solid rgba(137,78,244,.4);border-radius:14px;background:rgba(116,51,230,.08);display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.compound-summary span{color:var(--muted);font-size:11px}.compound-summary b{display:block;margin-top:3px;color:var(--text);font-size:17px}
+.compound-primary{color:#b67aff!important;border-color:rgba(155,67,255,.55)!important}
+@media(max-width:520px){.compound-grid{grid-template-columns:1fr}.compound-grid .wide{grid-column:auto}.compound-actions .btn{flex-basis:100%}}
 
 
 
@@ -2656,6 +2683,11 @@ body::before{inset:0!important}
       <button class="btn btn-primary btn-sm" type="button" id="btnQuickMakerWorld">Buscar modelo</button>
     </div>
 
+    <div class="calc-mode-tabs" role="tablist" aria-label="Modo de cálculo">
+      <button type="button" id="calcModeSimple" class="active" role="tab" aria-selected="true">Cálculo rápido</button>
+      <button type="button" id="calcModeCompound" role="tab" aria-selected="false">Cálculo composto</button>
+    </div>
+
     <div class="card">
       <p class="card-label">Filamento</p>
       <div class="field" id="filamentFieldWrap">
@@ -2667,7 +2699,7 @@ body::before{inset:0!important}
       </div>
     </div>
 
-    <div class="card">
+    <div class="card compound-simple-only" id="simpleTimeCard">
       <p class="card-label">Tempo de impressão</p>
       <div class="seg" style="margin-bottom:12px;">
         <button data-mode="hhmm" id="segHHMM">Horas e minutos</button>
@@ -2692,8 +2724,8 @@ body::before{inset:0!important}
 
     <div class="card">
       <p class="card-label">Peça / quantidade</p>
-      <p style="font-size:11.5px;color:var(--muted-2);margin:-6px 0 12px;line-height:1.5;">Peso e tempo representam o custo-base de <b>1 unidade</b>. A quantidade abaixo é apenas um multiplicador comercial: 3 unidades = valor unitário × 3; 10 unidades = valor unitário × 10.</p>
-      <div class="field">
+      <p class="compound-simple-only" style="font-size:11.5px;color:var(--muted-2);margin:-6px 0 12px;line-height:1.5;">Peso e tempo representam o custo-base de <b>1 unidade</b>. A quantidade abaixo é apenas um multiplicador comercial: 3 unidades = valor unitário × 3; 10 unidades = valor unitário × 10.</p>
+      <div class="field compound-simple-only" id="simpleWeightField">
         <label>Peso de 1 unidade (g)</label>
         <input type="text" id="inPeso" inputmode="decimal" min="0" step="0.1" placeholder="Ex: 55">
       </div>
@@ -2707,6 +2739,19 @@ body::before{inset:0!important}
           <input type="text" id="inProduto" placeholder="Ex: Suporte para Hashi">
         </div>
       </div>
+    </div>
+
+    <div class="card compound-panel" id="compoundPanel" hidden>
+      <div class="compound-head">
+        <div><p class="card-label" style="margin-bottom:0">Peças do produto</p><p>Some modelos diferentes em um único produto final. Tempo e peso são informados por unidade de cada peça.</p></div>
+        <button class="btn btn-primary btn-sm" type="button" id="btnAddCompoundComponent">+ Adicionar peça</button>
+      </div>
+      <div class="compound-list" id="compoundComponents"></div>
+      <div class="compound-summary" aria-live="polite">
+        <div><span>Tempo total</span><b id="compoundTotalTime">0min</b></div>
+        <div><span>Peso total</span><b id="compoundTotalWeight">0 g</b></div>
+      </div>
+      <p class="err-text" id="compoundError" style="display:none;margin-top:10px"></p>
     </div>
 
     <div class="card">
@@ -5694,6 +5739,7 @@ function updateGenesisVisualViewport(){
   const vv=window.visualViewport;
   const h=vv?.height||window.innerHeight||document.documentElement.clientHeight||0;
   if(h>0)document.documentElement.style.setProperty('--genesis-vvh',`${Math.round(h)}px`);
+  document.documentElement.style.setProperty('--genesis-vv-top',`${Math.max(0,Math.round(vv?.offsetTop||0))}px`);
 }
 updateGenesisVisualViewport();
 window.visualViewport?.addEventListener('resize',updateGenesisVisualViewport);
@@ -5946,6 +5992,9 @@ const GENESIS_MAIN_SCREENS=['calc','quotes','orders','more'];
 let genesisScreenGesture=null;
 let genesisScreenTransitioning=false;
 
+function genesisIsNativeEditable(target){
+  return !!target?.closest?.('input:not([type="range"]):not([disabled]),textarea:not([disabled]),select:not([disabled]),[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+}
 function genesisGestureIgnoredTarget(target){
   return !!target.closest(
     'input,textarea,select,button,a,label,[contenteditable="true"],' +
@@ -6226,7 +6275,7 @@ document.addEventListener('touchstart',e=>{
   const record=genesisTopSheetRecord();
   const sheet=record?document.getElementById(record.sheetId):null;
   if(!sheet||!sheet.contains(e.target)||e.touches.length!==1)return;
-  if(e.target.closest('input,textarea,select,button,a,input[type="range"]'))return;
+  if(genesisIsNativeEditable(e.target)||e.target.closest('button,a,input[type="range"]'))return;
 
   const scrollEl=sheet.querySelector(':scope > .sheet-scroll-content')||sheet;
   const onHandle=!!e.target.closest('.sheet-handle,.genesis-universal-handle,h2');
@@ -6495,6 +6544,126 @@ function currentEffectivePricing(){
     shopeeManual:manualPriceFromInput('manualShopeePrice')};
 }
 let lastResult = null;
+let calculationType='simple';
+let compoundComponents=[];
+let compoundPrimaryComponentId=null;
+const compoundThumbUrls=new Map();
+function cloneCompoundComponents(items=compoundComponents){
+  return (Array.isArray(items)?items:[]).map(item=>({
+    id:String(item.id||uid('component')),name:String(item.name||''),sourceUrl:String(item.sourceUrl||''),
+    sourceSite:String(item.sourceSite||''),modelId:item.modelId==null?'':String(item.modelId),
+    imageId:item.imageId||null,imageUrl:String(item.imageUrl||''),timeMinutes:Math.max(0,Number(item.timeMinutes)||0),
+    weightGrams:Math.max(0,Number(item.weightGrams)||0),quantity:Math.max(1,parseInt(item.quantity,10)||1),
+    observation:String(item.observation||'')
+  }));
+}
+function newCompoundComponent(seed={}){return cloneCompoundComponents([{id:uid('component'),quantity:1,...seed}])[0];}
+function aggregateCompoundComponents(items=compoundComponents){
+  return cloneCompoundComponents(items).reduce((total,item)=>{
+    total.timeMinutes+=item.timeMinutes*item.quantity;
+    total.weightGrams+=item.weightGrams*item.quantity;
+    return total;
+  },{timeMinutes:0,weightGrams:0});
+}
+function compoundValidComponents(){return compoundComponents.filter(item=>item.timeMinutes>0&&item.weightGrams>0);}
+function setCalculationType(type,{ensure=true,recalculate=true}={}){
+  calculationType=type==='compound'?'compound':'simple';
+  if(calculationType==='compound'&&ensure&&compoundComponents.length<2){while(compoundComponents.length<2)compoundComponents.push(newCompoundComponent());}
+  document.getElementById('calcModeSimple')?.classList.toggle('active',calculationType==='simple');
+  document.getElementById('calcModeCompound')?.classList.toggle('active',calculationType==='compound');
+  document.getElementById('calcModeSimple')?.setAttribute('aria-selected',String(calculationType==='simple'));
+  document.getElementById('calcModeCompound')?.setAttribute('aria-selected',String(calculationType==='compound'));
+  document.querySelectorAll('.compound-simple-only').forEach(el=>el.hidden=calculationType==='compound');
+  const panel=document.getElementById('compoundPanel');if(panel)panel.hidden=calculationType!=='compound';
+  renderCompoundComponents();
+  if(recalculate)recalc();
+}
+function compoundSourceLabel(item){
+  if(item.sourceSite)return item.sourceSite;
+  try{return item.sourceUrl?new URL(item.sourceUrl).hostname.replace(/^www\./,''):'';}catch(e){return '';}
+}
+function releaseCompoundThumb(id){const old=compoundThumbUrls.get(id);if(old&&String(old).startsWith('blob:'))URL.revokeObjectURL(old);compoundThumbUrls.delete(id);}
+async function hydrateCompoundThumb(item){
+  const img=document.querySelector(`[data-comp-thumb="${CSS.escape(item.id)}"]`);if(!img)return;
+  let src=item.imageUrl||'';
+  if(item.imageId){try{src=await mediaGetThumbnailObjectUrl(item.imageId)||await mediaGetObjectUrl(item.imageId)||src;}catch(e){}}
+  if(!src||!document.contains(img))return;
+  releaseCompoundThumb(item.id);if(String(src).startsWith('blob:'))compoundThumbUrls.set(item.id,src);
+  img.src=src;img.hidden=false;document.querySelector(`[data-comp-placeholder="${CSS.escape(item.id)}"]`)?.setAttribute('hidden','');
+}
+function renderCompoundComponents(){
+  const list=document.getElementById('compoundComponents');if(!list)return;
+  const totals=aggregateCompoundComponents();
+  document.getElementById('compoundTotalTime').textContent=formatMinutes(Math.round(totals.timeMinutes));
+  document.getElementById('compoundTotalWeight').textContent=(Math.round(totals.weightGrams*10)/10).toLocaleString('pt-BR')+' g';
+  if(calculationType!=='compound')return;
+  [...compoundThumbUrls.keys()].forEach(releaseCompoundThumb);
+  list.innerHTML=compoundComponents.map((item,index)=>{
+    const hours=Math.floor(item.timeMinutes/60),minutes=Math.round(item.timeMinutes%60),primary=item.id===compoundPrimaryComponentId;
+    return `<article class="compound-component" data-component-id="${escapeHtml(item.id)}">
+      <div class="compound-component-head"><img class="compound-thumb" data-comp-thumb="${escapeHtml(item.id)}" alt="Imagem de ${escapeHtml(item.name||`peça ${index+1}`)}" hidden><div class="compound-thumb compound-thumb-placeholder" data-comp-placeholder="${escapeHtml(item.id)}">Sem foto</div>
+      <div class="compound-component-title"><strong>${escapeHtml(item.name||`Peça ${index+1}`)}</strong><small>${escapeHtml(compoundSourceLabel(item)||'Preenchimento manual')}</small></div>
+      <button type="button" class="btn btn-ghost btn-sm ${primary?'compound-primary':''}" data-comp-primary>${primary?'★ Principal':'☆ Principal'}</button></div>
+      <div class="compound-grid">
+        <div class="field wide"><label>Nome</label><input type="text" data-comp-field="name" value="${escapeHtml(item.name)}" placeholder="Ex: Corpo do suporte"></div>
+        <div class="field wide"><label>Link do modelo</label><input type="url" inputmode="url" data-comp-field="sourceUrl" value="${escapeHtml(item.sourceUrl)}" placeholder="MakerWorld, Thingiverse ou fonte compatível"></div>
+        <div class="field"><label>Horas por peça</label><input type="text" inputmode="numeric" data-comp-hours value="${hours||''}" placeholder="0"></div>
+        <div class="field"><label>Minutos por peça</label><input type="text" inputmode="numeric" data-comp-minutes value="${minutes||''}" placeholder="0"></div>
+        <div class="field"><label>Peso por peça (g)</label><input type="text" inputmode="decimal" data-comp-field="weightGrams" value="${item.weightGrams||''}" placeholder="0"></div>
+        <div class="field"><label>Quantidade</label><input type="text" inputmode="numeric" data-comp-field="quantity" value="${item.quantity}" placeholder="1"></div>
+        <div class="field wide"><label>Observação (opcional)</label><input type="text" data-comp-field="observation" value="${escapeHtml(item.observation)}" placeholder="Cor, encaixe, orientação..."></div>
+      </div>
+      <div class="compound-actions"><button type="button" class="btn btn-secondary btn-sm" data-comp-import>Importar link</button><label class="btn btn-secondary btn-sm">Adicionar imagem<input type="file" accept="image/*" data-comp-file hidden></label><button type="button" class="btn btn-danger btn-sm" data-comp-remove>Remover</button></div>
+    </article>`;
+  }).join('');
+  compoundComponents.forEach(hydrateCompoundThumb);
+}
+function updateCompoundTotals({persist=true}={}){
+  const totals=aggregateCompoundComponents();
+  document.getElementById('compoundTotalTime').textContent=formatMinutes(Math.round(totals.timeMinutes));
+  document.getElementById('compoundTotalWeight').textContent=(Math.round(totals.weightGrams*10)/10).toLocaleString('pt-BR')+' g';
+  if(persist)persistLastCalc();
+  recalc();
+}
+async function setCompoundPrimary(item){
+  compoundPrimaryComponentId=item?.id||null;
+  if(item?.imageId){const url=await mediaGetObjectUrl(item.imageId);if(url)setPhoto(url,item.imageId);}
+  renderCompoundComponents();persistLastCalc();
+}
+async function importCompoundComponent(item,button){
+  const url=normalizeExternalUrl(item.sourceUrl);if(!url){showToast('Informe um link válido para esta peça.');return;}
+  button.disabled=true;button.textContent='Importando...';
+  try{
+    const model=await MakerWorldService.importUrl(url);const profile=modelSelectedProfile(model)||{};
+    const saved=await persistSelectedModelAsset(model);const asset=await GenesisImageManager.materializeCandidate(saved||model,model);
+    item.name=model.title||model.name||item.name;item.sourceUrl=modelPublicUrl(model)||url;item.sourceSite=model.source||compoundSourceLabel(item);
+    item.modelId=model.id||model.modelId||'';item.imageId=asset.imageId||saved?.imageId||item.imageId;
+    const remoteImage=[model.imageUrl,saved?.imageUrl,item.imageUrl].find(value=>/^https?:\/\//i.test(String(value||'')));item.imageUrl=remoteImage||'';
+    item.timeMinutes=profileTimeMinutes(profile)||item.timeMinutes;item.weightGrams=profileWeight(profile)||item.weightGrams;
+    if(!compoundPrimaryComponentId&&item.imageId)await setCompoundPrimary(item);else renderCompoundComponents();
+    updateCompoundTotals();saveActiveDraft('compound-import');showToast('Peça importada com sucesso',true);
+  }catch(error){genesisLog('compound.import.error',{url,error},'warn');showToast(error?.message||'Não foi possível importar este modelo.');}
+  finally{button.disabled=false;button.textContent='Importar link';}
+}
+document.getElementById('calcModeSimple')?.addEventListener('click',()=>setCalculationType('simple'));
+document.getElementById('calcModeCompound')?.addEventListener('click',()=>setCalculationType('compound'));
+document.getElementById('btnAddCompoundComponent')?.addEventListener('click',()=>{compoundComponents.push(newCompoundComponent());renderCompoundComponents();persistLastCalc();});
+document.getElementById('compoundComponents')?.addEventListener('input',event=>{
+  const card=event.target.closest('[data-component-id]'),item=compoundComponents.find(x=>x.id===card?.dataset.componentId);if(!item)return;
+  const field=event.target.dataset.compField;if(field){if(field==='weightGrams')item[field]=Math.max(0,parseFloat(String(event.target.value).replace(',','.'))||0);else if(field==='quantity')item[field]=Math.max(1,parseInt(event.target.value,10)||1);else item[field]=event.target.value;}
+  if(event.target.matches('[data-comp-hours],[data-comp-minutes]')){const h=Math.max(0,parseInt(card.querySelector('[data-comp-hours]').value,10)||0),m=Math.max(0,parseInt(card.querySelector('[data-comp-minutes]').value,10)||0);item.timeMinutes=h*60+m;}
+  updateCompoundTotals();
+});
+document.getElementById('compoundComponents')?.addEventListener('click',async event=>{
+  const card=event.target.closest('[data-component-id]'),item=compoundComponents.find(x=>x.id===card?.dataset.componentId);if(!item)return;
+  if(event.target.closest('[data-comp-import]'))await importCompoundComponent(item,event.target.closest('[data-comp-import]'));
+  if(event.target.closest('[data-comp-primary]'))await setCompoundPrimary(item);
+  if(event.target.closest('[data-comp-remove]')){compoundComponents=compoundComponents.filter(x=>x.id!==item.id);releaseCompoundThumb(item.id);if(compoundPrimaryComponentId===item.id)compoundPrimaryComponentId=null;renderCompoundComponents();updateCompoundTotals();saveActiveDraft('compound-remove');}
+});
+document.getElementById('compoundComponents')?.addEventListener('change',async event=>{
+  if(!event.target.matches('[data-comp-file]'))return;const card=event.target.closest('[data-component-id]'),item=compoundComponents.find(x=>x.id===card?.dataset.componentId),file=event.target.files?.[0];if(!item||!file)return;
+  try{const asset=await importImageFileToMedia(file,{existingId:item.imageId,sourceType:'compound-component',sourceUrl:item.sourceUrl});item.imageId=asset.imageId;item.imageUrl='';if(!compoundPrimaryComponentId)compoundPrimaryComponentId=item.id;renderCompoundComponents();persistLastCalc();saveActiveDraft('compound-photo');showToast('Imagem da peça adicionada',true);}catch(error){showToast('Não foi possível carregar essa imagem.');}finally{event.target.value='';}
+});
 function recalc(){
   const f = getSelectedFilament();
   const fpk = f ? pricePerKg(f) : 0;
@@ -6511,19 +6680,28 @@ function recalc(){
   }
   document.getElementById('errTempo').style.display='none';
 
-  const T = getTimeHours();
+  const compoundTotals=aggregateCompoundComponents();
+  const T = calculationType==='compound'?compoundTotals.timeMinutes/60:getTimeHours();
   const pesoRaw = inPeso.value.trim();
-  const peso = pesoRaw===''? 0 : parseFloat(pesoRaw);
+  const peso = calculationType==='compound'?compoundTotals.weightGrams:(pesoRaw===''? 0 : parseFloat(pesoRaw));
   const qtdRaw = inQtd.value.trim();
   const qty = qtdRaw===''? 1 : parseFloat(qtdRaw);
+
+  if(calculationType==='compound'&&(compoundComponents.length<2||compoundValidComponents().length!==compoundComponents.length)){
+    lastResult=null;const msg='Adicione pelo menos duas peças com tempo e peso.';
+    const compoundError=document.getElementById('compoundError');if(compoundError){compoundError.style.display='block';compoundError.textContent=msg;}
+    renderBlockingError(msg);persistLastCalc();return;
+  }
 
   const r = calculate({T, pesoG:peso, qty, filamentPriceKg:fpk, cfg});
   lastResult = r;
   if(!r.ok){
-    const msg = r.errors.tempo || r.errors.peso || r.errors.qtd || r.errors.filamento || r.errors.falha;
+    const msg = calculationType==='compound'&&(compoundComponents.length<2||compoundValidComponents().length!==compoundComponents.length)?'Adicione pelo menos duas peças com tempo e peso.':(r.errors.tempo || r.errors.peso || r.errors.qtd || r.errors.filamento || r.errors.falha);
+    const compoundError=document.getElementById('compoundError');if(compoundError){compoundError.style.display=calculationType==='compound'?'block':'none';compoundError.textContent=msg;}
     renderBlockingError(msg);
     return;
   }
+  const compoundError=document.getElementById('compoundError');if(compoundError)compoundError.style.display='none';
   renderResults(r);
   persistLastCalc();
 }
@@ -6611,7 +6789,10 @@ function persistLastCalc(){
     peso:inPeso.value, qtd:inQtd.value, produto:inProduto.value, filamentId: f?f.id:null,
     observacoes: document.getElementById('inObservacoes').value,
     linkImpressao: document.getElementById('inLinkImpressao').value,
-    imageId:currentPhotoImageId||null
+    imageId:currentPhotoImageId||null,
+    calculationType,
+    components:cloneCompoundComponents(),
+    primaryComponentId:compoundPrimaryComponentId||null
   }));
 }
 function restoreLastCalc(){
@@ -6623,6 +6804,9 @@ function restoreLastCalc(){
     inPeso.value = d.peso||''; inQtd.value = d.qtd||'1'; inProduto.value = d.produto||'';
     document.getElementById('inObservacoes').value = d.observacoes||'';
     document.getElementById('inLinkImpressao').value = d.linkImpressao||'';
+    compoundComponents=cloneCompoundComponents(d.components||[]);
+    compoundPrimaryComponentId=d.primaryComponentId||compoundComponents.find(item=>item.imageId)?.id||null;
+    setCalculationType(d.calculationType==='compound'?'compound':'simple',{ensure:d.calculationType==='compound',recalculate:false});
     if(d.imageId){
       currentPhotoImageId=d.imageId;
       mediaGetObjectUrl(d.imageId).then(url=>{if(url)setPhoto(url,d.imageId);});
@@ -6750,7 +6934,8 @@ document.getElementById('btnConfirmSaveCalc').addEventListener('click', async ()
     filamentName: f?f.name:'—',
     timeMode: cfg.lastTimeMode,
     horas: inHoras.value, minutos: inMinutos.value, decimal: inDecimal.value,
-    T: r.T, pesoG: parseFloat(inPeso.value)||0, qty: parseFloat(inQtd.value)||1,
+    T: r.T, pesoG: calculationType==='compound'?aggregateCompoundComponents().weightGrams:(parseFloat(inPeso.value)||0), qty: parseFloat(inQtd.value)||1,
+    calculationType,components:cloneCompoundComponents(),primaryComponentId:compoundPrimaryComponentId||null,
     custoUnitario: r.custoUnitario,
     precoDiretoUnit: getEffectiveDirectUnit(), precoShopeeUnit: getEffectiveShopeeUnit(),
     precoDiretoSugerido: r.precoDiretoUnit ?? null, precoShopeeSugerido: r.precoShopeeUnit ?? null,
@@ -6865,7 +7050,10 @@ function captureInternalSnapshot(){
     minutos:inMinutos.value,
     decimal:inDecimal.value,
     timeHours:r.T,
-    pesoG:parseFloat(inPeso.value)||0,
+    pesoG:calculationType==='compound'?aggregateCompoundComponents().weightGrams:(parseFloat(inPeso.value)||0),
+    calculationType,
+    components:cloneCompoundComponents(),
+    primaryComponentId:compoundPrimaryComponentId||null,
     qty:parseInt(inQtd.value,10)||1,
     custoUnitario:r.custoUnitario,
     custoFilamento:r.custoFilamento,
@@ -7023,65 +7211,51 @@ function genesisInitMoneyFields(root=document){
 queueMicrotask(()=>genesisInitMoneyFields());
 
 /* ---------- iPhone keyboard-aware forms ---------- */
-let genesisFocusedField=null;
-function genesisActiveScrollable(){
-  const top=genesisLayerStack?.at?.(-1);
-  const sheet=top?document.getElementById(top.sheetId):null;
-  return sheet?.querySelector(':scope > .sheet-scroll-content')||document.scrollingElement||document.documentElement;
+let genesisFocusedField=null,genesisKeyboardRaf=0,genesisKeyboardTimer=0;
+let genesisLayoutViewportHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0);
+function genesisActiveScrollable(el=genesisFocusedField){
+  return el?.closest?.('.sheet-scroll-content,[data-keyboard-scroll]')||document.scrollingElement||document.documentElement;
+}
+function genesisViewportMetrics(){
+  const vv=window.visualViewport,layout=Math.max(genesisLayoutViewportHeight,window.innerHeight||0,document.documentElement.clientHeight||0);
+  const top=Math.max(0,vv?.offsetTop||0),height=Math.max(1,vv?.height||window.innerHeight||layout);
+  const keyboard=Math.max(0,layout-height-top);
+  return {top,height,bottom:top+height,keyboard,open:keyboard>80};
 }
 function genesisRevealFocusedField(){
-  const el=genesisFocusedField;
-  if(!el||!document.contains(el))return;
-  const vv=window.visualViewport;
-  const visibleTop=(vv?.offsetTop||0)+72;
-  const visibleBottom=(vv?.offsetTop||0)+(vv?.height||window.innerHeight)-24;
-  const r=el.getBoundingClientRect();
-  if(r.top<visibleTop||r.bottom>visibleBottom){
-    el.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
-  }
+  const el=genesisFocusedField;if(!el||!document.contains(el)||!genesisIsNativeEditable(el))return;
+  const viewport=genesisViewportMetrics(),rect=el.getBoundingClientRect();
+  const topMargin=el.closest('.sheet')?82:14,bottomMargin=14;
+  const safeTop=viewport.top+topMargin,safeBottom=viewport.bottom-bottomMargin;
+  let delta=0;if(rect.bottom>safeBottom)delta=rect.bottom-safeBottom;else if(rect.top<safeTop)delta=rect.top-safeTop;
+  if(Math.abs(delta)<2)return;
+  const scroller=genesisActiveScrollable(el);
+  if(scroller===document.scrollingElement||scroller===document.documentElement||scroller===document.body)window.scrollBy({top:delta,left:0,behavior:'auto'});
+  else scroller.scrollTop+=delta;
 }
-document.addEventListener('focusin',e=>{
-  const el=e.target;
-  if(!el.matches('input,textarea,select,[contenteditable="true"]'))return;
-  genesisFocusedField=el;
-  el.classList.add('genesis-keyboard-focus');
-  const top=genesisLayerStack?.at?.(-1);
-  const sheet=top?document.getElementById(top.sheetId):el.closest('.sheet');
-  if(sheet?.classList.contains('open'))sheet.classList.add('keyboard-visible');
-  setTimeout(genesisRevealFocusedField,100);
-  setTimeout(genesisRevealFocusedField,320);
-});
-document.addEventListener('focusout',e=>{
-  e.target?.classList?.remove('genesis-keyboard-focus');
-  setTimeout(()=>{
-    const active=document.activeElement;
-    const stillEditing=active&&active.matches&&active.matches('input,textarea,select,[contenteditable="true"]');
-    if(!stillEditing){
-      genesisFocusedField=null;
-      document.documentElement.style.setProperty('--genesis-keyboard-height','0px');
-      document.querySelectorAll('.sheet.keyboard-visible').forEach(sh=>{
-        sh.classList.remove('keyboard-visible');
-        sh.style.removeProperty('--genesis-sheet-keyboard-height');
-      });
-    }
-  },180);
-});
+function scheduleGenesisFieldReveal(delay=0){
+  clearTimeout(genesisKeyboardTimer);cancelAnimationFrame(genesisKeyboardRaf);
+  genesisKeyboardTimer=setTimeout(()=>{genesisKeyboardRaf=requestAnimationFrame(genesisRevealFocusedField);},delay);
+}
 function genesisKeyboardViewportUpdate(){
-  const vv=window.visualViewport;
-  const keyboard=Math.max(0,window.innerHeight-(vv?.height||window.innerHeight)-(vv?.offsetTop||0));
-  document.documentElement.style.setProperty('--genesis-keyboard-height',keyboard+'px');
-  document.querySelectorAll('.sheet.open').forEach(s=>{
-    const full=keyboard>80;
-    s.classList.toggle('keyboard-visible',full);
-    if(full)s.style.setProperty('--genesis-sheet-keyboard-height',keyboard+'px');
-    else s.style.removeProperty('--genesis-sheet-keyboard-height');
-  });
-  if(keyboard>80){
-    requestAnimationFrame(()=>setTimeout(genesisRevealFocusedField,40));
-    setTimeout(genesisRevealFocusedField,220);
-  }
+  updateGenesisVisualViewport();const metrics=genesisViewportMetrics();
+  if(!metrics.open)genesisLayoutViewportHeight=Math.max(genesisLayoutViewportHeight,window.innerHeight||0,document.documentElement.clientHeight||0);
+  document.documentElement.style.setProperty('--genesis-keyboard-height',`${Math.round(metrics.keyboard)}px`);
+  document.querySelectorAll('.sheet.open').forEach(sheet=>sheet.classList.toggle('keyboard-visible',metrics.open&&!!genesisFocusedField?.closest('.sheet')));
+  if(metrics.open&&genesisFocusedField)scheduleGenesisFieldReveal(45);
 }
-window.visualViewport?.addEventListener('resize',genesisKeyboardViewportUpdate);
+document.addEventListener('focusin',event=>{
+  if(!genesisIsNativeEditable(event.target))return;
+  genesisFocusedField=event.target;event.target.classList.add('genesis-keyboard-focus');
+  genesisKeyboardViewportUpdate();scheduleGenesisFieldReveal(160);
+},true);
+document.addEventListener('focusout',event=>{
+  event.target?.classList?.remove('genesis-keyboard-focus');
+  setTimeout(()=>{if(genesisIsNativeEditable(document.activeElement)){genesisFocusedField=document.activeElement;return;}genesisFocusedField=null;document.documentElement.style.setProperty('--genesis-keyboard-height','0px');document.querySelectorAll('.sheet.keyboard-visible').forEach(sheet=>sheet.classList.remove('keyboard-visible'));updateGenesisVisualViewport();repairGenesisBottomNav();},120);
+},true);
+window.visualViewport?.addEventListener('resize',genesisKeyboardViewportUpdate,{passive:true});
+window.addEventListener('orientationchange',()=>setTimeout(()=>{genesisLayoutViewportHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,window.visualViewport?.height||0);genesisKeyboardViewportUpdate();},180),{passive:true});
+window.addEventListener('resize',()=>{if(!genesisFocusedField){genesisLayoutViewportHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,window.visualViewport?.height||0);}}, {passive:true});
 
 /* ---------- Genesis ImageManager: uma única fonte de imagem para todos os fluxos ---------- */
 const GenesisImageManager={
@@ -7559,6 +7733,9 @@ async function openGenesisRecordInCalculator(record,type){
   saveActiveDraft('before-full-record-edit');
   genesisCalculatorEditContext={type,id:record.id,startedAt:Date.now()};
   const snapshot=record.internalSnapshot||{};
+  compoundComponents=cloneCompoundComponents(snapshot.components||record.components||[]);
+  compoundPrimaryComponentId=snapshot.primaryComponentId||record.primaryComponentId||compoundComponents.find(item=>item.imageId)?.id||null;
+  setCalculationType(snapshot.calculationType||record.calculationType||'simple',{ensure:false,recalculate:false});
   setTimeMode(snapshot.timeMode||'hhmm',false);
   const totalHours=Number(snapshot.timeHours)||0;
   inHoras.value=snapshot.horas!==undefined?String(snapshot.horas):(totalHours?String(Math.floor(totalHours)):'');
@@ -7586,7 +7763,8 @@ async function openGenesisRecordInCalculator(record,type){
   document.getElementById('manualDirectPrice').value=directManual!=null?String(directManual).replace('.',','):'';
   document.getElementById('manualShopeePrice').value=shopeeManual!=null?String(shopeeManual).replace('.',','):'';
   setPhoto(null,null);
-  const imageId=record.imageId||snapshot.imageId||null;
+  const primaryComponent=compoundComponents.find(item=>item.id===compoundPrimaryComponentId)||compoundComponents.find(item=>item.imageId);
+  const imageId=record.imageId||snapshot.imageId||primaryComponent?.imageId||null;
   if(imageId){const url=await mediaGetObjectUrl(imageId);if(url)setPhoto(url,imageId);}
   recalc();persistLastCalc();refreshGenesisCalculatorEditBanner();showScreen('calc');
   saveActiveDraft('full-record-edit-opened');
@@ -7740,6 +7918,9 @@ async function saveQuoteFromComposer(showSuccess){
       : null,
     notes:document.getElementById('qNotes').value.trim(),
     availableColors:normalizedQuoteColors(activeQuoteColors),
+    calculationType:(activeQuoteInternalSnapshot||existing?.internalSnapshot)?.calculationType||'simple',
+    components:cloneCompoundComponents((activeQuoteInternalSnapshot||existing?.internalSnapshot)?.components||existing?.components||[]),
+    primaryComponentId:(activeQuoteInternalSnapshot||existing?.internalSnapshot)?.primaryComponentId||existing?.primaryComponentId||null,
     messageOverride:quoteMessageDirty ? getQuoteMessage() : '',
     status:document.getElementById('qStatus').value||'waiting',
     pricingSnapshot:{...activeQuotePricing,directUnit:activeQuotePricing.directUnit||0,shopeeUnit:activeQuotePricing.shopeeUnit||0},
@@ -7770,7 +7951,8 @@ function quoteVisualKey(q){
     unitPrice:Number(q?.unitPrice)||0,total:Number(q?.total)||0,freight:Number(q?.freight)||0,
     deadlineDays:Number(q?.deadlineDays)||7,validityDays:Number(q?.validityDays)||7,
     imageId:q?.imageId||'',imageUrl:q?.imageUrl||'',imageDataUrl:(q?.imageDataUrl||'').slice(0,80),
-    availableColors:quoteColorLabels(q?.availableColors).join('|')
+    availableColors:quoteColorLabels(q?.availableColors).join('|'),
+    components:cloneCompoundComponents(q?.components||q?.internalSnapshot?.components||[]).map(item=>[item.id,item.imageId,item.quantity]).flat().join('|')
   });
 }
 function quoteSnapshotFromComposer(){
@@ -7789,7 +7971,10 @@ function quoteSnapshotFromComposer(){
     imageDataUrl:activeQuoteDraftPhotoDataUrl||existing?.imageDataUrl||'',
     shopeeLink:document.getElementById('qShopeeLink').value.trim(),
     notes:document.getElementById('qNotes').value.trim(),
-    availableColors:normalizedQuoteColors(activeQuoteColors)
+    availableColors:normalizedQuoteColors(activeQuoteColors),
+    calculationType:(activeQuoteInternalSnapshot||existing?.internalSnapshot)?.calculationType||'simple',
+    components:cloneCompoundComponents((activeQuoteInternalSnapshot||existing?.internalSnapshot)?.components||existing?.components||[]),
+    primaryComponentId:(activeQuoteInternalSnapshot||existing?.internalSnapshot)?.primaryComponentId||existing?.primaryComponentId||null,
   };
 }
 function updateIndividualShareButton(){
@@ -7870,6 +8055,20 @@ async function canvasDrawAvailableColorHats(ctx,colors,x,y,width){
   ctx.textAlign='left';
   return height;
 }
+async function canvasDrawCompoundImages(ctx,q,x,y,w,h,radius){
+  const components=cloneCompoundComponents(q?.components||q?.internalSnapshot?.components||[]).filter(item=>item.imageId||item.imageUrl).slice(0,4);
+  if(q?.calculationType!=='compound'&&q?.internalSnapshot?.calculationType!=='compound'||components.length<2)return false;
+  const loaded=[];for(const item of components){const image=await canvasImageFromAsset(item.imageId,item.imageUrl||'');if(image)loaded.push(image);}
+  if(loaded.length<2)return false;
+  ctx.save();canvasRoundRect(ctx,x,y,w,h,radius,false,false);ctx.clip();ctx.fillStyle='#10131e';ctx.fillRect(x,y,w,h);
+  const gap=6,cells=loaded.length===2?[[x,y,(w-gap)/2,h],[x+(w+gap)/2,y,(w-gap)/2,h]]:
+    loaded.length===3?[[x,y,(w-gap)/2,h],[x+(w+gap)/2,y,(w-gap)/2,(h-gap)/2],[x+(w+gap)/2,y+(h+gap)/2,(w-gap)/2,(h-gap)/2]]:
+    [[x,y,(w-gap)/2,(h-gap)/2],[x+(w+gap)/2,y,(w-gap)/2,(h-gap)/2],[x,y+(h+gap)/2,(w-gap)/2,(h-gap)/2],[x+(w+gap)/2,y+(h+gap)/2,(w-gap)/2,(h-gap)/2]];
+  loaded.forEach((image,index)=>{const cell=cells[index];canvasDrawCover(ctx,image,...cell,0);});ctx.restore();
+  const total=cloneCompoundComponents(q?.components||q?.internalSnapshot?.components||[]).filter(item=>item.imageId||item.imageUrl).length;
+  if(total>4){ctx.fillStyle='rgba(0,0,0,.72)';canvasRoundRect(ctx,x+w-76,y+h-50,62,36,10,true,false);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='800 18px -apple-system,Arial';ctx.fillText('+'+(total-4),x+w-45,y+h-25);}
+  return true;
+}
 async function createIndividualQuoteCanvas(q){
   // Usa exatamente o mesmo resolvedor de imagem do orçamento de kit.
   if(!q.imageId)q.imageId=await GenesisImageManager.attach(q);
@@ -7907,9 +8106,11 @@ async function createIndividualQuoteCanvas(q){
 
   const leftX=58,leftY=232,leftW=522,leftH=562;
   ctx.fillStyle='rgba(13,14,26,.96)';canvasRoundRect(ctx,leftX,leftY,leftW,leftH,18,true,false);
-  const img=await canvasImageFromAsset(q.imageId,q.imageDataUrl||q.imageUrl||q.productImage||'');
   const imageX=leftX+18,imageY=leftY+55,imageW=leftW-36,imageH=414;
-  if(img)canvasDrawCover(ctx,img,imageX,imageY,imageW,imageH,18);
+  const drewCompound=await canvasDrawCompoundImages(ctx,q,imageX,imageY,imageW,imageH,18);
+  const img=drewCompound?null:await canvasImageFromAsset(q.imageId,q.imageDataUrl||q.imageUrl||q.productImage||'');
+  if(drewCompound){}
+  else if(img)canvasDrawCover(ctx,img,imageX,imageY,imageW,imageH,18);
   else{
     ctx.fillStyle='#171225';canvasRoundRect(ctx,imageX,imageY,imageW,imageH,18,true,false);
     ctx.fillStyle='#b45cff';ctx.textAlign='center';ctx.font='900 94px -apple-system,Arial';
@@ -8957,6 +9158,9 @@ async function saveOrderFromForm(showSuccess){
     items:existing?.items||[{id:uid('item'),productName:document.getElementById('oProduct').value.trim(),variation:'',qty,unitPrice:isShopeeManual&&shopeeManual.gross>0?round2(shopeeManual.gross/Math.max(1,qty)):unitPrice,subtotal:isShopeeManual&&shopeeManual.gross>0?round2(shopeeManual.gross):round2(unitPrice*qty),sku:'',shopeeItemId:'',linkedModelId:null}],
     source:existing?.source||'manual',
     pricingSnapshot:activeOrderPricing||existing?.pricingSnapshot,
+    calculationType:(activeOrderInternalSnapshot||existing?.internalSnapshot)?.calculationType||existing?.calculationType||'simple',
+    components:cloneCompoundComponents((activeOrderInternalSnapshot||existing?.internalSnapshot)?.components||existing?.components||[]),
+    primaryComponentId:(activeOrderInternalSnapshot||existing?.internalSnapshot)?.primaryComponentId||existing?.primaryComponentId||null,
     internalSnapshot:(()=>{
       const snapshot=activeOrderInternalSnapshot||existing?.internalSnapshot||captureInternalSnapshot();
       if(snapshot&&!snapshot.imageId)snapshot.imageId=imageId||existing?.imageId||null;
@@ -9075,6 +9279,9 @@ async function convertQuoteToOrder(q){
     items:[{id:uid('item'),productName:q.productName||'Produto',variation:'',qty:q.qty||1,unitPrice:q.unitPrice||0,subtotal:round2((q.unitPrice||0)*(q.qty||1)),sku:'',shopeeItemId:'',linkedModelId:null}],
     source:'quote',
     pricingSnapshot:q.pricingSnapshot||{directUnit:q.saleType==='direct'?q.unitPrice:0,shopeeUnit:q.saleType==='shopee'?q.unitPrice:0},
+    calculationType:q.calculationType||orderSnapshot.calculationType||'simple',
+    components:cloneCompoundComponents(q.components||orderSnapshot.components||[]),
+    primaryComponentId:q.primaryComponentId||orderSnapshot.primaryComponentId||null,
     internalSnapshot:orderSnapshot,
     originQuoteId:q.id,
     originQuoteSeq:q.seq
@@ -9619,6 +9826,9 @@ function resetCalculatorForNewQuote(){
   if(photoInput)photoInput.value='';
   setPhoto(null);
   currentPhotoDataUrl=null;
+  compoundComponents=[];
+  compoundPrimaryComponentId=null;
+  setCalculationType('simple',{ensure:false,recalculate:false});
   lastResult=null;
   try{sessionStorage.removeItem('genesisSelectedModel');}catch(e){}
   try{store.remove?.(KEYS.LASTCALC);}catch(e){try{localStorage.removeItem(KEYS.LASTCALC);}catch(_){}}
@@ -10581,7 +10791,7 @@ async function openHistoryDetail(id){
   document.getElementById('hdTitle').textContent=h.productName||'Peça sem nome';
   const d=new Date(h.createdAt);
   document.getElementById('hdDate').textContent=d.toLocaleDateString('pt-BR')+' às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  const tempoTxt=h.timeMode==='decimal'?(parseFloat(h.decimal||0)).toLocaleString('pt-BR')+' h':(h.horas||0)+'h '+(h.minutos||0)+'min';
+  const tempoTxt=(h.calculationType==='compound'||h.internalSnapshot?.calculationType==='compound')?formatMinutes(Math.round(Number(h.T||h.internalSnapshot?.timeHours||0)*60)):(h.timeMode==='decimal'?(parseFloat(h.decimal||0)).toLocaleString('pt-BR')+' h':(h.horas||0)+'h '+(h.minutos||0)+'min');
   let extra='';
   let photoSrc=h.photoDataUrl||'';
   if(!photoSrc&&h.imageId) photoSrc=await mediaGetObjectUrl(h.imageId);
@@ -10608,6 +10818,7 @@ async function openHistoryDetail(id){
     ['Preço Shopee',h.precoShopeeUnit!=null?fmtBRL(h.precoShopeeUnit):'—'],
     ['Lucro Shopee',h.lucroShopeeUnit!=null?fmtBRL(h.lucroShopeeUnit):'—'],
   ].map(([k,v])=>'<div class="detail-row"><span>'+k+'</span><b>'+v+'</b></div>').join('')+
+  ((h.calculationType==='compound'||h.internalSnapshot?.calculationType==='compound')?'<div class="detail-row"><span>Composição</span><b>'+cloneCompoundComponents(h.components||h.internalSnapshot?.components||[]).length+' peças</b></div>':'')+
   (h.observacoes?'<div class="detail-row" style="display:block;"><span>Observações</span><p style="margin:6px 0 0;color:var(--text);font-size:13px;line-height:1.5;">'+escapeHtml(h.observacoes)+'</p></div>':'');
   document.getElementById('hdPhoto')?.addEventListener('click',()=>{
     if(h.imageId)openImageViewer({imageId:h.imageId});else if(h.photoDataUrl)openImageViewer({dataUrl:h.photoDataUrl});
@@ -10618,6 +10829,9 @@ async function openHistoryDetail(id){
 }
 document.getElementById('btnHdReuse').addEventListener('click',async()=>{
   const h=history.find(x=>x.id===openHistoryId);if(!h)return;
+  compoundComponents=cloneCompoundComponents(h.components||h.internalSnapshot?.components||[]);
+  compoundPrimaryComponentId=h.primaryComponentId||h.internalSnapshot?.primaryComponentId||compoundComponents.find(item=>item.imageId)?.id||null;
+  setCalculationType(h.calculationType||h.internalSnapshot?.calculationType||'simple',{ensure:false,recalculate:false});
   setTimeMode(h.timeMode||'hhmm',false);
   inHoras.value=h.horas||'';inMinutos.value=h.minutos||'';inDecimal.value=h.decimal||'';
   inPeso.value=h.pesoG||'';inQtd.value=h.qty||1;inProduto.value=h.productName||'';
@@ -11833,7 +12047,7 @@ function saveActiveDraft(reason='autosave'){
       reason,
       screen:currentPrimaryScreen(),
       sheetId:openSheetId,
-      calc:{imageId:currentPhotoImageId||null},
+      calc:{imageId:currentPhotoImageId||null,calculationType,components:cloneCompoundComponents(),primaryComponentId:compoundPrimaryComponentId||null},
       quote:{
         active:openSheetId==='sheetCopy',
         editId:quoteEditId||null,
@@ -11842,13 +12056,15 @@ function saveActiveDraft(reason='autosave'){
         saleType:quoteState.saleType,
         freightType:quoteState.freightType,
         messageDirty:quoteMessageDirty,
-        availableColors:normalizedQuoteColors(activeQuoteColors)
+        availableColors:normalizedQuoteColors(activeQuoteColors),
+        internalSnapshot:activeQuoteInternalSnapshot?JSON.parse(JSON.stringify(activeQuoteInternalSnapshot)):null
       },
       order:{
         active:openSheetId==='sheetOrderForm',
         editId:orderEditId||null,
         values:genesisReadFields(GENESIS_ORDER_DRAFT_FIELDS),
-        imageId:activeOrderImageId||null
+        imageId:activeOrderImageId||null,
+        internalSnapshot:activeOrderInternalSnapshot?JSON.parse(JSON.stringify(activeOrderInternalSnapshot)):null
       },
       orderQuick:{
         active:openSheetId==='sheetOrderDetail',
@@ -11868,6 +12084,7 @@ async function restoreActiveDraft({reopen=true}={}){
   try{
     const draft=JSON.parse(store.get(GENESIS_DRAFT_KEY)||'null');
     if(!draft||Date.now()-Number(draft.updatedAt||0)>7*24*60*60*1000)return false;
+    if(draft.calc?.calculationType){compoundComponents=cloneCompoundComponents(draft.calc.components||[]);compoundPrimaryComponentId=draft.calc.primaryComponentId||null;setCalculationType(draft.calc.calculationType,{ensure:false,recalculate:false});}
     if(draft.calc?.imageId){
       const url=await mediaGetObjectUrl(draft.calc.imageId);
       if(url)setPhoto(url,draft.calc.imageId);
@@ -11886,6 +12103,7 @@ async function restoreActiveDraft({reopen=true}={}){
       activeQuoteDraftPhotoDataUrl=null;
       quoteState={saleType:draft.quote.saleType||'direct',freightType:draft.quote.freightType||'pending'};
       quoteMessageDirty=!!draft.quote.messageDirty;
+      activeQuoteInternalSnapshot=draft.quote.internalSnapshot||captureInternalSnapshot();
       activeQuoteColors=normalizedQuoteColors(draft.quote.availableColors);
       renderQuoteColorPicker();
       refreshQuoteUI();
@@ -11895,6 +12113,7 @@ async function restoreActiveDraft({reopen=true}={}){
       orderEditId=draft.order.editId||null;
       activeOrderImageId=draft.order.imageId||null;
       activeOrderDraftPhotoDataUrl=null;
+      activeOrderInternalSnapshot=draft.order.internalSnapshot||captureInternalSnapshot();
       refreshOrderForm();
       if(reopen&&!document.getElementById('sheetOrderForm').classList.contains('open'))openSheet('ovOrderForm','sheetOrderForm');
     }
