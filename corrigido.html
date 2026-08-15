@@ -12271,7 +12271,7 @@ if('serviceWorker' in navigator){
   });
   window.addEventListener('load', async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register('service-worker.js');
+      const registration=await navigator.serviceWorker.register('service-worker.js',{updateViaCache:'none'});
       offerGenesisUpdate(registration);
       registration.addEventListener('updatefound',()=>{
         const installing=registration.installing;
@@ -12279,6 +12279,7 @@ if('serviceWorker' in navigator){
           if(installing.state==='installed'&&navigator.serviceWorker.controller)offerGenesisUpdate(registration);
         });
       });
+      await registration.update();
       navigator.serviceWorker.controller?.postMessage({type:'GET_VERSION'});
     }catch(error){genesisLog('service-worker.registration-error',{error},'error');}
   });
