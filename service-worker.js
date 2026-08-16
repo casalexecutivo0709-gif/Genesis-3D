@@ -1,5 +1,5 @@
 // A versão também faz parte da URL para o Safari não reutilizar um import antigo.
-importScripts('./genesis-version.js?v=20260816.1');
+importScripts('./genesis-version.js?v=20260816.2');
 
 const APP_VERSION=self.GenesisVersion.APP_VERSION;
 const CACHE_VERSION=self.GenesisVersion.CACHE_VERSION;
