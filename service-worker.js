@@ -1,5 +1,5 @@
 // A versão também faz parte da URL para o Safari não reutilizar um import antigo.
-importScripts('./genesis-version.js?v=20260815.1');
+importScripts('./genesis-version.js?v=20260816.1');
 
 const APP_VERSION=self.GenesisVersion.APP_VERSION;
 const CACHE_VERSION=self.GenesisVersion.CACHE_VERSION;
@@ -10,9 +10,20 @@ const CORE=['./','./index.html','./corrigido.html','./manifest.json','./genesis-
 const CORE_PATHS=new Set(CORE.map(path=>new URL(path,self.location.href).pathname));
 const MAX_RUNTIME_ENTRIES=60;
 
-self.addEventListener('install',event=>event.waitUntil(
-  caches.open(STATIC_CACHE).then(cache=>Promise.all(CORE.map(url=>cache.add(url).catch(error=>console.warn('[Genesis cache]',url,error)))))
-));
+async function precacheCore(){
+  const cache=await caches.open(STATIC_CACHE);
+  await Promise.all(CORE.map(async url=>{
+    try{
+      // O Safari pode manter a resposta HTTP antiga mesmo ao criar um cache
+      // novo. `reload` força a origem a fornecer o arquivo desta versão.
+      const response=await fetch(new Request(url,{cache:'reload'}));
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      await cache.put(url,response);
+    }catch(error){console.warn('[Genesis cache]',url,error);}
+  }));
+}
+
+self.addEventListener('install',event=>event.waitUntil(precacheCore()));
 
 self.addEventListener('activate',event=>event.waitUntil(
   caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('genesis3d-')&&!([STATIC_CACHE,RUNTIME_CACHE].includes(key))).map(key=>caches.delete(key))))
@@ -31,12 +42,13 @@ async function trimRuntimeCache(){
 
 async function navigationResponse(request){
   const cache=await caches.open(STATIC_CACHE),cached=await cache.match('./corrigido.html');
-  if(cached)return cached;
   try{
-    const response=await fetch(request);
+    // Online, confirme a página na origem antes de usar o shell offline. Isso
+    // impede que uma versão antiga do HTML sobreviva a uma troca de cache.
+    const response=await fetch(new Request(request,{cache:'reload'}));
     if(response?.ok)await cache.put('./corrigido.html',response.clone());
     return response;
-  }catch(error){return (await caches.match(request))||(await caches.match('./corrigido.html'));}
+  }catch(error){return cached||(await caches.match(request))||(await caches.match('./corrigido.html'));}
 }
 
 async function staticResponse(request){
